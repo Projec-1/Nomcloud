@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Users, Plus, Pencil, Trash as Trash2, Upload, FileXls as FileSpreadsheet } from '@phosphor-icons/react'
+import { Users, Plus, Pencil, Trash as Trash2, Upload, FileXls as FileSpreadsheet, CaretUp, CaretDown } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import PageHeader from '@/components/ui/PageHeader'
@@ -45,58 +45,37 @@ import { IMAGE_ACCEPT, prepareImage } from '@/lib/imageUpload'
 import { BUCKETS, createSignedImageUrls, removeStudentPhoto, replaceStudentPhoto } from '@/services/storageService'
 import { errorMessage, toError } from '@/utils/errorMessage'
 
-// ---------------------------------------------------------------------------
-// Phase 8 batch 8. Real students, enrolments and guardian links.
-//
-// A STUDENT HAS NO CLASS COLUMN. The prototype stored `classId` on the student
-// and filtered on it. SCHEMA_DESIGN gives students no such column because
-// enrolment is a time-scoped relation: changing a student's class writes
-// class_enrollments, closing the open row with `left_on` and opening a new one.
-// That is what the form does, and it is why the class field needs an academic
-// year to write against.
-//
-// A STUDENT HAS MANY GUARDIANS. The prototype carried a single `parentId`.
-// student_guardians is many-to-many by design, so the table shows every linked
-// guardian and the form adds one rather than replacing the set.
-//
-// THE CLASS-SIZE CAP IS GONE. The prototype enforced a 50-student limit in the
-// browser. classes.capacity is a real nullable column and is shown, but nothing
-// in the database enforces it, so pretending otherwise in the client would be a
-// rule that only exists where it cannot be relied on.
-//
-// PHOTOS. File storage build. students.photo_path names an object in the private
-// student-photos bucket; the list shows it through signed URLs fetched in one
-// request per load. Upload is offered only when editing an existing student,
-// because the object path contains the student's id, and it is saved at once
-// rather than with the form: once the file is in Storage, leaving the form
-// unsaved would orphan it.
-// ---------------------------------------------------------------------------
+// ===== CONSTANTS =====
+const ITEMS_PER_PAGE = 25
+
+type SortField = 'name' | 'admissionNo' | 'status' | 'none'
+type SortOrder = 'asc' | 'desc'
 
 const emptyForm = {
   name: '',
   admissionNo: '',
   classId: '',
-  // Database values, lower-case: students_gender_check allows exactly
-  // 'male', 'female' and 'other'. The prototype's 'Male'/'Female' were
-  // rejected by that constraint, which is what "Student not added" hid.
   gender: 'male',
   dateOfBirth: '',
   status: 'active',
   guardianId: '',
   guardianIsPrimary: false,
-  // C2: '' until chosen; required whenever a guardian is linked.
   guardianRelationship: '' as GuardianRelationship | '',
   newGuardianName: '',
   newGuardianEmail: '',
   newGuardianPhone: '',
-  // B1: invite the guardian as soon as they exist, without a second trip to
-  // the Guardians page. Only meaningful when there is an address to send to.
   inviteGuardian: false,
 }
 
-/** "Amina Yusuf (Mother)", or just the name when no relationship is recorded. */
 function guardianLabel(g: DirectoryStudent['guardians'][number]): string {
   return g.relationship ? `${g.name} (${g.relationship})` : g.name
+}
+
+/** Format guardian count for table display */
+function guardianDisplay(guardians: DirectoryStudent['guardians']): string {
+  if (guardians.length === 0) return '—'
+  if (guardians.length === 1) return `1 guardian`
+  return `${guardians.length} guardians`
 }
 
 export default function AdminStudents() {
@@ -109,14 +88,21 @@ export default function AdminStudents() {
   const timeZone = school?.timezone ?? DEFAULT_TIME_ZONE
   const activeYearId = academicState.status === 'ready' ? (academicState.data.activeYear?.id ?? '') : ''
 
+  // ===== DATA STATE =====
   const [students, setStudents] = useState<DirectoryStudent[]>([])
   const [guardians, setGuardians] = useState<GuardianRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [nonce, setNonce] = useState(0)
 
+  // ===== FILTER & SORT STATE =====
   const [search, setSearch] = useState('')
   const [classFilter, setClassFilter] = useState('all')
+  const [sortField, setSortField] = useState<SortField>('name')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // ===== MODAL & FORM STATE =====
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<DirectoryStudent | null>(null)
   const [form, setForm] = useState(emptyForm)
@@ -131,6 +117,7 @@ export default function AdminStudents() {
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
 
+  // ===== FETCH DATA =====
   useEffect(() => {
     let cancelled = false
     if (!schoolId) {
@@ -156,9 +143,14 @@ export default function AdminStudents() {
     }
   }, [schoolId, nonce])
 
+  // ===== FETCH PHOTOS =====
   useEffect(() => {
     let cancelled = false
     const paths = students.map((s) => s.photoPath).filter((p): p is string => p !== null)
+    if (paths.length === 0) {
+      setPhotoUrls(new Map())
+      return
+    }
     createSignedImageUrls(BUCKETS.studentPhotos, paths).then((urls) => {
       if (!cancelled) setPhotoUrls(urls)
     })
@@ -211,6 +203,7 @@ export default function AdminStudents() {
     retry: reload,
   })
 
+  // ===== FILTER & SORT LOGIC =====
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return students.filter((s) => {
@@ -221,6 +214,66 @@ export default function AdminStudents() {
     })
   }, [students, search, classFilter])
 
+  const sorted = useMemo(() => {
+    if (sortField === 'none') return filtered
+
+    const copy = [...filtered]
+    copy.sort((a, b) => {
+      let aVal: string | number = ''
+      let bVal: string | number = ''
+
+      if (sortField === 'name') {
+        aVal = a.name.toLowerCase()
+        bVal = b.name.toLowerCase()
+      } else if (sortField === 'admissionNo') {
+        aVal = a.admissionNo.toLowerCase()
+        bVal = b.admissionNo.toLowerCase()
+      } else if (sortField === 'status') {
+        aVal = a.status
+        bVal = b.status
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1
+      return 0
+    })
+    return copy
+  }, [filtered, sortField, sortOrder])
+
+  // ===== PAGINATION =====
+  const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE)
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE
+    return sorted.slice(start, start + ITEMS_PER_PAGE)
+  }, [sorted, currentPage])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, classFilter, sortField, sortOrder])
+
+  // ===== SORT HANDLER =====
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Toggle sort order if clicking same column
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      // New column, default to ascending
+      setSortField(field)
+      setSortOrder('asc')
+    }
+  }
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return null
+    return sortOrder === 'asc' ? (
+      <CaretUp className="inline h-3 w-3 ml-1" />
+    ) : (
+      <CaretDown className="inline h-3 w-3 ml-1" />
+    )
+  }
+
+  // ===== MODAL HANDLERS =====
   const openAdd = () => {
     setEditing(null)
     setForm({ ...emptyForm, classId: classes[0]?.id ?? '', guardianIsPrimary: true })
@@ -239,8 +292,6 @@ export default function AdminStudents() {
       dateOfBirth: student.dateOfBirth ?? '',
       status: student.status,
       guardianId: '',
-      // Primary is offered, not assumed: ticked only when the student has none,
-      // and when it is ticked the swap is explicit (SYSTEM_ISSUES_LIST S2).
       guardianIsPrimary: !student.guardians.some((g) => g.isPrimary),
       guardianRelationship: '',
       newGuardianName: '',
@@ -259,8 +310,6 @@ export default function AdminStudents() {
     const next: FieldErrors = {}
     if (!minLength(form.name, 2)) next.name = "Enter the student's full name."
     if (!minLength(form.admissionNo, 2)) next.admissionNo = 'Enter an admission number.'
-    // students_date_of_birth_check requires a date before today. ISO dates
-    // compare correctly as strings.
     if (form.dateOfBirth && form.dateOfBirth >= todayInTimeZone(timeZone)) {
       next.dateOfBirth = 'Date of birth must be before today.'
     }
@@ -295,7 +344,6 @@ export default function AdminStudents() {
       let studentId = editing?.id ?? ''
       if (editing) {
         await updateStudent(schoolId, editing.id, input)
-        // A class change is an enrolment change, not a column edit.
         if (form.classId !== (editing.classId ?? '')) {
           await endEnrolment(schoolId, editing.id, todayInTimeZone(timeZone))
           if (form.classId && activeYearId) {
@@ -309,10 +357,7 @@ export default function AdminStudents() {
         }
       }
 
-      // Both paths now report what actually happened. Nothing is swallowed: a
-      // refusal throws and lands in the catch below (SYSTEM_ISSUES_LIST S2).
       let guardianNote: string | undefined
-      // Which guardian the invitation, if asked for, should go to.
       let guardianId: string | null = null
       let guardianEmail: string | null = null
       if (guardianMode === 'existing' && form.guardianId) {
@@ -354,9 +399,6 @@ export default function AdminStudents() {
           : `${form.newGuardianName} was added as a guardian.`
       }
 
-      // The invitation goes through send-invitation, exactly as the Guardians
-      // page does — no second sending path. The student is already saved, so a
-      // refused invitation is reported on its own and never undoes the save.
       let inviteNote: string | undefined
       if (form.inviteGuardian && guardianId && schoolId) {
         try {
@@ -427,9 +469,19 @@ export default function AdminStudents() {
       >
         {() => (
           <>
+            {/* FILTERS */}
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <SearchInput value={search} onChange={setSearch} placeholder="Search by name or admission number…" className="sm:w-80" />
-              <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="sm:w-52">
+              <SearchInput 
+                value={search} 
+                onChange={setSearch} 
+                placeholder="Search by name or admission number…" 
+                className="sm:w-80" 
+              />
+              <Select 
+                value={classFilter} 
+                onChange={(e) => setClassFilter(e.target.value)} 
+                className="sm:w-52"
+              >
                 <option value="all">All Classes</option>
                 {classes.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -439,68 +491,112 @@ export default function AdminStudents() {
               </Select>
             </div>
 
+            {/* TABLE OR EMPTY STATE */}
             {filtered.length === 0 ? (
               <EmptyState icon={Users} title="No students found" description="Try adjusting your search or filters." />
             ) : (
-              <div className="card overflow-x-auto">
-                <table className="w-full min-w-[760px] text-sm">
-                  <thead>
-                    <tr className="border-b border-ink/5 text-left text-xs text-graphite dark:border-white/10">
-                      <th className="px-5 py-3.5 font-medium">Student</th>
-                      <th className="px-5 py-3.5 font-medium">Admission No.</th>
-                      <th className="px-5 py-3.5 font-medium">Class</th>
-                      <th className="px-5 py-3.5 font-medium">Guardians</th>
-                      <th className="px-5 py-3.5 font-medium">Status</th>
-                      <th className="px-5 py-3.5 text-right font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((s) => (
-                      <tr key={s.id} className="border-b border-ink/5 last:border-b-0 dark:border-white/5">
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <Avatar
-                              name={s.name}
-                              color={s.avatarColor}
-                              size="sm"
-                              src={s.photoPath ? photoUrls.get(s.photoPath) : null}
-                            />
-                            <p className="font-medium text-ink dark:text-white">{s.name}</p>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-graphite">{s.admissionNo}</td>
-                        <td className="px-5 py-3.5 text-graphite">{s.className ?? '—'}</td>
-                        <td className="px-5 py-3.5 text-graphite">
-                          {s.guardians.length === 0 ? '—' : s.guardians.map(guardianLabel).join(', ')}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <Badge tone={s.status === 'active' ? 'success' : 'neutral'}>{s.status}</Badge>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => openEdit(s)}
-                              aria-label={`Edit ${s.name}`}
-                              className="rounded-lg p-2 text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(s)}
-                              aria-label={`Remove ${s.name}`}
-                              className="rounded-lg p-2 text-graphite hover:bg-red-500/10 hover:text-red-500"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
+              <>
+                {/* TABLE */}
+                <div className="card overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead>
+                      <tr className="border-b border-ink/5 text-left text-xs text-graphite dark:border-white/10">
+                        <th 
+                          className="px-5 py-3.5 font-medium cursor-pointer hover:text-ink dark:hover:text-white"
+                          onClick={() => handleSort('name')}
+                        >
+                          Student {getSortIcon('name')}
+                        </th>
+                        <th 
+                          className="px-5 py-3.5 font-medium cursor-pointer hover:text-ink dark:hover:text-white"
+                          onClick={() => handleSort('admissionNo')}
+                        >
+                          Admission No. {getSortIcon('admissionNo')}
+                        </th>
+                        <th className="px-5 py-3.5 font-medium">Class</th>
+                        <th className="px-5 py-3.5 font-medium">Guardians</th>
+                        <th 
+                          className="px-5 py-3.5 font-medium cursor-pointer hover:text-ink dark:hover:text-white"
+                          onClick={() => handleSort('status')}
+                        >
+                          Status {getSortIcon('status')}
+                        </th>
+                        <th className="px-5 py-3.5 text-right font-medium">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {paginatedStudents.map((s) => (
+                        <tr key={s.id} className="border-b border-ink/5 last:border-b-0 dark:border-white/5">
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <Avatar
+                                name={s.name}
+                                color={s.avatarColor}
+                                size="sm"
+                                src={s.photoPath ? photoUrls.get(s.photoPath) : null}
+                              />
+                              <p className="font-medium text-ink dark:text-white">{s.name}</p>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-graphite">{s.admissionNo}</td>
+                          <td className="px-5 py-3.5 text-graphite">{s.className ?? '—'}</td>
+                          <td className="px-5 py-3.5 text-graphite">{guardianDisplay(s.guardians)}</td>
+                          <td className="px-5 py-3.5">
+                            <Badge tone={s.status === 'active' ? 'success' : 'neutral'}>{s.status}</Badge>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openEdit(s)}
+                                aria-label={`Edit ${s.name}`}
+                                className="rounded-lg p-2 text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white transition-colors"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(s)}
+                                aria-label={`Remove ${s.name}`}
+                                className="rounded-lg p-2 text-graphite hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* PAGINATION */}
+                {totalPages > 1 && (
+                  <div className="mt-5 flex items-center justify-between">
+                    <p className="text-sm text-graphite">
+                      Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, sorted.length)} of {sorted.length} students
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -508,6 +604,7 @@ export default function AdminStudents() {
 
       <ImportDialog kind={studentsImport} open={bulkOpen} onClose={() => setBulkOpen(false)} onImported={reload} />
 
+      {/* ADD/EDIT MODAL */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -523,244 +620,368 @@ export default function AdminStudents() {
           </>
         }
       >
-        {isSaving ? <RequestProcessing title={editing ? 'Updating student' : 'Creating student'} description="Your student details are being saved securely." /> : <div className="space-y-4">
-          {editing && (
-            <div className="flex flex-wrap items-center gap-3">
-              <Avatar
-                name={editing.name}
-                color={editing.avatarColor}
-                size="lg"
-                src={editing.photoPath ? photoUrls.get(editing.photoPath) : null}
-              />
-              <input
-                ref={photoInput}
-                type="file"
-                accept={IMAGE_ACCEPT}
-                className="hidden"
-                aria-label="Choose student photo"
-                onChange={handlePhotoChosen}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={photoBusy}
-                onClick={() => photoInput.current?.click()}
-                icon={<Upload className="h-4 w-4" />}
-              >
-                {photoBusy ? 'Working…' : editing.photoPath ? 'Replace photo' : 'Upload photo'}
-              </Button>
-              {editing.photoPath && (
-                <Button variant="ghost" size="sm" disabled={photoBusy} onClick={handlePhotoRemoved}>
-                  Remove photo
-                </Button>
-              )}
-              <p className="w-full text-xs text-graphite">PNG, JPEG or WebP, up to 2 MB. Saved immediately.</p>
-            </div>
-          )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Full name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} error={errors.name} />
-            <Input
-              label="Admission number"
-              required
-              value={form.admissionNo}
-              onChange={(e) => setForm({ ...form, admissionNo: e.target.value })}
-              error={errors.admissionNo}
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Select label="Class" value={form.classId} onChange={(e) => setForm({ ...form, classId: e.target.value })} error={errors.classId}>
-              <option value="">Not enrolled</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-            <Select id="student-status" label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              {STUDENT_STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-              {/* A saved value the list does not know is still shown as itself,
-                  never as the first option (C1). */}
-              {!STUDENT_STATUSES.some((s) => s.value === form.status) && (
-                <option value={form.status}>{form.status}</option>
-              )}
-            </Select>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Select label="Gender" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </Select>
-            <Input
-              label="Date of birth"
-              type="date"
-              value={form.dateOfBirth}
-              onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-              error={errors.dateOfBirth}
-            />
-          </div>
-
-          <div>
-            <p className="label mb-2">Link a guardian</p>
-            <div className="mb-3 inline-flex rounded-full bg-ink/5 p-1 dark:bg-white/10">
-              {(['none', 'existing', 'new'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setGuardianMode(mode)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-medium ${
-                    guardianMode === mode ? 'bg-white shadow-soft dark:bg-white/10' : 'text-graphite'
-                  }`}
-                >
-                  {mode === 'none' ? 'Skip' : mode === 'existing' ? 'Existing' : 'New'}
-                </button>
-              ))}
-            </div>
-            {guardianMode === 'existing' && (
-              <Select
-                aria-label="Guardian"
-                value={form.guardianId}
-                onChange={(e) => {
-                  const guardianId = e.target.value
-                  // Re-linking someone already linked starts from their saved relationship.
-                  const saved = editing?.guardians.find((g) => g.id === guardianId)?.relationship
-                  const known = GUARDIAN_RELATIONSHIPS.find((r) => r === saved)
-                  setForm({ ...form, guardianId, guardianRelationship: known ?? form.guardianRelationship })
-                }}
-                error={errors.guardianId}
-              >
-                <option value="">Select a guardian…</option>
-                {guardians.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.full_name} · {g.phone}
-                  </option>
-                ))}
-              </Select>
-            )}
-            {guardianMode === 'new' && (
-              <div className="space-y-3">
-                <Input
-                  placeholder="Guardian full name"
-                  value={form.newGuardianName}
-                  onChange={(e) => setForm({ ...form, newGuardianName: e.target.value })}
-                  error={errors.newGuardianName}
-                />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    placeholder="Guardian email (optional)"
-                    type="email"
-                    value={form.newGuardianEmail}
-                    onChange={(e) => setForm({ ...form, newGuardianEmail: e.target.value })}
+        {isSaving ? (
+          <RequestProcessing 
+            title={editing ? 'Updating student' : 'Creating student'} 
+            description="Your student details are being saved securely." 
+          />
+        ) : (
+          <div className="space-y-4">
+            {/* PHOTO SECTION */}
+            {editing && (
+              <div className="rounded-lg bg-ink/5 p-4 dark:bg-white/5">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <Avatar
+                    name={editing.name}
+                    color={editing.avatarColor}
+                    size="lg"
+                    src={editing.photoPath ? photoUrls.get(editing.photoPath) : null}
                   />
+                  <div className="flex-1">
+                    <input
+                      ref={photoInput}
+                      type="file"
+                      accept={IMAGE_ACCEPT}
+                      className="hidden"
+                      aria-label="Choose student photo"
+                      onChange={handlePhotoChosen}
+                    />
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={photoBusy}
+                        onClick={() => photoInput.current?.click()}
+                        icon={<Upload className="h-4 w-4" />}
+                      >
+                        {photoBusy ? 'Working…' : editing.photoPath ? 'Replace photo' : 'Upload photo'}
+                      </Button>
+                      {editing.photoPath && (
+                        <Button variant="ghost" size="sm" disabled={photoBusy} onClick={handlePhotoRemoved}>
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-graphite">PNG, JPEG or WebP, up to 2 MB. Saved immediately.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STUDENT BASIC INFO */}
+            <fieldset>
+              <legend className="text-sm font-medium text-ink dark:text-white mb-3">Student Information</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input 
+                  label="Full name" 
+                  required 
+                  value={form.name} 
+                  onChange={(e) => setForm({ ...form, name: e.target.value })} 
+                  error={errors.name} 
+                />
+                <Input
+                  label="Admission number"
+                  required
+                  value={form.admissionNo}
+                  onChange={(e) => setForm({ ...form, admissionNo: e.target.value })}
+                  error={errors.admissionNo}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                <Select 
+                  label="Class" 
+                  value={form.classId} 
+                  onChange={(e) => setForm({ ...form, classId: e.target.value })} 
+                  error={errors.classId}
+                >
+                  <option value="">Not enrolled</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+                <Select 
+                  label="Status" 
+                  value={form.status} 
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                >
+                  {STUDENT_STATUSES.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                  {!STUDENT_STATUSES.some((s) => s.value === form.status) && (
+                    <option value={form.status}>{form.status}</option>
+                  )}
+                </Select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                <Select 
+                  label="Gender" 
+                  value={form.gender} 
+                  onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </Select>
+                <Input
+                  label="Date of birth"
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+                  error={errors.dateOfBirth}
+                />
+              </div>
+            </fieldset>
+
+            {/* GUARDIAN SECTION - SIMPLIFIED */}
+            <fieldset>
+              <legend className="text-sm font-medium text-ink dark:text-white mb-3">Guardian (Optional)</legend>
+              <p className="text-xs text-graphite mb-3">You can add a guardian now or skip and add them later.</p>
+
+              <Select
+                label="Guardian action"
+                value={guardianMode}
+                onChange={(e) => {
+                  setGuardianMode(e.target.value as 'existing' | 'new' | 'none')
+                  setErrors({ ...errors, guardianId: undefined, guardianRelationship: undefined })
+                }}
+              >
+                <option value="none">Skip for now</option>
+                <option value="existing">Link existing guardian</option>
+                <option value="new">Add new guardian</option>
+              </Select>
+
+              {/* EXISTING GUARDIAN PATH */}
+              {guardianMode === 'existing' && (
+                <div className="mt-4 space-y-3">
+                  <Select
+                    label="Select guardian"
+                    value={form.guardianId}
+                    onChange={(e) => {
+                      const guardianId = e.target.value
+                      const saved = editing?.guardians.find((g) => g.id === guardianId)?.relationship
+                      const known = GUARDIAN_RELATIONSHIPS.find((r) => r === saved)
+                      setForm({ ...form, guardianId, guardianRelationship: known ?? form.guardianRelationship })
+                    }}
+                    error={errors.guardianId}
+                  >
+                    <option value="">Select a guardian…</option>
+                    {guardians.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.full_name} ({g.phone})
+                      </option>
+                    ))}
+                  </Select>
+
+                  {form.guardianId && (
+                    <Select
+                      label="Relationship to student"
+                      value={form.guardianRelationship}
+                      onChange={(e) => setForm({ ...form, guardianRelationship: e.target.value as GuardianRelationship | '' })}
+                      error={errors.guardianRelationship}
+                    >
+                      <option value="">Select relationship…</option>
+                      {GUARDIAN_RELATIONSHIPS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+
+                  {form.guardianId && (
+                    <label className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-ink/20 accent-brand"
+                        checked={form.guardianIsPrimary}
+                        onChange={(e) => setForm({ ...form, guardianIsPrimary: e.target.checked })}
+                      />
+                      <span className="text-sm text-ink dark:text-white">
+                        Primary contact
+                        <span className="block text-xs text-graphite mt-0.5">
+                          {currentPrimaryName
+                            ? form.guardianIsPrimary
+                              ? `${currentPrimaryName} will stop being the primary contact.`
+                              : `${currentPrimaryName} stays the primary contact.`
+                            : 'This guardian will be the first contact for emergencies.'}
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  {form.guardianId && (
+                    <GuardianInviteOption
+                      guardian={guardians.find((g) => g.id === form.guardianId)}
+                      inviteGuardian={form.inviteGuardian}
+                      onInviteChange={(invited) => setForm({ ...form, inviteGuardian: invited })}
+                    />
+                  )}
+
+                  {editing && editing.guardians.length > 0 && (
+                    <p className="text-xs text-graphite bg-ink/5 dark:bg-white/5 p-3 rounded">
+                      <strong>Already linked:</strong> {editing.guardians.map((g) => `${guardianLabel(g)}${g.isPrimary ? ' (primary)' : ''}`).join(', ')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* NEW GUARDIAN PATH */}
+              {guardianMode === 'new' && (
+                <div className="mt-4 space-y-3">
                   <Input
-                    placeholder="Guardian phone"
+                    label="Guardian full name"
+                    placeholder="E.g., Amina Yusuf"
+                    value={form.newGuardianName}
+                    onChange={(e) => setForm({ ...form, newGuardianName: e.target.value })}
+                    error={errors.newGuardianName}
+                  />
+
+                  <Input
+                    label="Phone number"
+                    placeholder="E.g., +252 61 123 4567"
                     value={form.newGuardianPhone}
                     onChange={(e) => setForm({ ...form, newGuardianPhone: e.target.value })}
                     error={errors.newGuardianPhone}
                   />
+
+                  <Input
+                    label="Email (optional)"
+                    type="email"
+                    placeholder="E.g., amina@email.com"
+                    value={form.newGuardianEmail}
+                    onChange={(e) => setForm({ ...form, newGuardianEmail: e.target.value })}
+                  />
+
+                  <Select
+                    label="Relationship to student"
+                    value={form.guardianRelationship}
+                    onChange={(e) => setForm({ ...form, guardianRelationship: e.target.value as GuardianRelationship | '' })}
+                    error={errors.guardianRelationship}
+                  >
+                    <option value="">Select relationship…</option>
+                    {GUARDIAN_RELATIONSHIPS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </Select>
+
+                  <label className="flex items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-ink/20 accent-brand"
+                      checked={form.guardianIsPrimary}
+                      onChange={(e) => setForm({ ...form, guardianIsPrimary: e.target.checked })}
+                    />
+                    <span className="text-sm text-ink dark:text-white">
+                      Primary contact
+                      <span className="block text-xs text-graphite mt-0.5">
+                        This guardian will be the first contact for emergencies.
+                      </span>
+                    </span>
+                  </label>
+
+                  {form.newGuardianEmail && (
+                    <GuardianInviteOptionNew
+                      email={form.newGuardianEmail}
+                      inviteGuardian={form.inviteGuardian}
+                      onInviteChange={(invited) => setForm({ ...form, inviteGuardian: invited })}
+                    />
+                  )}
                 </div>
-              </div>
-            )}
-            {guardianMode !== 'none' && (() => {
-              // Enabled only when there is somewhere to send it: the address
-              // being typed for a new guardian, or the saved one for an
-              // existing guardian.
-              const targetEmail =
-                guardianMode === 'new'
-                  ? form.newGuardianEmail.trim()
-                  : (guardians.find((g) => g.id === form.guardianId)?.email ?? '')
-              const canInvite = isValidEmail(targetEmail)
-              return (
-                <label
-                  className={`mt-3 flex items-start gap-2.5 rounded-xl px-3 py-2.5 ${canInvite ? 'bg-brand/5' : 'bg-ink/5 dark:bg-white/5'}`}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 rounded border-ink/20 accent-brand"
-                    checked={form.inviteGuardian && canInvite}
-                    disabled={!canInvite}
-                    onChange={(e) => setForm({ ...form, inviteGuardian: e.target.checked })}
-                  />
-                  <span className="text-sm">
-                    <span className={canInvite ? 'text-ink dark:text-white' : 'text-graphite'}>
-                      Invite this guardian to Nom Cloud
-                    </span>
-                    <span className="block text-xs text-graphite">
-                      {canInvite
-                        ? `They will be emailed a single-use link at ${targetEmail} to choose their own password.`
-                        : 'Add an email address for this guardian to invite them.'}
-                    </span>
-                  </span>
-                </label>
-              )
-            })()}
-            {guardianMode !== 'none' && (
-              <div className="mt-3">
-                <Select
-                  id="guardian-relationship"
-                  label="Relationship to student"
-                  required
-                  value={form.guardianRelationship}
-                  onChange={(e) => setForm({ ...form, guardianRelationship: e.target.value as GuardianRelationship | '' })}
-                  error={errors.guardianRelationship}
-                >
-                  <option value="">Select a relationship…</option>
-                  {GUARDIAN_RELATIONSHIPS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            )}
-            {guardianMode !== 'none' && (
-              <div className="mt-3">
-                <label className="flex items-start gap-2.5 text-sm text-ink dark:text-white">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 rounded border-ink/20 text-brand focus:ring-brand"
-                    checked={form.guardianIsPrimary}
-                    onChange={(e) => setForm({ ...form, guardianIsPrimary: e.target.checked })}
-                  />
-                  <span>
-                    Primary contact
-                    <span className="block text-xs text-graphite">
-                      {currentPrimaryName
-                        ? form.guardianIsPrimary
-                          ? `${currentPrimaryName} will stop being the primary contact.`
-                          : `${currentPrimaryName} stays the primary contact.`
-                        : 'A student has one primary contact, reached first.'}
-                    </span>
-                  </span>
-                </label>
-              </div>
-            )}
-            {editing && editing.guardians.length > 0 && (
-              <p className="mt-2 text-xs text-graphite">
-                Already linked:{' '}
-                {editing.guardians.map((g) => `${guardianLabel(g)}${g.isPrimary ? ' (primary)' : ''}`).join(', ')}
-              </p>
-            )}
-            <p className="mt-2 text-xs text-graphite">
-              Creating a guardian does not give them an account. Invite them separately so they can sign in.
-            </p>
+              )}
+            </fieldset>
           </div>
-        </div>}
+        )}
       </Modal>
 
+      {/* DELETE CONFIRMATION */}
       <ConfirmDialog
         open={!!deleteTarget}
         title={`Remove ${deleteTarget?.name}?`}
-        description="A student with fee payments on record cannot be removed: payment history must be kept for the school's financial records, so set their status to Inactive or Transferred instead. For any other student, this permanently deletes their record together with their attendance, grades, homework submissions, class enrolments, guardian links and unpaid fee records. This cannot be undone."
+        description="A student with fee payments on record cannot be removed: payment history must be kept for the school's financial records. Set their status to Inactive or Transferred instead."
         confirmLabel="Remove Student"
         danger
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
+  )
+}
+
+// ===== HELPER COMPONENTS =====
+
+function GuardianInviteOption({
+  guardian,
+  inviteGuardian,
+  onInviteChange,
+}: {
+  guardian: GuardianRow | undefined
+  inviteGuardian: boolean
+  onInviteChange: (invited: boolean) => void
+}) {
+  const email = guardian?.email ?? ''
+  const canInvite = email && isValidEmail(email)
+
+  return (
+    <label className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 ${canInvite ? 'bg-brand/5 dark:bg-brand/10' : 'bg-ink/5 dark:bg-white/5'}`}>
+      <input
+        type="checkbox"
+        className="mt-0.5 h-4 w-4 rounded border-ink/20 accent-brand"
+        checked={inviteGuardian && canInvite}
+        disabled={!canInvite}
+        onChange={(e) => onInviteChange(e.target.checked)}
+      />
+      <span className="text-sm">
+        <span className={canInvite ? 'font-medium text-ink dark:text-white' : 'text-graphite'}>
+          Invite guardian to Nom Cloud
+        </span>
+        <span className="block text-xs text-graphite mt-0.5">
+          {canInvite
+            ? `They'll receive a sign-up link at ${email}`
+            : 'No email address on file. Update the guardian profile to enable invites.'}
+        </span>
+      </span>
+    </label>
+  )
+}
+
+function GuardianInviteOptionNew({
+  email,
+  inviteGuardian,
+  onInviteChange,
+}: {
+  email: string
+  inviteGuardian: boolean
+  onInviteChange: (invited: boolean) => void
+}) {
+  const canInvite = isValidEmail(email)
+
+  return (
+    <label className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 ${canInvite ? 'bg-brand/5 dark:bg-brand/10' : 'bg-ink/5 dark:bg-white/5'}`}>
+      <input
+        type="checkbox"
+        className="mt-0.5 h-4 w-4 rounded border-ink/20 accent-brand"
+        checked={inviteGuardian && canInvite}
+        disabled={!canInvite}
+        onChange={(e) => onInviteChange(e.target.checked)}
+      />
+      <span className="text-sm">
+        <span className={canInvite ? 'font-medium text-ink dark:text-white' : 'text-graphite'}>
+          Invite guardian to Nom Cloud
+        </span>
+        <span className="block text-xs text-graphite mt-0.5">
+          {canInvite
+            ? `They'll receive a sign-up link at ${email}`
+            : 'Add a valid email address to enable invites.'}
+        </span>
+      </span>
+    </label>
   )
 }
