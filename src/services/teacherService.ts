@@ -93,6 +93,7 @@ export interface TeacherRow {
  */
 export interface ClassSummary {
   id: string
+  academicYearId: string
   name: string
   grade: string
   section: string | null
@@ -132,6 +133,7 @@ export interface TimetableSlotView {
   id: string
   classId: string
   teacherId: string
+  subjectId: string | null
   day: 1 | 2 | 3 | 4 | 5 | 6 | 7
   period: number
   startTime: string
@@ -293,6 +295,7 @@ export async function fetchTeacherWorkspace(
   const classes: ClassSummary[] = (classRows.data ?? []).map((row) => {
     const c = row as {
       id: string
+      academic_year_id: string
       name: string
       grade: string
       section: string | null
@@ -302,6 +305,7 @@ export async function fetchTeacherWorkspace(
     }
     return {
       id: c.id,
+      academicYearId: c.academic_year_id,
       name: c.name,
       grade: c.grade,
       section: c.section,
@@ -330,6 +334,7 @@ export async function fetchTeacherWorkspace(
       id: s.id,
       classId: s.class_id,
       teacherId: s.teacher_id ?? '',
+      subjectId: s.subject_id ?? null,
       day: s.day_of_week as TimetableSlotView['day'],
       period: s.period,
       startTime: s.start_time.slice(0, 5),
@@ -389,6 +394,74 @@ export async function fetchSchoolTeachers(schoolId: string): Promise<TeacherRow[
 
   if (error) throw error
   return (data ?? []) as TeacherRow[]
+}
+
+export interface ClassSubjectAssignment {
+  classId: string
+  subjectId: string
+  teacherId: string | null
+}
+
+export async function fetchSchoolClassSubjectAssignments(schoolId: string): Promise<ClassSubjectAssignment[]> {
+  const { data, error } = await supabase
+    .from('class_subjects')
+    .select('class_id, subject_id, teacher_id')
+    .eq('school_id', schoolId)
+
+  if (error) throw error
+  return ((data ?? []) as { class_id: string; subject_id: string; teacher_id: string | null }[]).map((row) => ({
+    classId: row.class_id,
+    subjectId: row.subject_id,
+    teacherId: row.teacher_id,
+  }))
+}
+
+export async function saveTeacherClassSubjectAssignments(
+  schoolId: string,
+  teacherId: string,
+  selected: { classId: string; subjectId: string }[],
+): Promise<void> {
+  const { data, error: readError } = await supabase
+    .from('class_subjects')
+    .select('class_id, subject_id')
+    .eq('school_id', schoolId)
+    .eq('teacher_id', teacherId)
+
+  if (readError) throw readError
+
+  const current = (data ?? []) as { class_id: string; subject_id: string }[]
+  const desiredKeys = new Set(selected.map(({ classId, subjectId }) => `${classId}:${subjectId}`))
+
+  if (selected.length > 0) {
+    const { error: writeError } = await supabase
+      .from('class_subjects')
+      .upsert(
+        selected.map(({ classId, subjectId }) => ({
+          school_id: schoolId,
+          class_id: classId,
+          subject_id: subjectId,
+          teacher_id: teacherId,
+        })),
+        { onConflict: 'school_id,class_id,subject_id' },
+      )
+
+    if (writeError) throw writeError
+  }
+
+  const removed = current.filter(({ class_id, subject_id }) => !desiredKeys.has(`${class_id}:${subject_id}`))
+  const results = await Promise.all(
+    removed.map(({ class_id, subject_id }) =>
+      supabase
+        .from('class_subjects')
+        .update({ teacher_id: null })
+        .eq('school_id', schoolId)
+        .eq('class_id', class_id)
+        .eq('subject_id', subject_id)
+        .eq('teacher_id', teacherId),
+    ),
+  )
+  const failed = results.find((result) => result.error)
+  if (failed?.error) throw failed.error
 }
 
 export async function createTeacher(schoolId: string, input: TeacherInput): Promise<string> {

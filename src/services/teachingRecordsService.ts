@@ -97,6 +97,30 @@ export interface AttendanceEntry {
   note: string | null
 }
 
+export interface AttendanceTrendEntry {
+  date: string
+  status: AttendanceStatus
+}
+
+export async function fetchAttendanceRange(
+  schoolId: string,
+  classId: string,
+  fromDate: string,
+  throughDate: string,
+): Promise<AttendanceTrendEntry[]> {
+  const { data, error } = await supabase
+    .from('attendance_records')
+    .select('date, status')
+    .eq('school_id', schoolId)
+    .eq('class_id', classId)
+    .gte('date', fromDate)
+    .lte('date', throughDate)
+    .order('date', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as AttendanceTrendEntry[]
+}
+
 /**
  * One class's attendance for one date, as studentId -> entry.
  *
@@ -225,6 +249,107 @@ export interface GradeEntry {
   studentId: string
   score: number
   maxScore: number
+}
+
+export interface ClassGradeReportEntry extends GradeEntry {
+  subjectId: string
+  subjectName: string
+  termId: string
+  assessment: string
+}
+
+/**
+ * Every recorded score for one class across the requested academic terms.
+ * The query is school-, class-, and term-scoped and paginated to avoid silently
+ * truncating larger classes at the PostgREST row limit.
+ */
+export async function fetchClassGradeReport(
+  schoolId: string,
+  classId: string,
+  termIds: string[],
+): Promise<ClassGradeReportEntry[]> {
+  if (termIds.length === 0) return []
+
+  const pageSize = 1000
+  const rawRows: Omit<ClassGradeReportEntry, 'subjectName'>[] = []
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('grade_records')
+      .select('student_id, subject_id, term_id, assessment, score, max_score')
+      .eq('school_id', schoolId)
+      .eq('class_id', classId)
+      .in('term_id', termIds)
+      .order('student_id', { ascending: true })
+      .range(offset, offset + pageSize - 1)
+
+    if (error) throw error
+
+    const rows = (data ?? []) as {
+      student_id: string
+      subject_id: string
+      term_id: string
+      assessment: string
+      score: number
+      max_score: number
+    }[]
+    rawRows.push(
+      ...rows.map((row) => ({
+        studentId: row.student_id,
+        subjectId: row.subject_id,
+        termId: row.term_id,
+        assessment: row.assessment,
+        score: Number(row.score),
+        maxScore: Number(row.max_score),
+      })),
+    )
+    if (rows.length < pageSize) break
+  }
+
+  const subjectIds = Array.from(new Set(rawRows.map((row) => row.subjectId)))
+  const { data: subjects, error: subjectsError } = subjectIds.length
+    ? await supabase.from('subjects').select('id, name').eq('school_id', schoolId).in('id', subjectIds)
+    : { data: [], error: null }
+  if (subjectsError) throw subjectsError
+  const names = new Map(((subjects ?? []) as { id: string; name: string }[]).map((row) => [row.id, row.name]))
+  return rawRows.map((row) => ({ ...row, subjectName: names.get(row.subjectId) ?? row.subjectId }))
+}
+
+export interface ClassAttendanceReportEntry {
+  studentId: string
+  date: string
+  status: AttendanceStatus
+  note: string | null
+}
+
+export async function fetchClassAttendanceReport(
+  schoolId: string,
+  classId: string,
+  fromDate: string,
+  throughDate: string,
+): Promise<ClassAttendanceReportEntry[]> {
+  const pageSize = 1000
+  const result: ClassAttendanceReportEntry[] = []
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('attendance_records')
+      .select('student_id, date, status, note')
+      .eq('school_id', schoolId)
+      .eq('class_id', classId)
+      .gte('date', fromDate)
+      .lte('date', throughDate)
+      .order('date', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+    if (error) throw error
+
+    const rows = (data ?? []) as { student_id: string; date: string; status: AttendanceStatus; note: string | null }[]
+    result.push(...rows.map((row) => ({
+      studentId: row.student_id,
+      date: row.date,
+      status: row.status,
+      note: row.note,
+    })))
+    if (rows.length < pageSize) return result
+  }
 }
 
 /**

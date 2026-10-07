@@ -3,6 +3,7 @@ import { Users, Envelope as Mail, ShieldCheck, ShieldSlash as ShieldOff } from '
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import PageHeader from '@/components/ui/PageHeader'
+import AdminSectionInsights from '@/components/dashboard/AdminSectionInsights'
 import SearchInput from '@/components/ui/SearchInput'
 import Badge from '@/components/ui/Badge'
 import Avatar from '@/components/ui/Avatar'
@@ -106,7 +107,8 @@ export default function AdminGuardians() {
   const pageSize = 25
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const visibleGuardians = filtered.slice((page - 1) * pageSize, page * pageSize)
-
+  const activeGuardianAccounts = guardians.filter((guardian) => access.get(guardian.id)?.status === 'active').length
+  const suspendedGuardianAccounts = guardians.filter((guardian) => access.get(guardian.id)?.status === 'suspended').length
   const invite = async (guardian: GuardianDirectoryRow) => {
     if (!schoolId) return
     setInviting(guardian.id)
@@ -212,6 +214,22 @@ export default function AdminGuardians() {
       >
         {() => (
           <>
+            {!isLoading && !error && (
+              <AdminSectionInsights
+                metrics={[]}
+                charts={[
+                  {
+                    kind: 'donut',
+                    title: 'Account access',
+                    segments: [
+                      { label: 'Active', value: activeGuardianAccounts, tone: 'positive' },
+                      { label: 'Suspended', value: suspendedGuardianAccounts, tone: 'negative' },
+                      { label: 'No active login', value: Math.max(0, guardians.length - activeGuardianAccounts - suspendedGuardianAccounts), tone: 'neutral' },
+                    ],
+                  },
+                ]}
+              />
+            )}
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
               <SearchInput value={search} onChange={(value) => { setSearch(value); setPage(1) }} placeholder="Search by name, email, phone or child…" className="sm:w-96" />
             </div>

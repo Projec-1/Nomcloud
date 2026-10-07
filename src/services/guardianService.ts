@@ -169,11 +169,12 @@ export async function fetchChildTimetable(
     id: row.id,
     classId: row.class_id,
     teacherId: row.teacher_id ?? '',
+    subjectId: row.subject_id ?? null,
     day: row.day_of_week as TimetableSlotView['day'],
     period: row.period,
     startTime: row.start_time.slice(0, 5),
     endTime: row.end_time.slice(0, 5),
-    subject: row.subject_id ? subjectNames.get(row.subject_id) ?? 'Subject unavailable' : 'Unassigned',
+    subject: row.subject_id ? subjectNames.get(row.subject_id) ?? 'Subject unavailable' : '',
     teacherName: row.teacher_id ? teacherNames.get(row.teacher_id) : undefined,
     room: row.room ?? '',
   }))

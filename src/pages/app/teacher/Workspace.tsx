@@ -11,6 +11,7 @@ import {
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import EmptyState from '@/components/ui/EmptyState'
+import SignOutButton from '@/components/ui/SignOutButton'
 import ResourceGate from '@/components/ui/ResourceGate'
 import { useAuth } from '@/context/AuthContext'
 import { useTeacherClasses } from '@/hooks/useTeacherClasses'
@@ -120,6 +121,9 @@ function ProfileView() {
             anything that is wrong. You can change your password from the sign-in page using &ldquo;Forgot
             password?&rdquo;.
           </p>
+          <SignOutButton className="btn-outline mt-5 inline-flex items-center gap-2 border-red-500/20 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-500/10 dark:text-red-400">
+            Sign out
+          </SignOutButton>
         </div>
       </div>
     </Shell>

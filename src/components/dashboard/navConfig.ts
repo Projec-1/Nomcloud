@@ -1,5 +1,5 @@
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
-import { Layout as LayoutDashboard, Users, GraduationCap, BookOpen, CalendarCheck, ClipboardText as ClipboardList, ClipboardText as ClipboardCheck, ChartBar as BarChart3, Wallet, Bell, ChatText as MessageSquare, CalendarBlank as CalendarRange, Table as Table2, Gear as Settings, BellRinging as BellRing, UserCircle, PlayCircle, Pulse as Activity, Clock as Clock3, FolderOpen, TrendUp as TrendingUp, FileText } from '@phosphor-icons/react'
+import { Layout as LayoutDashboard, Users, GraduationCap, BookOpen, CalendarCheck, ClipboardText as ClipboardList, ClipboardText as ClipboardCheck, ChartBar as BarChart3, Wallet, Bell, ChatText as MessageSquare, CalendarBlank as CalendarRange, Table as Table2, Gear as Settings, BellRinging as BellRing, UserCircle, PlayCircle, Pulse as Activity, TrendUp as TrendingUp } from '@phosphor-icons/react'
 import type { Role } from '@/types'
 
 export interface NavItem {
@@ -23,6 +23,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { to: '/app/admin/homework', labelKey: 'dash.nav.homework', icon: ClipboardCheck },
     { to: '/app/admin/exams', labelKey: 'dash.nav.exams', icon: BarChart3 },
     { to: '/app/admin/fees', labelKey: 'dash.nav.fees', icon: Wallet },
+    { to: '/app/admin/fee-insights', labelKey: 'dash.nav.feeInsights', icon: TrendingUp },
     { to: '/app/admin/announcements', labelKey: 'dash.nav.announcements', icon: Bell },
     { to: '/app/admin/messages', labelKey: 'dash.nav.messages', icon: MessageSquare },
     { to: '/app/admin/reports', labelKey: 'dash.nav.reports', icon: BarChart3 },
@@ -33,23 +34,15 @@ export const navByRole: Record<Role, NavItem[]> = {
   ],
   teacher: [
     { to: '/app/teacher', labelKey: 'dash.nav.dashboard', icon: LayoutDashboard, end: true },
-    { to: '/app/teacher/my-day', labelKey: 'dash.nav.myDay', icon: Clock3 },
-    { to: '/app/teacher/classes', labelKey: 'dash.nav.myClasses', icon: BookOpen },
     { to: '/app/teacher/timetable', labelKey: 'dash.nav.timetable', icon: Table2 },
     { to: '/app/teacher/attendance', labelKey: 'dash.nav.attendance', icon: CalendarCheck },
     { to: '/app/teacher/grades', labelKey: 'dash.nav.grades', icon: ClipboardList },
     { to: '/app/teacher/homework', labelKey: 'dash.nav.homework', icon: ClipboardCheck },
-    { to: '/app/teacher/assignments', labelKey: 'dash.nav.assignments', icon: ClipboardCheck },
-    { to: '/app/teacher/lessons', labelKey: 'dash.nav.lessons', icon: BookOpen },
     { to: '/app/teacher/exams', labelKey: 'dash.nav.exams', icon: BarChart3 },
-    { to: '/app/teacher/class-performance', labelKey: 'dash.nav.classPerformance', icon: TrendingUp },
     { to: '/app/teacher/announcements', labelKey: 'dash.nav.announcements', icon: Bell },
     { to: '/app/teacher/messages', labelKey: 'dash.nav.messages', icon: MessageSquare },
-    { to: '/app/teacher/students', labelKey: 'dash.nav.myStudents', icon: Users },
-    { to: '/app/teacher/resources', labelKey: 'dash.nav.resources', icon: FolderOpen },
     { to: '/app/teacher/progress', labelKey: 'dash.nav.progress', icon: TrendingUp },
     { to: '/app/teacher/notifications', labelKey: 'dash.nav.notifications', icon: BellRing },
-    { to: '/app/teacher/profile', labelKey: 'dash.nav.profile', icon: UserCircle },
     { to: '/app/teacher/tutorials', labelKey: 'dash.nav.tutorials', icon: PlayCircle },
   ],
   parent: [

@@ -5,7 +5,7 @@ import { LANGUAGES } from '@/data/translations'
 import { cn } from '@/utils/cn'
 
 export default function LanguageSwitcher({ className }: { className?: string }) {
-  const { lang, setLang } = useLanguage()
+  const { lang, setLang, dir, t } = useLanguage()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -23,14 +23,15 @@ export default function LanguageSwitcher({ className }: { className?: string }) 
     <div className={cn('relative', className)} ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label="Change language"
+        aria-label={t('dash.profile.language')}
+        aria-expanded={open}
         className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium text-graphite transition-colors hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white"
       >
         <Globe className="h-3.5 w-3.5" />
         {current.nativeLabel}
       </button>
       {open && (
-        <div className="absolute right-0 top-11 z-50 w-40 overflow-hidden rounded-2xl border border-ink/5 bg-white p-1.5 shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
+        <div dir={dir} className="absolute start-0 top-11 z-50 w-40 overflow-hidden rounded-2xl border border-ink/5 bg-white p-1.5 shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
           {LANGUAGES.map((l) => (
             <button
               key={l.code}

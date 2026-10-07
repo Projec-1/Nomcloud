@@ -1,4 +1,5 @@
-import { Wallet, CreditCard, CheckCircle as CheckCircle2, Download } from '@phosphor-icons/react'
+import { Wallet, CreditCard, CheckCircle as CheckCircle2, Download, Printer } from '@phosphor-icons/react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useChildFees } from '@/hooks/useFinance'
@@ -55,6 +56,19 @@ export default function ParentFees() {
   const { profile, school } = useAuth()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
   const { state: feesState } = useChildFees(selectedChild?.id ?? null)
+  const [receiptForPrint, setReceiptForPrint] = useState<{ payment: FeePaymentView; category: string } | null>(null)
+
+  useEffect(() => {
+    if (!receiptForPrint) return
+    const print = () => window.print()
+    const clear = () => setReceiptForPrint(null)
+    window.addEventListener('afterprint', clear, { once: true })
+    const timer = window.setTimeout(print, 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('afterprint', clear)
+    }
+  }, [receiptForPrint])
 
   if (!selectedChild) {
     return (
@@ -162,6 +176,13 @@ export default function ParentFees() {
                             >
                               <Download className="h-3.5 w-3.5" /> Receipt
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptForPrint({ payment: p, category: f.category })}
+                              className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white"
+                            >
+                              <Printer className="h-3.5 w-3.5" /> Print
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -180,6 +201,32 @@ export default function ParentFees() {
           )
         }}
       </ResourceGate>
+      {receiptForPrint && selectedChild && (
+        <article className="print-only print-document">
+          <header className="mb-8 flex items-start justify-between gap-6 border-b border-gray-300 pb-5">
+            <div>
+              <h1 className="text-2xl font-semibold">{school?.name ?? 'Nom Cloud School'}</h1>
+              <p className="mt-2 text-sm text-gray-600">Payment receipt</p>
+            </div>
+            {school?.logo_path && (
+              <img src={schoolLogoUrl(school.logo_path) ?? undefined} alt="" className="h-16 w-16 object-contain" />
+            )}
+          </header>
+          <dl className="grid grid-cols-2 gap-x-8 gap-y-5 text-sm">
+            <div><dt className="text-gray-500">Receipt reference</dt><dd className="mt-1 font-semibold">{receiptForPrint.payment.reference}</dd></div>
+            <div><dt className="text-gray-500">Payment date</dt><dd className="mt-1 font-semibold">{formatDate(receiptForPrint.payment.paidOn)}</dd></div>
+            <div><dt className="text-gray-500">Student</dt><dd className="mt-1 font-semibold">{selectedChild.name}</dd></div>
+            <div><dt className="text-gray-500">Payer</dt><dd className="mt-1 font-semibold">{profile?.full_name ?? 'Parent/Guardian'}</dd></div>
+            <div><dt className="text-gray-500">Fee category</dt><dd className="mt-1 font-semibold">{receiptForPrint.category}</dd></div>
+            <div><dt className="text-gray-500">Payment method</dt><dd className="mt-1 font-semibold">{paymentMethodLabel(receiptForPrint.payment.method)}</dd></div>
+          </dl>
+          <div className="mt-8 border-y border-gray-300 py-5">
+            <p className="text-sm text-gray-500">Amount received</p>
+            <p className="mt-2 text-3xl font-semibold">{formatMoney(receiptForPrint.payment.amount, receiptForPrint.payment.currency, true)}</p>
+          </div>
+          <p className="mt-8 text-xs text-gray-500">This receipt confirms a payment recorded by the school.</p>
+        </article>
+      )}
     </div>
   )
 }

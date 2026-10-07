@@ -7,11 +7,8 @@ import PageHeader from '@/components/ui/PageHeader'
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
 import ResourceGate from '@/components/ui/ResourceGate'
-import Modal from '@/components/ui/Modal'
-import Avatar from '@/components/ui/Avatar'
 import { isoDayOfWeek, todayInTimeZone, DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 import { formatDate, percentage } from '@/utils/format'
-import { fetchRosterStudents, type RosterStudent } from '@/services/studentService'
 import { fetchAttendance, fetchHomework, type HomeworkView } from '@/services/teachingRecordsService'
 
 // ---------------------------------------------------------------------------
@@ -34,13 +31,11 @@ import { fetchAttendance, fetchHomework, type HomeworkView } from '@/services/te
 export default function TeacherDashboard() {
   const { profile, school } = useAuth()
   const { state, classes: myClasses, timetable: timetables } = useTeacherClasses()
-  const [studentsModalOpen, setStudentsModalOpen] = useState(false)
 
   const schoolId = school?.id ?? null
   const timeZone = school?.timezone ?? DEFAULT_TIME_ZONE
   const today = todayInTimeZone(timeZone)
 
-  const [roster, setRoster] = useState<RosterStudent[]>([])
   const [homework, setHomework] = useState<HomeworkView[]>([])
   const [todayPresent, setTodayPresent] = useState<{ present: number; marked: number } | null>(null)
 
@@ -51,16 +46,12 @@ export default function TeacherDashboard() {
     let cancelled = false
     if (!schoolId || myClasses.length === 0) return
 
-    const studentIds = Array.from(new Set(myClasses.flatMap((c) => c.studentIds)))
-
     Promise.all([
-      fetchRosterStudents(schoolId, studentIds),
       fetchHomework(schoolId, myClassIds),
       Promise.all(myClasses.map((c) => fetchAttendance(schoolId, c.id, today))),
     ])
-      .then(([students, hw, attendanceByClass]) => {
+      .then(([hw, attendanceByClass]) => {
         if (cancelled) return
-        setRoster(students)
         setHomework(hw)
         let present = 0
         let marked = 0
@@ -146,15 +137,7 @@ export default function TeacherDashboard() {
         />
       </div>
 
-      <div className="teacher-insights grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <button type="button" aria-label="View my students" onClick={() => setStudentsModalOpen(true)} className="w-full text-left">
-          <TeacherInsightCard
-            label="My Students"
-            metricLabel="Students in your classes"
-            value={roster.length}
-            caption="Students assigned across your active classes."
-          />
-        </button>
+      <div className="teacher-insights grid gap-4 sm:grid-cols-2">
         <TeacherInsightCard
           label="Attendance"
           metricLabel="Present today"
@@ -261,35 +244,6 @@ export default function TeacherDashboard() {
         </>
       )}
 
-      <Modal
-        open={studentsModalOpen}
-        onClose={() => setStudentsModalOpen(false)}
-        title="My Students"
-        description={`${roster.length} students across your classes`}
-        size="lg"
-      >
-        <div className="space-y-2">
-          {roster.map((s) => {
-            const pending = pendingByStudent.get(s.id) ?? 0
-            return (
-              <div key={s.id} className="flex items-center justify-between rounded-xl bg-mist px-4 py-3 dark:bg-white/5">
-                <div className="flex items-center gap-3">
-                  <Avatar name={s.name} color={s.avatarColor} size="sm" />
-                  <div>
-                    <p className="text-sm font-medium text-ink dark:text-white">{s.name}</p>
-                    <p className="text-xs text-graphite">{s.admissionNo}</p>
-                  </div>
-                </div>
-                {pending > 0 ? (
-                  <Badge tone="warning">{pending} pending homework</Badge>
-                ) : (
-                  <Badge tone="success">Up to date</Badge>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </Modal>
     </div>
   )
 }

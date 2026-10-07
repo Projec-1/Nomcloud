@@ -11,12 +11,13 @@ import { schoolWeekdays, isoWeekdayLabel } from '@/utils/schoolCalendar'
 
 export default function ConnectedTeacherTimetable() {
   const { school } = useAuth()
-  const { state, classes, timetable } = useTeacherClasses()
+  const { state, classes, timetable, teacherId } = useTeacherClasses()
   const [classId, setClassId] = useState('')
   const [view, setView] = useState<'route' | 'class'>('route')
   const visibleDays = useMemo(() => schoolWeekdays(school?.weekend_days), [school?.weekend_days])
   const selectedClass = classes.find((item) => item.id === classId) ?? classes[0] ?? null
   const selectedSlots = timetable.filter((slot) => slot.classId === selectedClass?.id)
+  const teacherSlots = timetable.filter((slot) => slot.teacherId === teacherId)
   const classNameById = useMemo(() => new Map(classes.map((item) => [item.id, item.name])), [classes])
 
   return (
@@ -36,7 +37,7 @@ export default function ConnectedTeacherTimetable() {
       >
         {() => (
           <div>
-            {timetable.length === 0 ? (
+            {teacherSlots.length === 0 ? (
               <EmptyState icon={CalendarRange} title="No timetable published yet" description="Your classes are assigned, but no lesson slots have been published." />
             ) : (
               <>
@@ -71,7 +72,7 @@ export default function ConnectedTeacherTimetable() {
                 ) : (
                   <div className="grid gap-5 md:grid-cols-2">
                     {visibleDays.map((day) => {
-                      const daySlots = timetable
+                      const daySlots = teacherSlots
                         .filter((slot) => slot.day === day)
                         .sort((a, b) => a.startTime.localeCompare(b.startTime))
                       return (
@@ -91,7 +92,12 @@ export default function ConnectedTeacherTimetable() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold text-ink dark:text-white">{classNameById.get(slot.classId) ?? 'Class'}</p>
-                                  <p className="text-xs text-graphite">{slot.subject} · {slot.startTime}–{slot.endTime}</p>
+                                  <p className="text-xs font-medium text-ink dark:text-white">{slot.subject || 'Break'}</p>
+                                  <p className="text-xs tabular-nums">
+                                    <span className="text-emerald-700 dark:text-emerald-300">{slot.startTime}</span>
+                                    <span className="px-1 text-graphite">–</span>
+                                    <span className="text-red-600 dark:text-red-300">{slot.endTime}</span>
+                                  </p>
                                 </div>
                                 {slot.room && <span className="inline-flex shrink-0 items-center gap-1 text-xs text-graphite"><MapPin className="h-3.5 w-3.5" />{slot.room}</span>}
                               </div>

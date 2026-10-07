@@ -38,14 +38,16 @@ export default function AdminAnnouncements() {
         deniedHint="Announcements are available to school members."
       >
         {(rows) => (
-          <AnnouncementBoard
+          <>
+            <AnnouncementBoard
             announcements={rows}
             classes={classes}
             schoolId={schoolId as string}
             canManage={canManage}
             audienceOptions={audienceOptions}
             onChanged={reload}
-          />
+            />
+          </>
         )}
       </ResourceGate>
     </div>

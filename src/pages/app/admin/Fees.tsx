@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Wallet, MagnifyingGlass as Search, FileText, TrendUp as TrendingUp, Warning as AlertTriangle, Plus, Pencil, Trash as Trash2, Lock, PaperPlaneTilt as Send } from '@phosphor-icons/react'
+import { Wallet, FileText, Plus, Pencil, Trash as Trash2, Lock, PaperPlaneTilt as Send } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import PageHeader from '@/components/ui/PageHeader'
@@ -10,7 +10,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Input from '@/components/ui/Input'
 import Badge from '@/components/ui/Badge'
-import StatCard from '@/components/ui/StatCard'
+import AdminSectionInsights from '@/components/dashboard/AdminSectionInsights'
 import EmptyState from '@/components/ui/EmptyState'
 import Avatar from '@/components/ui/Avatar'
 import ResourceGate from '@/components/ui/ResourceGate'
@@ -41,6 +41,7 @@ import { formatDate, formatMoney } from '@/utils/format'
 import { todayInTimeZone, DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 import { errorMessage } from '@/utils/errorMessage'
 import FeeAnalysisCard from '@/components/dashboard/FeeAnalysisCard'
+import PrintButton from '@/components/ui/PrintButton'
 
 // ---------------------------------------------------------------------------
 // Phase 8 batch 6. Real fee_records and fee_payments.
@@ -183,9 +184,17 @@ export default function AdminFees() {
         key,
         label: date.toLocaleDateString('en-US', { month: 'short' }),
         value: analysisMode === 'collected' ? collected : Math.max(0, billed - collected),
+        collected,
+        billed,
+        outstanding: Math.max(0, billed - collected),
       }
     })
   }, [analysisMode, records, timeZone])
+  const currentMonthCollected = monthlyAnalysis.at(-1)?.collected ?? 0
+  const previousMonthCollected = monthlyAnalysis.at(-2)?.collected ?? 0
+  const monthlyChange = previousMonthCollected > 0
+    ? ((currentMonthCollected - previousMonthCollected) / previousMonthCollected) * 100
+    : null
 
   const openCreate = () => {
     setEditing(null)
@@ -456,12 +465,46 @@ export default function AdminFees() {
       >
         {(all) => (
           <>
-            <div className="mb-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard label="Collected this month" value={formatMoney(totals.thisMonth, currency)} icon={TrendingUp} tint="#34A853" />
-              <StatCard label="Total collected" value={formatMoney(totals.collected, currency)} icon={Wallet} tint="#0071E3" />
-              <StatCard label="Outstanding balance" value={formatMoney(totals.outstanding, currency)} icon={Search} tint="#F59E0B" />
-              <StatCard label="Overdue invoices" value={totals.overdue} icon={AlertTriangle} tint="#EF4444" />
-            </div>
+            <AdminSectionInsights
+              metrics={[
+                {
+                  label: 'Collected this month',
+                  value: formatMoney(totals.thisMonth, currency),
+                  change: monthlyChange === null ? undefined : {
+                    value: `${Math.abs(monthlyChange).toFixed(1)}% vs previous month`,
+                    direction: monthlyChange > 0 ? 'up' : monthlyChange < 0 ? 'down' : 'flat',
+                    positive: monthlyChange >= 0,
+                  },
+                },
+                {
+                  label: 'Expected this month',
+                  value: formatMoney(monthlyAnalysis.at(-1)?.billed ?? 0, currency),
+                },
+                { label: 'Total collected', value: formatMoney(totals.collected, currency) },
+                {
+                  label: 'Outstanding',
+                  value: formatMoney(totals.outstanding, currency),
+                  progress: totals.billed ? (totals.outstanding / totals.billed) * 100 : 0,
+                },
+                {
+                  label: 'Collection rate',
+                  value: totals.billed ? `${Math.round((totals.collected / totals.billed) * 100)}%` : '—',
+                },
+                { label: 'Overdue invoices', value: totals.overdue },
+              ]}
+              charts={[
+                {
+                  kind: 'donut',
+                  title: 'Paid vs outstanding',
+                  segments: [
+                    { label: 'Collected', value: totals.collected, tone: 'positive' },
+                    { label: 'Outstanding', value: Math.max(0, totals.outstanding), tone: 'warning' },
+                  ],
+                  formatValue: (value) => formatMoney(value, currency),
+                },
+              ]}
+              insight={`Change compares monthly ${analysisMode === 'collected' ? 'collections' : 'estimated outstanding'} in the selected seven-month analysis.`}
+            />
 
             <FeeAnalysisCard
               currency={currency}
@@ -734,6 +777,9 @@ export default function AdminFees() {
       <Modal open={!!statementTarget} onClose={() => setStatementTarget(null)} title="Payments" size="sm">
         {statementTarget && (
           <div>
+            <div className="mb-4 flex justify-end print-hide">
+              <PrintButton label="Print fee statement" />
+            </div>
             <div className="mb-5 flex items-center gap-3">
               <Avatar name={statementTarget.studentName} />
               <div>
@@ -796,6 +842,58 @@ export default function AdminFees() {
           </div>
         )}
       </Modal>
+
+      {statementTarget && (
+        <article className="print-only print-document" aria-label="Fee statement">
+          <header className="mb-6 border-b border-gray-300 pb-4">
+            <p className="text-lg font-semibold">{school?.name ?? 'School'}</p>
+            <p className="mt-1 text-sm">Fee statement · {new Intl.DateTimeFormat().format(new Date())}</p>
+          </header>
+          <section className="mb-5">
+            <h1 className="text-xl font-semibold">{statementTarget.studentName}</h1>
+            <p className="mt-1 text-sm">{statementTarget.category} · {statementTarget.termName}</p>
+          </section>
+          <dl className="grid grid-cols-3 gap-4 border-y border-gray-300 py-4">
+            <div>
+              <dt className="text-sm text-gray-600">Billed</dt>
+              <dd className="mt-1 font-semibold">{formatMoney(statementTarget.amount, statementTarget.currency, true)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-600">Paid</dt>
+              <dd className="mt-1 font-semibold">{formatMoney(statementTarget.amountPaid, statementTarget.currency, true)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-gray-600">Balance</dt>
+              <dd className="mt-1 font-semibold">{formatMoney(statementTarget.balance, statementTarget.currency, true)}</dd>
+            </div>
+          </dl>
+          <h2 className="mb-2 mt-6 font-semibold">Payment history</h2>
+          {statementTarget.payments.length === 0 ? (
+            <p className="text-sm text-gray-600">No payments recorded against this fee.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th className="border-b p-2 text-left">Date</th>
+                  <th className="border-b p-2 text-left">Method</th>
+                  <th className="border-b p-2 text-left">Reference</th>
+                  <th className="border-b p-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statementTarget.payments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td className="border-b p-2">{formatDate(payment.paidOn)}</td>
+                    <td className="border-b p-2">{paymentMethodLabel(payment.method)}</td>
+                    <td className="border-b p-2">{payment.reference}</td>
+                    <td className="border-b p-2 text-right">{formatMoney(payment.amount, payment.currency, true)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </article>
+      )}
 
       {/* Real message threads, one per guardian. See the header. */}
       <Modal

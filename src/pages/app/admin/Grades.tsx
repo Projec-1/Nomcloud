@@ -16,7 +16,7 @@ export default function AdminGrades() {
 
   return (
     <div>
-      <PageHeader title="Grades" description="Record and review assessment scores for any class." />
+      <PageHeader title="Grades" description="Review class assessment scores and export performance reports." />
       <ResourceGate
         state={state}
         empty={{
@@ -26,7 +26,7 @@ export default function AdminGrades() {
         }}
         deniedHint="Grade records are available to school staff."
       >
-        {(visibleClasses) => <GradeBook classes={visibleClasses} schoolId={schoolId as string} />}
+        {(visibleClasses) => <GradeBook classes={visibleClasses} schoolId={schoolId as string} readOnly />}
       </ResourceGate>
     </div>
   )

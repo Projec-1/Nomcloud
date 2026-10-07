@@ -33,6 +33,8 @@ import type { IsoWeekday } from '@/types'
 export const DEFAULT_WEEKEND_DAYS: IsoWeekday[] = [4, 5]
 
 const SCHOOL_WEEK_ORDER: IsoWeekday[] = [6, 7, 1, 2, 3, 4]
+/** Timetable order: the full Saturday-to-Friday week requested by schools. */
+export const TIMETABLE_WEEKDAYS: IsoWeekday[] = [6, 7, 1, 2, 3, 4, 5]
 
 /** The schools.timezone default since Phase 3. */
 export const DEFAULT_TIME_ZONE = 'Africa/Mogadishu'

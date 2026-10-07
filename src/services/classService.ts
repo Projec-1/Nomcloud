@@ -45,7 +45,7 @@ export async function fetchManagedClasses(
 ): Promise<ClassSummary[]> {
   let query = supabase
     .from('classes')
-    .select('id, name, grade, section, room, capacity, class_teacher_id')
+    .select('id, academic_year_id, name, grade, section, room, capacity, class_teacher_id')
     .eq('school_id', schoolId)
   if (academicYearId) query = query.eq('academic_year_id', academicYearId)
   const { data: classRows, error: classError } = await query.order('name', { ascending: true })
@@ -54,6 +54,7 @@ export async function fetchManagedClasses(
 
   const rows = (classRows ?? []) as {
     id: string
+    academic_year_id: string
     name: string
     grade: string
     section: string | null
@@ -114,6 +115,7 @@ export async function fetchManagedClasses(
     const subjects = (subjectsByClass.get(c.id) ?? []).sort((x, y) => x.name.localeCompare(y.name))
     return {
       id: c.id,
+      academicYearId: c.academic_year_id,
       name: c.name,
       grade: c.grade,
       section: c.section,
@@ -260,6 +262,66 @@ export interface TimetableSlotInput {
   room: string | null
 }
 
+interface TimetableConflictRow {
+  id: string
+  class_id: string
+  start_time: string
+  end_time: string
+}
+
+function timeRangesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+  return startA.slice(0, 5) < endB.slice(0, 5) && startB.slice(0, 5) < endA.slice(0, 5)
+}
+
+async function validateTimetableConflicts(
+  schoolId: string,
+  slotId: string | null,
+  input: TimetableSlotInput,
+): Promise<void> {
+  const classQuery = supabase
+    .from('timetable_slots')
+    .select('id, class_id, start_time, end_time')
+    .eq('school_id', schoolId)
+    .eq('class_id', input.classId)
+    .eq('day_of_week', input.dayOfWeek)
+  const { data: classSlots, error: classError } = slotId
+    ? await classQuery.neq('id', slotId)
+    : await classQuery
+  if (classError) throw classError
+
+  const classConflict = ((classSlots ?? []) as TimetableConflictRow[]).find((slot) =>
+    timeRangesOverlap(slot.start_time, slot.end_time, input.startTime, input.endTime),
+  )
+  if (classConflict) {
+    throw new Error(
+      `This class already has a period between ${classConflict.start_time.slice(0, 5)} and ${classConflict.end_time.slice(0, 5)} at that time.`,
+    )
+  }
+
+  if (!input.teacherId) return
+
+  const teacherQuery = supabase
+    .from('timetable_slots')
+    .select('id, class_id, start_time, end_time')
+    .eq('school_id', schoolId)
+    .eq('teacher_id', input.teacherId)
+    .eq('day_of_week', input.dayOfWeek)
+  const { data: teacherSlots, error: teacherError } = slotId
+    ? await teacherQuery.neq('id', slotId)
+    : await teacherQuery
+  if (teacherError) throw teacherError
+
+  const teacherConflict = ((teacherSlots ?? []) as TimetableConflictRow[]).find((slot) =>
+    timeRangesOverlap(slot.start_time, slot.end_time, input.startTime, input.endTime),
+  )
+  if (teacherConflict) {
+    const location = teacherConflict.class_id === input.classId ? 'this class' : 'another class'
+    throw new Error(
+      `This teacher is already scheduled for ${location} between ${teacherConflict.start_time.slice(0, 5)} and ${teacherConflict.end_time.slice(0, 5)}.`,
+    )
+  }
+}
+
 export async function fetchManagedTimetable(schoolId: string, classId: string): Promise<TimetableSlotView[]> {
   const { data, error } = await supabase
     .from('timetable_slots')
@@ -302,6 +364,7 @@ export async function fetchManagedTimetable(schoolId: string, classId: string): 
     id: row.id,
     classId: row.class_id,
     teacherId: row.teacher_id ?? '',
+    subjectId: row.subject_id ?? null,
     day: row.day_of_week as TimetableSlotView['day'],
     period: row.period,
     startTime: row.start_time.slice(0, 5),
@@ -314,20 +377,7 @@ export async function fetchManagedTimetable(schoolId: string, classId: string): 
 
 /** Adds a timetable slot. Management only, per can_manage_class. */
 export async function createTimetableSlot(schoolId: string, input: TimetableSlotInput): Promise<void> {
-  if (input.teacherId) {
-    const { data: conflict, error: conflictError } = await supabase
-      .from('timetable_slots')
-      .select('id, class_id')
-      .eq('school_id', schoolId)
-      .eq('teacher_id', input.teacherId)
-      .eq('day_of_week', input.dayOfWeek)
-      .eq('period', input.period)
-      .maybeSingle()
-    if (conflictError) throw conflictError
-    if (conflict && conflict.class_id !== input.classId) {
-      throw new Error('This teacher is already scheduled for another class at that time.')
-    }
-  }
+  await validateTimetableConflicts(schoolId, null, input)
   const { error } = await supabase.from('timetable_slots').insert({
     school_id: schoolId,
     class_id: input.classId,
@@ -352,21 +402,7 @@ export async function deleteTimetableSlot(schoolId: string, id: string): Promise
 
 /** Updates a lesson or break while keeping the same class and slot identity. */
 export async function updateTimetableSlot(schoolId: string, id: string, input: TimetableSlotInput): Promise<void> {
-  if (input.teacherId) {
-    const { data: conflict, error: conflictError } = await supabase
-      .from('timetable_slots')
-      .select('id, class_id')
-      .eq('school_id', schoolId)
-      .eq('teacher_id', input.teacherId)
-      .eq('day_of_week', input.dayOfWeek)
-      .eq('period', input.period)
-      .neq('id', id)
-      .maybeSingle()
-    if (conflictError) throw conflictError
-    if (conflict && conflict.class_id !== input.classId) {
-      throw new Error('This teacher is already scheduled for another class at that time.')
-    }
-  }
+  await validateTimetableConflicts(schoolId, id, input)
   const { error } = await supabase
     .from('timetable_slots')
     .update({

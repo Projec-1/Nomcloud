@@ -32,6 +32,7 @@ import {
   ArrowCounterClockwise as RotateCcw,
   Megaphone,
   Database,
+  HardDrives,
   PlugsConnected,
   Sliders,
   CreditCard,
@@ -101,6 +102,7 @@ const navGroups = [
       { label: 'Integrations', path: '/platform/integrations', icon: PlugsConnected },
       { label: 'Billing', path: '/platform/billing', icon: CreditCard },
       { label: 'Data', path: '/platform/data', icon: Database },
+      { label: 'Backups & Recovery', path: '/platform/backups', icon: HardDrives },
       { label: 'Email Templates', path: '/platform/templates/email', icon: FileText },
       { label: 'Announcement Templates', path: '/platform/templates/announcements', icon: Megaphone },
       { label: 'Money Receipt Templates', path: '/platform/templates/receipts', icon: FileText },
@@ -252,6 +254,7 @@ export default function PlatformWorkspace() {
   const handleLogout = async () => {
     try {
       await logout()
+      navigate('/', { replace: true })
     } catch {
       notify('Could not sign out. Check your connection and try again.')
     }
@@ -336,6 +339,7 @@ export default function PlatformWorkspace() {
           {section === 'Audit Logs' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditView notify={notify} rows={auditRecords} />)}
           {section === 'Security' && <SecurityView />}
           {section === 'Maintenance' && <MaintenanceView />}
+          {section === 'Backups & Recovery' && <BackupsView />}
           {section === 'Analytics' && <AnalyticsView />}
           {section === 'Settings' && <SettingsView onEmergency={() => setEmergencyOpen(true)} fullName={profile?.full_name ?? ''} email={authUser?.email ?? ''} />}
         </div>
@@ -599,6 +603,59 @@ function MaintenanceView() {
       description="Service status, maintenance windows and staged feature rollouts."
       reason="Three separate features live here and none has a data source: there is no service-health table, no maintenance-window table, and no feature-flag table. Service health is visible in the Supabase and Vercel dashboards today."
     />
+  )
+}
+
+function BackupsView() {
+  const examples = [
+    { date: 'Example · 27 Sep 2026, 02:00 UTC', status: 'Example only', size: '—', type: 'Scheduled snapshot' },
+    { date: 'Example · 26 Sep 2026, 02:00 UTC', status: 'Example only', size: '—', type: 'Scheduled snapshot' },
+    { date: 'Example · 25 Sep 2026, 02:00 UTC', status: 'Example only', size: '—', type: 'Scheduled snapshot' },
+  ]
+
+  return (
+    <>
+      <SectionHeader
+        eyebrow="Infrastructure"
+        title="Backups & disaster recovery"
+        description="Backup visibility and recovery readiness."
+      />
+      <div role="status" className="mb-6 border-l-2 border-amber-500 bg-amber-500/[0.06] px-4 py-3">
+        <p className="text-sm font-semibold text-ink dark:text-white">Mock preview · no backups are being run or verified here</p>
+        <p className="mt-1 text-sm text-graphite">Connect a trusted backup provider before relying on backup schedules or recovery procedures.</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[
+          ['Backup status', 'Not connected'],
+          ['Last successful backup', 'Not available'],
+          ['Next scheduled backup', 'Not configured'],
+          ['Disaster recovery status', 'Not verified'],
+        ].map(([label, value]) => (
+          <section key={label} className="rounded-xl border border-ink/[0.08] bg-white p-5 dark:border-white/[0.1] dark:bg-white/[0.03]">
+            <p className="text-xs font-medium text-graphite">{label}</p>
+            <p className="mt-2 text-lg font-semibold">{value}</p>
+          </section>
+        ))}
+      </div>
+      <section className="mt-6 rounded-xl border border-ink/[0.08] bg-white p-5 dark:border-white/[0.1] dark:bg-white/[0.03]">
+        <h2 className="font-semibold">Example backup history</h2>
+        <div className="mt-3 divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
+          {examples.map((backup) => (
+            <div key={backup.date} className="grid gap-2 py-3 text-sm sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
+              <span>{backup.date}</span>
+              <span className="text-graphite">{backup.type}</span>
+              <span className="text-graphite">{backup.size}</span>
+              <span className="font-medium text-amber-700 dark:text-amber-300">{backup.status}</span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-graphite">Example rows are placeholders, not records from a backup service.</p>
+      </section>
+      <section className="mt-6 rounded-xl border border-ink/[0.08] p-5 dark:border-white/[0.1]">
+        <h2 className="font-semibold">Recovery information</h2>
+        <p className="mt-2 text-sm text-graphite">Restore steps, recovery objectives, and backup retention are not configured in Nom Cloud yet. Do not use this preview as a recovery plan.</p>
+      </section>
+    </>
   )
 }
 

@@ -117,6 +117,53 @@ export async function fetchSubjects(schoolId: string): Promise<SubjectRow[]> {
   return (data ?? []) as SubjectRow[]
 }
 
+const STANDARD_SCHOOL_SUBJECTS = [
+  'Mathematics',
+  'Science',
+  'Arabic',
+  'Af-Soomaali',
+  'English',
+  'Tarbiyo (Islamic teachings)',
+  'Social Studies',
+  'Information and Communication Technology (ICT)',
+  'Physics',
+  'Chemistry',
+  'Biology',
+  'Geography',
+  'History',
+] as const
+
+/**
+ * Ensures the school has the standard timetable subject choices.
+ *
+ * Existing school-specific subjects are preserved. Duplicate inserts are
+ * ignored using the database's (school_id, name) unique constraint.
+ */
+export async function ensureStandardSchoolSubjects(schoolId: string): Promise<SubjectRow[]> {
+  const { data, error: readError } = await supabase
+    .from('subjects')
+    .select('name')
+    .eq('school_id', schoolId)
+
+  if (readError) throw readError
+
+  const existing = new Set(((data ?? []) as { name: string }[]).map((subject) => subject.name))
+  const missing = STANDARD_SCHOOL_SUBJECTS.filter((name) => !existing.has(name))
+
+  if (missing.length > 0) {
+    const { error: insertError } = await supabase
+      .from('subjects')
+      .upsert(
+        missing.map((name) => ({ school_id: schoolId, name, is_active: true })),
+        { onConflict: 'school_id,name', ignoreDuplicates: true },
+      )
+
+    if (insertError) throw insertError
+  }
+
+  return fetchSubjects(schoolId)
+}
+
 // ===========================================================================
 // WRITES — academic calendar. SYSTEM_ISSUES_LIST K1, K2, K5, M1.
 // ===========================================================================

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { PaperPlaneTilt as Send, Plus, ChatText as MessageSquare, MagnifyingGlass as Search, Lock } from '@phosphor-icons/react'
 import { useToast } from '@/context/ToastContext'
 import Modal from '@/components/ui/Modal'
-import Select from '@/components/ui/Select'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import Button from '@/components/ui/Button'
@@ -22,6 +21,7 @@ import {
   type ThreadView,
 } from '@/services/communicationService'
 import { errorMessage } from '@/utils/errorMessage'
+import { createSignedImageUrls, BUCKETS } from '@/services/storageService'
 
 // ---------------------------------------------------------------------------
 // Phase 8 batch 7. Real message_threads, message_thread_participants, messages.
@@ -63,6 +63,8 @@ interface MessagesPanelProps {
   onChanged: () => void
 }
 
+type MessageableUserWithAvatar = MessageableUser & { avatarUrl: string | null }
+
 export default function MessagesPanel({
   threads,
   schoolId,
@@ -81,8 +83,9 @@ export default function MessagesPanel({
   const [search, setSearch] = useState('')
 
   const [newModalOpen, setNewModalOpen] = useState(false)
-  const [recipients, setRecipients] = useState<MessageableUser[]>([])
+  const [recipients, setRecipients] = useState<MessageableUserWithAvatar[]>([])
   const [newRecipientId, setNewRecipientId] = useState('')
+  const [recipientSearch, setRecipientSearch] = useState('')
   const [newSubject, setNewSubject] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [creating, setCreating] = useState(false)
@@ -136,10 +139,16 @@ export default function MessagesPanel({
   const openCompose = useCallback(async () => {
     setNewSubject('')
     setNewMessage('')
+    setRecipientSearch('')
     setNewModalOpen(true)
     try {
       const people = await fetchMessageableUsers(schoolId, currentUserId)
-      setRecipients(people)
+      const avatarPaths = people.map((person) => person.avatarPath).filter((path): path is string => Boolean(path))
+      const avatarUrls = await createSignedImageUrls(BUCKETS.profileAvatars, avatarPaths)
+      setRecipients(people.map((person) => ({
+        ...person,
+        avatarUrl: person.avatarPath ? avatarUrls.get(person.avatarPath) ?? null : null,
+      })))
       setNewRecipientId(people[0]?.userId ?? '')
     } catch (err: unknown) {
       showToast({
@@ -227,6 +236,8 @@ export default function MessagesPanel({
           recipients={recipients}
           recipientId={newRecipientId}
           setRecipientId={setNewRecipientId}
+          recipientSearch={recipientSearch}
+          setRecipientSearch={setRecipientSearch}
           subject={newSubject}
           setSubject={setNewSubject}
           message={newMessage}
@@ -363,6 +374,8 @@ export default function MessagesPanel({
         recipients={recipients}
         recipientId={newRecipientId}
         setRecipientId={setNewRecipientId}
+        recipientSearch={recipientSearch}
+        setRecipientSearch={setRecipientSearch}
         subject={newSubject}
         setSubject={setNewSubject}
         message={newMessage}
@@ -380,6 +393,8 @@ function ComposeModal({
   recipients,
   recipientId,
   setRecipientId,
+  recipientSearch,
+  setRecipientSearch,
   subject,
   setSubject,
   message,
@@ -389,9 +404,11 @@ function ComposeModal({
 }: {
   open: boolean
   onClose: () => void
-  recipients: MessageableUser[]
+  recipients: MessageableUserWithAvatar[]
   recipientId: string
   setRecipientId: (v: string) => void
+  recipientSearch: string
+  setRecipientSearch: (v: string) => void
   subject: string
   setSubject: (v: string) => void
   message: string
@@ -423,13 +440,53 @@ function ComposeModal({
           </p>
         ) : (
           <>
-            <Select label="To" value={recipientId} onChange={(e) => setRecipientId(e.target.value)}>
-              {recipients.map((r) => (
-                <option key={r.userId} value={r.userId}>
-                  {r.name} · {r.role}
-                </option>
-              ))}
-            </Select>
+            <div>
+              <label htmlFor="message-recipient-search" className="label">Search people</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" aria-hidden="true" />
+                <input
+                  id="message-recipient-search"
+                  value={recipientSearch}
+                  onChange={(event) => setRecipientSearch(event.target.value)}
+                  placeholder="Search teachers and parents by name"
+                  className="input pl-9"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="mt-2 max-h-52 space-y-1 overflow-y-auto" aria-label="Message recipients">
+                {recipients
+                  .filter((recipient) => `${recipient.name} ${recipient.role}`.toLowerCase().includes(recipientSearch.trim().toLowerCase()))
+                  .map((recipient) => (
+                    <button
+                      key={recipient.userId}
+                      type="button"
+                      aria-pressed={recipientId === recipient.userId}
+                      onClick={() => setRecipientId(recipient.userId)}
+                      className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left ${recipientId === recipient.userId ? 'bg-brand/10' : 'hover:bg-ink/5 dark:hover:bg-white/10'}`}
+                    >
+                      <Avatar name={recipient.name} size="sm" src={recipient.avatarUrl ?? undefined} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-ink dark:text-white">{recipient.name}</span>
+                        <span className="block truncate text-xs text-graphite">{recipient.role}</span>
+                      </span>
+                    </button>
+                  ))}
+                {recipients.every((recipient) => !`${recipient.name} ${recipient.role}`.toLowerCase().includes(recipientSearch.trim().toLowerCase())) && (
+                  <p className="px-2 py-3 text-sm text-graphite">No matching contacts.</p>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg border border-ink/[0.08] p-3 dark:border-white/10">
+              {(() => {
+                const recipient = recipients.find((person) => person.userId === recipientId)
+                return recipient ? (
+                  <div className="flex items-center gap-3">
+                    <Avatar name={recipient.name} size="sm" src={recipient.avatarUrl ?? undefined} />
+                    <div className="min-w-0"><p className="truncate text-sm font-semibold">{recipient.name}</p><p className="text-xs text-graphite">{recipient.role}</p></div>
+                  </div>
+                ) : <p className="text-sm text-graphite">Select a person to message.</p>
+              })()}
+            </div>
             <Input label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Optional" />
             <Textarea
               label="Message"

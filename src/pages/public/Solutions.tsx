@@ -82,7 +82,7 @@ export default function Solutions() {
             </div>
           </div>
           <div key={`${active}-mock`} className="flex animate-fade-up justify-center">
-            {solution.mock === 'admin' && <AdministratorWorkspacePreview />}
+            {solution.mock === 'admin' && <AdministratorWorkspacePreview interactive />}
             {solution.mock === 'teacher' && <TeacherDashboardMock />}
             {solution.mock === 'parent' && <ParentAppMock />}
             {solution.mock === 'student' && (

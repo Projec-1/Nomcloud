@@ -12,6 +12,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Input from '@/components/ui/Input'
 import EmptyState from '@/components/ui/EmptyState'
 import ResourceGate from '@/components/ui/ResourceGate'
+import SearchInput from '@/components/ui/SearchInput'
 import RequestProcessing from '@/components/ui/RequestProcessing'
 import { useRecordableClasses } from '@/hooks/useRecordableClasses'
 import { useAcademicStructure } from '@/hooks/useAcademicStructure'
@@ -55,6 +56,7 @@ export default function AdminClasses() {
   // K6: the current year by default; any other year, or all of them, on request.
   const [bulkOpen, setBulkOpen] = useState(false)
   const [yearScope, setYearScope] = useState<string>('active')
+  const [search, setSearch] = useState('')
   const { state, classes, schoolId, reload } = useRecordableClasses(yearScope)
   const { state: academicState } = useAcademicStructure()
 
@@ -221,57 +223,142 @@ export default function AdminClasses() {
         }}
         deniedHint="Class records are available to school staff."
       >
-        {(rows) => (
-          <>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {rows.map((c) => (
-                <div key={c.id} className="card p-6">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-ink dark:text-white">{c.name}</p>
-                      <p className="text-xs text-graphite">
-                        Grade {c.grade}
-                        {c.section ? ` · Section ${c.section}` : ''}
-                      </p>
-                    </div>
-                    <div className="flex flex-shrink-0 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(c)}
-                        aria-label={`Edit ${c.name}`}
-                        className="rounded-lg p-2 text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(c)}
-                        aria-label={`Remove ${c.name}`}
-                        className="rounded-lg p-2 text-graphite hover:bg-red-500/10 hover:text-red-500"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-2 text-xs text-graphite">
-                    <p className="flex items-center gap-2">
-                      <Users className="h-3.5 w-3.5" /> {c.studentIds.length}
-                      {c.capacity ? ` / ${c.capacity}` : ''} students
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5" /> {c.room ?? 'No room set'}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <BookOpen className="h-3.5 w-3.5" />
-                      {c.teacherId ? (teacherNames.get(c.teacherId) ?? 'Homeroom set') : 'No homeroom teacher'}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {(rows) => {
+          const query = search.trim().toLowerCase()
+          const visibleRows = rows.filter((classroom) => {
+            const teacherName = classroom.teacherId ? teacherNames.get(classroom.teacherId) ?? '' : ''
+            return [
+              classroom.name,
+              classroom.grade,
+              classroom.section ?? '',
+              classroom.room ?? '',
+              teacherName,
+            ].some((value) => value.toLowerCase().includes(query))
+          })
 
-          </>
-        )}
+          return (
+            <div>
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <SearchInput
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search classes, rooms or teachers…"
+                  ariaLabel="Search classes, rooms or teachers"
+                  className="sm:w-96"
+                />
+                <p className="text-sm text-graphite" aria-live="polite">
+                  {visibleRows.length} {visibleRows.length === 1 ? 'class' : 'classes'}
+                </p>
+              </div>
+
+              {visibleRows.length === 0 ? (
+                <EmptyState
+                  icon={BookOpen}
+                  title="No matching classes"
+                  description="Try another class name, grade, room or teacher."
+                />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {visibleRows.map((c) => {
+                    const enrollmentPercent = c.capacity ? Math.min(100, Math.round((c.studentIds.length / c.capacity) * 100)) : null
+                    const isFull = c.capacity !== null && c.studentIds.length >= c.capacity
+
+                    return (
+                      <article
+                        key={c.id}
+                        className="group relative overflow-hidden rounded-2xl border border-ink/10 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md focus-within:border-brand/40 dark:border-white/10 dark:bg-white/[0.035] dark:hover:border-brand/40"
+                      >
+                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand/80 via-brand/35 to-transparent" />
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h2 className="truncate text-base font-semibold tracking-tight text-ink dark:text-white">{c.name}</h2>
+                              <span className="inline-flex shrink-0 items-center rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand dark:bg-brand/15">
+                                Grade {c.grade}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-sm text-graphite">
+                              {c.section ? `Section ${c.section}` : 'Class group'}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(c)}
+                              aria-label={`Edit ${c.name}`}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-graphite transition-colors hover:bg-brand/10 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:hover:bg-brand/15"
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(c)}
+                              aria-label={`Remove ${c.name}`}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-graphite transition-colors hover:bg-red-500/10 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 dark:hover:text-red-400"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-5 flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${isFull ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'}`}>
+                            <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                            {c.studentIds.length}{c.capacity ? ` / ${c.capacity}` : ''} students
+                          </span>
+                          {c.capacity !== null && (
+                            <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${isFull ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'bg-ink/5 text-graphite dark:bg-white/10'}`}>
+                              {isFull ? 'At capacity' : `${c.capacity - c.studentIds.length} seats open`}
+                            </span>
+                          )}
+                        </div>
+
+                        {enrollmentPercent !== null && (
+                          <div className="mt-4" aria-label={`${enrollmentPercent}% of class capacity used`}>
+                            <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-graphite">
+                              <span>Class capacity</span>
+                              <span>{enrollmentPercent}%</span>
+                            </div>
+                            <div
+                              className="h-1.5 overflow-hidden rounded-full bg-ink/5 dark:bg-white/10"
+                              role="progressbar"
+                              aria-valuenow={enrollmentPercent}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label="Class capacity used"
+                            >
+                              <div
+                                className={`h-full rounded-full transition-[width] duration-300 ${isFull ? 'bg-amber-500' : 'bg-brand'}`}
+                                style={{ width: `${enrollmentPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-5 grid gap-3 border-t border-ink/5 pt-4 text-sm dark:border-white/10">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300">
+                              <MapPin className="h-4 w-4" aria-hidden="true" />
+                            </span>
+                            <span className="truncate text-graphite">{c.room ?? 'No room assigned'}</span>
+                          </div>
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                              <BookOpen className="h-4 w-4" aria-hidden="true" />
+                            </span>
+                            <span className="truncate text-graphite">
+                              {c.teacherId ? teacherNames.get(c.teacherId) ?? 'Homeroom assigned' : 'No homeroom teacher'}
+                            </span>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        }}
       </ResourceGate>
 
       <Modal

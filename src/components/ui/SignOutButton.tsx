@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
@@ -9,11 +10,20 @@ interface SignOutButtonProps {
   children: ReactNode
   className?: string
   type?: 'button' | 'submit' | 'reset'
+  confirm?: boolean
+  onSignOutStart?: () => void
 }
 
-export default function SignOutButton({ children, className, type = 'button' }: SignOutButtonProps) {
+export default function SignOutButton({
+  children,
+  className,
+  type = 'button',
+  confirm = true,
+  onSignOutStart,
+}: SignOutButtonProps) {
   const { logout } = useAuth()
   const { showToast } = useToast()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -22,6 +32,7 @@ export default function SignOutButton({ children, className, type = 'button' }: 
     try {
       await logout()
       setOpen(false)
+      navigate('/login', { replace: true })
     } catch (error: unknown) {
       showToast({ type: 'error', title: 'Could not sign out', description: errorMessage(error) })
     } finally {
@@ -31,7 +42,16 @@ export default function SignOutButton({ children, className, type = 'button' }: 
 
   return (
     <>
-      <button type={type} onClick={() => setOpen(true)} className={className}>
+      <button
+        type={type}
+        onClick={() => {
+          onSignOutStart?.()
+          if (confirm) setOpen(true)
+          else void handleLogout()
+        }}
+        disabled={loading}
+        className={className}
+      >
         {children}
       </button>
       <ConfirmDialog

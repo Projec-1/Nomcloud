@@ -37,6 +37,7 @@ import AdminGrades from '@/pages/app/admin/Grades'
 import AdminHomework from '@/pages/app/admin/Homework'
 import AdminExams from '@/pages/app/admin/Exams'
 import AdminFees from '@/pages/app/admin/Fees'
+import AdminFeeInsights from '@/pages/app/admin/FeeInsights'
 import AdminAnnouncements from '@/pages/app/admin/Announcements'
 import AdminMessages from '@/pages/app/admin/Messages'
 import AdminReports from '@/pages/app/admin/Reports'
@@ -133,6 +134,7 @@ export default function App() {
           <Route path="integrations" element={<PlatformWorkspace />} />
           <Route path="billing" element={<PlatformWorkspace />} />
           <Route path="data" element={<PlatformWorkspace />} />
+          <Route path="backups" element={<PlatformWorkspace />} />
           <Route path="activity" element={<PlatformWorkspace />} />
           <Route path="audit" element={<PlatformWorkspace />} />
           <Route path="security" element={<PlatformWorkspace />} />
@@ -168,6 +170,7 @@ export default function App() {
           <Route path="homework" element={<AdminHomework />} />
           <Route path="exams" element={<AdminExams />} />
           <Route path="fees" element={<AdminFees />} />
+          <Route path="fee-insights" element={<AdminFeeInsights />} />
           <Route path="announcements" element={<AdminAnnouncements />} />
           <Route path="messages" element={<AdminMessages />} />
           <Route path="reports" element={<AdminReports />} />
@@ -190,9 +193,10 @@ export default function App() {
           <Route index element={<TeacherDashboard />} />
           <Route path="classes" element={<TeacherClasses />} />
           <Route path="timetable" element={<TeacherTimetable />} />
-          <Route path="my-day" element={<TeacherDashboard />} />
-          <Route path="students" element={<TeacherClasses />} />
-          <Route path="resources" element={<TeacherWorkspace />} />
+          <Route path="my-day" element={<Navigate to="/app/teacher" replace />} />
+          <Route path="students" element={<Navigate to="/app/teacher" replace />} />
+          <Route path="my-students" element={<Navigate to="/app/teacher" replace />} />
+          <Route path="resources" element={<Navigate to="/app/teacher" replace />} />
           <Route path="progress" element={<TeacherGrades />} />
           <Route path="profile" element={<TeacherWorkspace />} />
           <Route path="notifications" element={<TeacherWorkspace />} />
@@ -202,7 +206,7 @@ export default function App() {
           <Route path="assignments" element={<TeacherHomework />} />
           <Route path="lessons" element={<TeacherTimetable />} />
           <Route path="exams" element={<TeacherWorkspace />} />
-          <Route path="class-performance" element={<TeacherGrades />} />
+          <Route path="class-performance" element={<Navigate to="/app/teacher" replace />} />
           <Route path="announcements" element={<TeacherAnnouncements />} />
           <Route path="messages" element={<TeacherMessages />} />
           <Route path="tutorials" element={<TeacherTutorials />} />

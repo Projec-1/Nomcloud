@@ -32,6 +32,13 @@ export default function CountUp({
     if (!el) return
 
     const start = () => {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (prefersReducedMotion) {
+        setDisplay(value)
+        setIsDone(true)
+        return
+      }
+
       setDisplay(0)
       setIsDone(false)
       const startTime = performance.now()

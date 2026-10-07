@@ -258,7 +258,9 @@ export default function AdminAcademicYears() {
         deniedHint="Academic years are managed by your school's administrator."
       >
         {(loaded) => (
-          <YearGrid structure={loaded} onAddTerm={openAddTerm} onSetCurrent={setSwitchTarget} />
+          <>
+            <YearGrid structure={loaded} onAddTerm={openAddTerm} onSetCurrent={setSwitchTarget} />
+          </>
         )}
       </ResourceGate>
 

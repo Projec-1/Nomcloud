@@ -234,13 +234,13 @@ function SectionContent({ section }: { section: string }) {
   )
 }
 
-export default function AdministratorWorkspacePreview() {
+export default function AdministratorWorkspacePreview({ interactive = false }: { interactive?: boolean }) {
   const [activeSection, setActiveSection] = useState('Overview')
   const ActiveIcon = sections.find((section) => section.label === activeSection)?.icon ?? SquaresFour
 
   return (
     <BrowserFrame className="w-full">
-      <div className="flex min-h-[390px] bg-white text-ink dark:bg-[#202320] dark:text-white sm:min-h-[430px]">
+      <div className={`flex min-h-[390px] bg-white text-ink dark:bg-[#202320] dark:text-white sm:min-h-[430px] ${interactive ? '' : 'pointer-events-none cursor-default select-none'}`}>
         <aside className="hidden w-48 shrink-0 border-r border-ink/10 bg-white px-3 py-4 dark:border-white/10 dark:bg-[#202320] md:block">
           <div className="mb-5 flex items-center gap-2 px-2">
             <img src="/logo-512.png" alt="Nom Cloud" className="h-8 w-8 shrink-0 object-contain" />
@@ -248,20 +248,33 @@ export default function AdministratorWorkspacePreview() {
           </div>
           <nav aria-label="Administrator workspace preview" className="space-y-1">
             {sections.map(({ label, icon: Icon }) => (
-              <button
-                key={label}
-                type="button"
-                aria-pressed={activeSection === label}
-                onClick={() => setActiveSection(label)}
-                className={`flex min-h-10 w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${
-                  activeSection === label
-                    ? 'bg-brand/10 text-brand'
-                    : 'text-graphite hover:bg-ink/[0.04] dark:hover:bg-white/[0.06]'
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{label}</span>
-              </button>
+              interactive ? (
+                <button
+                  key={label}
+                  type="button"
+                  aria-pressed={activeSection === label}
+                  onClick={() => setActiveSection(label)}
+                  className={`flex min-h-10 w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${
+                    activeSection === label
+                      ? 'bg-brand/10 text-brand'
+                      : 'text-graphite hover:bg-ink/[0.04] dark:hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{label}</span>
+                </button>
+              ) : (
+                <div
+                  key={label}
+                  aria-current={activeSection === label ? 'page' : undefined}
+                  className={`flex min-h-10 w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium ${
+                    activeSection === label ? 'bg-brand/10 text-brand' : 'text-graphite'
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{label}</span>
+                </div>
+              )
             ))}
           </nav>
         </aside>
@@ -274,26 +287,38 @@ export default function AdministratorWorkspacePreview() {
               <h2 className="truncate text-sm font-semibold">{activeSection}</h2>
               <span className="hidden text-xs text-graphite sm:inline">· Nom Cloud Academy</span>
             </div>
-            <button type="button" aria-label="Notifications" className="flex h-9 w-9 shrink-0 items-center justify-center border border-ink/10 dark:border-white/10">
+            <div aria-label="Notifications" className="flex h-9 w-9 shrink-0 items-center justify-center border border-ink/10 dark:border-white/10">
               <Bell className="h-4 w-4" />
-            </button>
+            </div>
           </div>
 
           <nav aria-label="Preview sections" className="mt-3 flex gap-1 overflow-x-auto pb-2 md:hidden">
             {sections.map(({ label }) => (
-              <button
-                key={label}
-                type="button"
-                aria-pressed={activeSection === label}
-                onClick={() => setActiveSection(label)}
-                className={`min-h-10 shrink-0 whitespace-nowrap px-3 text-xs font-medium ${
-                  activeSection === label
-                    ? 'bg-brand/10 text-brand'
-                    : 'text-graphite hover:bg-ink/[0.04] dark:hover:bg-white/[0.06]'
-                }`}
-              >
-                {label}
-              </button>
+              interactive ? (
+                <button
+                  key={label}
+                  type="button"
+                  aria-pressed={activeSection === label}
+                  onClick={() => setActiveSection(label)}
+                  className={`min-h-10 shrink-0 whitespace-nowrap px-3 text-xs font-medium ${
+                    activeSection === label
+                      ? 'bg-brand/10 text-brand'
+                      : 'text-graphite hover:bg-ink/[0.04] dark:hover:bg-white/[0.06]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ) : (
+                <span
+                  key={label}
+                  aria-current={activeSection === label ? 'page' : undefined}
+                  className={`min-h-10 shrink-0 whitespace-nowrap px-3 py-3 text-xs font-medium ${
+                    activeSection === label ? 'bg-brand/10 text-brand' : 'text-graphite'
+                  }`}
+                >
+                  {label}
+                </span>
+              )
             ))}
           </nav>
 

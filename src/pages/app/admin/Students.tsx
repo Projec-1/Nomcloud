@@ -3,6 +3,7 @@ import { Users, Plus, Pencil, Trash as Trash2, Upload, FileXls as FileSpreadshee
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import PageHeader from '@/components/ui/PageHeader'
+import AdminSectionInsights from '@/components/dashboard/AdminSectionInsights'
 import SearchInput from '@/components/ui/SearchInput'
 import Select from '@/components/ui/Select'
 import Button from '@/components/ui/Button'
@@ -44,6 +45,7 @@ import { todayInTimeZone, DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 import { IMAGE_ACCEPT, prepareImage } from '@/lib/imageUpload'
 import { BUCKETS, createSignedImageUrls, removeStudentPhoto, replaceStudentPhoto } from '@/services/storageService'
 import { errorMessage, toError } from '@/utils/errorMessage'
+import { monthAnchor, percentageChange, recentMonthlyCounts } from '@/utils/adminAnalytics'
 
 // ===== CONSTANTS =====
 const ITEMS_PER_PAGE = 25
@@ -213,6 +215,21 @@ export default function AdminStudents() {
       return matchesSearch && matchesClass
     })
   }, [students, search, classFilter])
+  const enrollmentTrend = useMemo(
+    () => recentMonthlyCounts(students.map((student) => student.enrolledDate), 6, monthAnchor(timeZone)),
+    [students, timeZone],
+  )
+  const enrollmentTrendChange = percentageChange(
+    enrollmentTrend.values.at(-1) ?? 0,
+    enrollmentTrend.values.at(-2) ?? 0,
+  )
+  const studentsByClass = useMemo(
+    () => classes
+      .map((classroom) => ({ label: classroom.name, value: classroom.studentIds.length }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6),
+    [classes],
+  )
 
   const sorted = useMemo(() => {
     if (sortField === 'none') return filtered
@@ -469,7 +486,35 @@ export default function AdminStudents() {
       >
         {() => (
           <>
-            {/* FILTERS */}
+            {!isLoading && !error && (
+              <AdminSectionInsights
+                metrics={[
+                  { label: 'Students', value: students.length },
+                  {
+                    label: 'New this month',
+                    value: enrollmentTrend.values.at(-1) ?? 0,
+                    change: enrollmentTrendChange === null ? undefined : {
+                      value: `${Math.abs(enrollmentTrendChange).toFixed(1)}%`,
+                      direction: enrollmentTrendChange > 0 ? 'up' : enrollmentTrendChange < 0 ? 'down' : 'flat',
+                      positive: enrollmentTrendChange >= 0,
+                    },
+                  },
+                  { label: 'Classes', value: classes.length },
+                ]}
+                charts={[
+                  {
+                    kind: 'line',
+                    title: 'New student enrollment',
+                    categories: enrollmentTrend.labels,
+                    series: [{ label: 'Enrolled', values: enrollmentTrend.values }],
+                  },
+                ]}
+                insight={enrollmentTrendChange === null
+                  ? 'Monthly enrollment counts use student enrollment dates; a percentage comparison is unavailable when last month had no new students.'
+                  : `${Math.abs(enrollmentTrendChange).toFixed(1)}% ${enrollmentTrendChange >= 0 ? 'more' : 'fewer'} new enrollments than last month.`}
+              />
+            )}
+
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
               <SearchInput 
                 value={search} 

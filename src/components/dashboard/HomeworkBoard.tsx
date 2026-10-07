@@ -11,6 +11,7 @@ import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
 import Avatar from '@/components/ui/Avatar'
 import { SkeletonRows } from '@/components/ui/Loader'
+import AdminSectionInsights from '@/components/dashboard/AdminSectionInsights'
 import type { FieldErrors } from '@/utils/validators'
 import { minLength } from '@/utils/validators'
 import { formatDate, percentage } from '@/utils/format'
@@ -26,6 +27,7 @@ import {
 } from '@/services/teachingRecordsService'
 import { todayInTimeZone } from '@/utils/schoolCalendar'
 import { errorMessage } from '@/utils/errorMessage'
+import { recentMonthlyCounts } from '@/utils/adminAnalytics'
 
 // ---------------------------------------------------------------------------
 // Phase 8 batch 5. Reads and writes real homework and homework_submissions.
@@ -86,6 +88,7 @@ export default function HomeworkBoard({ classes, schoolId, timeZone }: HomeworkB
   const [items, setItems] = useState<HomeworkView[]>([])
   const [roster, setRoster] = useState<Map<string, RosterStudent[]>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [nonce, setNonce] = useState(0)
 
@@ -105,6 +108,7 @@ export default function HomeworkBoard({ classes, schoolId, timeZone }: HomeworkB
     }
 
     setIsLoading(true)
+    setLoadError(false)
     Promise.all([
       fetchHomework(schoolId, classIds),
       // Rosters are fetched per class so the submission list can show every
@@ -120,6 +124,7 @@ export default function HomeworkBoard({ classes, schoolId, timeZone }: HomeworkB
       })
       .catch((err: unknown) => {
         if (cancelled) return
+        setLoadError(true)
         showToast({
           type: 'error',
           title: 'Could not load homework',
@@ -244,8 +249,97 @@ export default function HomeworkBoard({ classes, schoolId, timeZone }: HomeworkB
 
   if (isLoading) return <SkeletonRows />
 
+  const today = todayInTimeZone(timeZone)
+  const monthlyBuckets = recentMonthlyCounts(filtered.map((homework) => homework.assignedDate))
+  const homeworkTotals = {
+    expected: 0,
+    submitted: 0,
+    pending: 0,
+    overduePending: 0,
+    late: 0,
+  }
+  const monthlySubmissions = new Map(monthlyBuckets.keys.map((key) => [key, { expected: 0, completed: 0 }]))
+  for (const homework of filtered) {
+    const rosterStudents = roster.get(homework.classId) ?? []
+    const submissions = new Map(homework.submissions.map((submission) => [submission.studentId, submission.status]))
+    homeworkTotals.expected += rosterStudents.length
+    const month = monthlySubmissions.get(homework.assignedDate.slice(0, 7))
+    if (month) month.expected += rosterStudents.length
+    for (const student of rosterStudents) {
+      const status = submissions.get(student.id) ?? 'pending'
+      if (status === 'pending') {
+        homeworkTotals.pending += 1
+        if (homework.dueDate < today) homeworkTotals.overduePending += 1
+        continue
+      }
+      homeworkTotals.submitted += 1
+      if (status === 'late') homeworkTotals.late += 1
+      if (month) month.completed += 1
+    }
+  }
+  const monthlyRates = monthlyBuckets.keys.map((key) => {
+    const month = monthlySubmissions.get(key)
+    return month?.expected ? (month.completed / month.expected) * 100 : 0
+  })
+  const priorMonthlyRate = monthlySubmissions.get(monthlyBuckets.keys.at(-2) ?? '')?.expected
+    ? monthlyRates.at(-2) ?? null
+    : null
+  const currentMonthlyRate = monthlySubmissions.get(monthlyBuckets.keys.at(-1) ?? '')?.expected
+    ? monthlyRates.at(-1) ?? null
+    : null
+  const monthlyRateChange = priorMonthlyRate === null || currentMonthlyRate === null
+    ? null
+    : currentMonthlyRate - priorMonthlyRate
+
   return (
     <div>
+      {!loadError && (
+        <AdminSectionInsights
+          metrics={[
+            { label: 'Homework assigned', value: filtered.length },
+            {
+              label: 'Submitted',
+              value: homeworkTotals.submitted,
+              detail: `of ${homeworkTotals.expected} expected`,
+            },
+            { label: 'Overdue pending', value: homeworkTotals.overduePending },
+            {
+              label: 'Submission rate',
+              value: homeworkTotals.expected
+                ? `${Math.round((homeworkTotals.submitted / homeworkTotals.expected) * 100)}%`
+                : '—',
+              progress: homeworkTotals.expected
+                ? (homeworkTotals.submitted / homeworkTotals.expected) * 100
+                : 0,
+              change: monthlyRateChange === null ? undefined : {
+                value: `${Math.abs(monthlyRateChange).toFixed(1)} pts vs prior month`,
+                direction: monthlyRateChange > 0 ? 'up' : monthlyRateChange < 0 ? 'down' : 'flat',
+                positive: monthlyRateChange >= 0,
+              },
+            },
+          ]}
+          charts={[
+            {
+              kind: 'line',
+              title: 'Submission rate by assigned month',
+              categories: monthlyBuckets.labels,
+              series: [{ label: 'Submitted', values: monthlyRates }],
+              formatValue: (value) => `${value.toFixed(0)}%`,
+            },
+            {
+              kind: 'donut',
+              title: 'Submission status',
+              segments: [
+                { label: 'Submitted', value: Math.max(0, homeworkTotals.submitted - homeworkTotals.late), tone: 'positive' },
+                { label: 'Late', value: homeworkTotals.late, tone: 'warning' },
+                { label: 'Pending', value: Math.max(0, homeworkTotals.pending - homeworkTotals.overduePending), tone: 'neutral' },
+                { label: 'Overdue pending', value: homeworkTotals.overduePending, tone: 'negative' },
+              ],
+            },
+          ]}
+          insight="Missing or pending rows are counted against each class roster. Submission rates are grouped by assigned month."
+        />
+      )}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="sm:w-56">
           <option value="all">All Classes</option>

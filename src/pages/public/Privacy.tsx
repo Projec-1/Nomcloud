@@ -49,6 +49,14 @@ export default function Privacy() {
       </section>
       <section className="pb-24">
         <div className="container max-w-3xl">
+          <div role="note" className="mb-5 border-l-2 border-amber-500 bg-amber-500/[0.06] px-4 py-3">
+            <p className="text-sm font-semibold text-ink dark:text-white">Children’s privacy details require final review</p>
+            <p className="mt-1 text-sm text-graphite">
+              Placeholder: Nom Cloud must publish school-approved, jurisdiction-specific details about children’s data,
+              applicable consent, retention, and data-protection responsibilities before this policy is treated as final.
+              This notice is not legal advice or a claim of compliance.
+            </p>
+          </div>
           <Reveal className="card space-y-8 p-8 sm:p-12">
             {sections.map((s) => (
               <div key={s.title}>

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { X, SignOut as LogOut } from '@phosphor-icons/react'
+import { X, SignOut as LogOut, UserCircle } from '@phosphor-icons/react'
 import SchoolBrandLogo from '@/components/dashboard/SchoolBrandLogo'
 import { navByRole, roleLabelKey } from '@/components/dashboard/navConfig'
 import type { Role } from '@/types'
@@ -26,12 +26,14 @@ export default function Sidebar({ role, mobileOpen, onClose }: SidebarProps) {
           <X className="h-4 w-4" />
         </button>
       </div>
-      <p className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-graphite/70">{t(roleLabelKey[role])} Workspace</p>
+      <p className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-graphite/70">{t(roleLabelKey[role])} {t('dash.workspace')}</p>
       <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 [scrollbar-gutter:stable]">
         {items.map((item, index) => (
           <div key={item.to}>
             {item.group && (index === 0 || items[index - 1].group !== item.group) && (
-              <p className="px-3 pb-2 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-graphite/60">{item.group}</p>
+              <p className="px-3 pb-2 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-graphite/60">
+                {t(item.group === 'Account' ? 'dash.group.account' : item.group)}
+              </p>
             )}
             <NavLink
               to={item.to}
@@ -59,11 +61,29 @@ export default function Sidebar({ role, mobileOpen, onClose }: SidebarProps) {
             batch 0), which is real data in the real database and is untouched:
             resetting that tenant would be a server-side operation, recorded as
             open question H.11. */}
-        <SignOutButton
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-500/10"
-        >
-          <LogOut className="h-4 w-4" /> {t('dash.topbar.signOut')}
-        </SignOutButton>
+        {role === 'teacher' ? (
+          <NavLink
+            to="/app/teacher/profile"
+            onClick={onClose}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-brand/10 text-brand'
+                  : 'text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white',
+              )
+            }
+          >
+            <UserCircle className="h-4 w-4" />
+            {t('dash.nav.profile')}
+          </NavLink>
+        ) : (
+          <SignOutButton
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-500/10"
+          >
+            <LogOut className="h-4 w-4" /> {t('dash.topbar.signOut')}
+          </SignOutButton>
+        )}
       </div>
     </div>
   )

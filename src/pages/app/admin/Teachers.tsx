@@ -21,7 +21,10 @@ import { useRecordableClasses } from '@/hooks/useRecordableClasses'
 import {
   createTeacher,
   deleteTeacher,
+  fetchSchoolClassSubjectAssignments,
   fetchSchoolTeachers,
+  saveTeacherClassSubjectAssignments,
+  type ClassSubjectAssignment,
   updateTeacher,
   type TeacherRow,
 } from '@/services/teacherService'
@@ -68,15 +71,19 @@ export default function AdminTeachers() {
 
   const [bulkOpen, setBulkOpen] = useState(false)
   const [teachers, setTeachers] = useState<TeacherRow[]>([])
+  const [classSubjectAssignments, setClassSubjectAssignments] = useState<ClassSubjectAssignment[]>([])
   const [subjects, setSubjects] = useState<SubjectRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [nonce, setNonce] = useState(0)
 
   const [search, setSearch] = useState('')
+  const [expandedSubjectsTeacherId, setExpandedSubjectsTeacherId] = useState<string | null>(null)
+  const [expandedClassesTeacherId, setExpandedClassesTeacherId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<TeacherRow | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [assignmentSelection, setAssignmentSelection] = useState<Set<string>>(new Set())
   const [errors, setErrors] = useState<FieldErrors>({})
   const [deleteTarget, setDeleteTarget] = useState<TeacherRow | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -107,12 +114,19 @@ export default function AdminTeachers() {
     }
     setIsLoading(true)
     setError(null)
-    Promise.all([fetchSchoolTeachers(schoolId), fetchSubjects(schoolId), fetchTeacherAccess(schoolId), listLiveInvitations(schoolId)])
-      .then(([rows, subs, accessMap, live]) => {
+    Promise.all([
+      fetchSchoolTeachers(schoolId),
+      fetchSubjects(schoolId),
+      fetchTeacherAccess(schoolId),
+      listLiveInvitations(schoolId),
+      fetchSchoolClassSubjectAssignments(schoolId),
+    ])
+      .then(([rows, subs, accessMap, live, assignments]) => {
         if (cancelled) return
         setTeachers(rows)
         setSubjects(subs)
         setAccess(accessMap)
+        setClassSubjectAssignments(assignments)
         setInvitations(new Map(live.filter((i) => i.role === 'teacher').map((i) => [i.email.toLowerCase(), i])))
       })
       .catch((err: unknown) => {
@@ -140,13 +154,33 @@ export default function AdminTeachers() {
   // classes, or a subject link on class_subjects. Both arms are already carried
   // by the class summaries.
   const classesByTeacher = useMemo(() => {
-    const map = new Map<string, string[]>()
+    const map = new Map<string, Set<string>>()
     for (const c of classes) {
-      if (c.teacherId) map.set(c.teacherId, [...(map.get(c.teacherId) ?? []), c.name])
+      if (c.teacherId) map.set(c.teacherId, new Set([...(map.get(c.teacherId) ?? []), c.name]))
+    }
+    for (const assignment of classSubjectAssignments) {
+      if (!assignment.teacherId) continue
+      const name = classes.find((item) => item.id === assignment.classId)?.name
+      if (!name) continue
+      const names = map.get(assignment.teacherId) ?? new Set<string>()
+      names.add(name)
+      map.set(assignment.teacherId, names)
+    }
+    return new Map(Array.from(map, ([teacherId, names]) => [teacherId, Array.from(names)]))
+  }, [classSubjectAssignments, classes])
+
+  const assignedSubjectsByTeacher = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    for (const assignment of classSubjectAssignments) {
+      if (!assignment.teacherId) continue
+      const name = subjectNames.get(assignment.subjectId)
+      if (!name) continue
+      const names = map.get(assignment.teacherId) ?? new Set<string>()
+      names.add(name)
+      map.set(assignment.teacherId, names)
     }
     return map
-  }, [classes])
-
+  }, [classSubjectAssignments, subjectNames])
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return teachers.filter(
@@ -161,12 +195,18 @@ export default function AdminTeachers() {
   const openAdd = () => {
     setEditing(null)
     setForm(emptyForm)
+    setAssignmentSelection(new Set())
     setErrors({})
     setModalOpen(true)
   }
 
   const openEdit = (t: TeacherRow) => {
     setEditing(t)
+    setAssignmentSelection(new Set(
+      classSubjectAssignments
+        .filter((assignment) => assignment.teacherId === t.id)
+        .map((assignment) => `${assignment.classId}:${assignment.subjectId}`),
+    ))
     setForm({
       fullName: t.full_name,
       email: t.email ?? '',
@@ -198,36 +238,59 @@ export default function AdminTeachers() {
       primarySubjectId: form.primarySubjectId || null,
       status: form.status,
     }
+    let teacherId = editing?.id
+    let revokingToo = false
     try {
       if (editing) {
         await updateTeacher(schoolId, editing.id, input)
         // Explicit, never silent: the form asked, and only then does the
         // separate membership write happen (S4).
         const current = access.get(editing.id)
-        const revokingToo =
+        revokingToo =
           alsoRevoke && form.status === 'inactive' && editing.status === 'active' && current?.status === 'active'
-        if (revokingToo) await revokeAccess(schoolId, current.membershipId)
-        showToast({
-          type: 'success',
-          title: 'Teacher updated',
-          description: revokingToo ? 'Their app access has been revoked as well.' : undefined,
-        })
+        if (revokingToo && current) await revokeAccess(schoolId, current.membershipId)
       } else {
-        await createTeacher(schoolId, input)
-        showToast({
-          type: 'success',
-          title: 'Teacher added',
-          description: 'Invite them separately so they can sign in.',
-        })
+        teacherId = await createTeacher(schoolId, input)
       }
-      setModalOpen(false)
-      reload()
     } catch (err: unknown) {
       showToast({
         type: 'error',
         title: editing ? 'Teacher not updated' : 'Teacher not added',
         description: errorMessage(err),
       })
+      setIsSaving(false)
+      return
+    }
+
+    try {
+      if (!teacherId) throw new Error('The saved teacher record could not be identified.')
+      const assignments = Array.from(assignmentSelection)
+        .map((key) => {
+          const separator = key.indexOf(':')
+          if (separator < 0) return null
+          return { classId: key.slice(0, separator), subjectId: key.slice(separator + 1) }
+        })
+        .filter((assignment): assignment is { classId: string; subjectId: string } => assignment !== null)
+      await saveTeacherClassSubjectAssignments(schoolId, teacherId, assignments)
+      if (editing) {
+        showToast({
+          type: 'success',
+          title: 'Teacher updated',
+          description: revokingToo ? 'Their app access has been revoked as well.' : undefined,
+        })
+      } else {
+        showToast({ type: 'success', title: 'Teacher added', description: 'Invite them separately so they can sign in.' })
+      }
+      setModalOpen(false)
+      reload()
+    } catch (err: unknown) {
+      showToast({
+        type: 'error',
+        title: 'Teacher saved, assignments not saved',
+        description: `The staff record exists. Review and save class/subject assignments again. ${errorMessage(err)}`,
+      })
+      setModalOpen(false)
+      reload()
     } finally {
       setIsSaving(false)
     }
@@ -402,8 +465,8 @@ export default function AdminTeachers() {
                       </th>
                       <th className="px-5 py-3.5 font-medium">Teacher</th>
                       <th className="px-5 py-3.5 font-medium">Staff No.</th>
-                      <th className="px-5 py-3.5 font-medium">Primary Subject</th>
-                      <th className="px-5 py-3.5 font-medium">Homeroom Of</th>
+                      <th className="px-5 py-3.5 font-medium">Subjects taught</th>
+                      <th className="px-5 py-3.5 font-medium">Classes</th>
                       <th className="px-5 py-3.5 font-medium">Staff status</th>
                       <th className="px-5 py-3.5 font-medium">App access</th>
                       <th className="px-5 py-3.5 text-right font-medium">Actions</th>
@@ -433,10 +496,127 @@ export default function AdminTeachers() {
                         </td>
                         <td className="px-5 py-3.5 text-graphite">{t.staff_no ?? '—'}</td>
                         <td className="px-5 py-3.5 text-graphite">
-                          {t.primary_subject_id ? (subjectNames.get(t.primary_subject_id) ?? '—') : '—'}
+                          {(() => {
+                            const assigned = Array.from(assignedSubjectsByTeacher.get(t.id) ?? [])
+                            const taught = assigned.length > 0
+                              ? assigned
+                              : t.primary_subject_id
+                                ? [subjectNames.get(t.primary_subject_id)].filter((name): name is string => Boolean(name))
+                                : []
+                            const visible = taught.slice(0, 1)
+                            const remaining = taught.slice(1)
+                            const detailsId = `teacher-subjects-${t.id}`
+                            const expanded = expandedSubjectsTeacherId === t.id
+
+                            if (taught.length === 0) return '—'
+
+                            return (
+                              <div className="relative flex flex-wrap items-center gap-1.5">
+                                {visible.map((subject) => (
+                                  <span
+                                    key={subject}
+                                    className="inline-flex max-w-36 truncate rounded-full border border-ink/10 bg-mist px-2 py-1 text-xs text-ink dark:border-white/10 dark:bg-white/[0.06] dark:text-white"
+                                    title={subject}
+                                  >
+                                    {subject}
+                                  </span>
+                                ))}
+                                {remaining.length > 0 && (
+                                  <button
+                                    type="button"
+                                    aria-expanded={expanded}
+                                    aria-controls={detailsId}
+                                    aria-label={`${expanded ? 'Hide' : 'Show'} ${remaining.length} more subjects for ${t.full_name}`}
+                                    title={taught.join(', ')}
+                                    onClick={() => setExpandedSubjectsTeacherId(expanded ? null : t.id)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Escape') setExpandedSubjectsTeacherId(null)
+                                    }}
+                                    className="inline-flex min-h-8 items-center rounded-full border border-brand/20 bg-brand/[0.06] px-2.5 text-xs font-medium text-brand hover:bg-brand/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                  >
+                                    +{remaining.length} more
+                                  </button>
+                                )}
+                                {remaining.length > 0 && expanded && (
+                                  <div
+                                    id={detailsId}
+                                    className="basis-full rounded-xl border border-ink/10 bg-white p-3 dark:border-white/10 dark:bg-[#202328]"
+                                    aria-label={`All subjects taught by ${t.full_name}`}
+                                  >
+                                    <ul className="flex flex-wrap gap-1.5">
+                                      {taught.map((subject) => (
+                                        <li
+                                          key={subject}
+                                          className="max-w-full rounded-full bg-mist px-2 py-1 text-xs text-ink dark:bg-white/[0.08] dark:text-white"
+                                        >
+                                          {subject}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </td>
                         <td className="px-5 py-3.5 text-graphite">
-                          {(classesByTeacher.get(t.id) ?? []).join(', ') || '—'}
+                          {(() => {
+                            const assignedClasses = classesByTeacher.get(t.id) ?? []
+                            const visibleClasses = assignedClasses.slice(0, 1)
+                            const remainingClasses = assignedClasses.slice(1)
+                            const expanded = expandedClassesTeacherId === t.id
+                            const detailsId = `teacher-classes-${t.id}`
+
+                            if (assignedClasses.length === 0) return '—'
+
+                            return (
+                              <div className="relative flex flex-wrap items-center gap-1.5">
+                                {visibleClasses.map((className) => (
+                                  <span
+                                    key={className}
+                                    className="inline-flex max-w-36 truncate rounded-full border border-ink/10 bg-mist px-2 py-1 text-xs text-ink dark:border-white/10 dark:bg-white/[0.06] dark:text-white"
+                                    title={className}
+                                  >
+                                    {className}
+                                  </span>
+                                ))}
+                                {remainingClasses.length > 0 && (
+                                  <button
+                                    type="button"
+                                    aria-expanded={expanded}
+                                    aria-controls={detailsId}
+                                    aria-label={`${expanded ? 'Hide' : 'Show'} ${remainingClasses.length} more classes for ${t.full_name}`}
+                                    title={assignedClasses.join(', ')}
+                                    onClick={() => setExpandedClassesTeacherId(expanded ? null : t.id)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Escape') setExpandedClassesTeacherId(null)
+                                    }}
+                                    className="inline-flex min-h-8 items-center rounded-full border border-brand/20 bg-brand/[0.06] px-2.5 text-xs font-medium text-brand hover:bg-brand/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                                  >
+                                    +{remainingClasses.length}
+                                  </button>
+                                )}
+                                {remainingClasses.length > 0 && expanded && (
+                                  <div
+                                    id={detailsId}
+                                    className="absolute left-0 top-full z-20 mt-1.5 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-ink/10 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-[#202328]"
+                                    aria-label={`All assigned classes for ${t.full_name}`}
+                                  >
+                                    <ul className="flex flex-wrap gap-1.5">
+                                      {assignedClasses.map((className) => (
+                                        <li
+                                          key={className}
+                                          className="max-w-full rounded-full bg-mist px-2 py-1 text-xs text-ink dark:bg-white/[0.08] dark:text-white"
+                                        >
+                                          {className}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </td>
                         <td className="px-5 py-3.5">
                           <Badge tone={t.status === 'active' ? 'success' : 'neutral'}>{t.status}</Badge>
@@ -559,6 +739,55 @@ export default function AdminTeachers() {
               ))}
             </Select>
           </div>
+          <section className="space-y-3 border-t border-ink/[0.06] pt-4 dark:border-white/10">
+            <div>
+              <h3 className="text-sm font-semibold text-ink dark:text-white">Teaching assignments</h3>
+              <p className="mt-1 text-xs text-graphite">Assign one or more subjects in each class. A class/subject pair can have one teacher.</p>
+            </div>
+            {classes.length === 0 || subjects.length === 0 ? (
+              <p className="rounded-lg bg-mist p-3 text-sm text-graphite dark:bg-white/5">
+                Add classes and subjects before creating teaching assignments.
+              </p>
+            ) : (
+              <div className="max-h-64 space-y-3 overflow-y-auto pr-1">
+                {classes.map((classItem) => (
+                  <fieldset key={classItem.id} className="rounded-xl border border-ink/[0.08] p-3 dark:border-white/10">
+                    <legend className="px-1 text-sm font-semibold text-ink dark:text-white">{classItem.name}</legend>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {subjects.map((subject) => {
+                        const key = `${classItem.id}:${subject.id}`
+                        const current = classSubjectAssignments.find(
+                          (assignment) => assignment.classId === classItem.id && assignment.subjectId === subject.id,
+                        )
+                        const assignedToOther = Boolean(current?.teacherId && current.teacherId !== editing?.id)
+                        const currentTeacherName = current?.teacherId
+                          ? teachers.find((teacher) => teacher.id === current.teacherId)?.full_name
+                          : null
+                        return (
+                          <label key={subject.id} className={`flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${assignedToOther ? 'text-graphite/70' : 'text-ink dark:text-white'}`}>
+                            <input
+                              type="checkbox"
+                              checked={assignmentSelection.has(key)}
+                              disabled={assignedToOther}
+                              onChange={(event) => setAssignmentSelection((currentSelection) => {
+                                const next = new Set(currentSelection)
+                                if (event.target.checked) next.add(key)
+                                else next.delete(key)
+                                return next
+                              })}
+                              className="h-4 w-4 shrink-0 accent-brand"
+                            />
+                            <span className="min-w-0 flex-1">{subject.name}</span>
+                            {assignedToOther && <span className="text-right text-[11px]">{currentTeacherName ?? 'Assigned'}</span>}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+            )}
+          </section>
           <div>
             <Select label="Staff status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               <option value="active">Active</option>

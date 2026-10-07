@@ -1,8 +1,11 @@
 import { ChatText as MessageSquare } from '@phosphor-icons/react'
 import PageHeader from '@/components/ui/PageHeader'
+import AdminSectionInsights from '@/components/dashboard/AdminSectionInsights'
+import { useAuth } from '@/context/AuthContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import MessagesPanel from '@/components/dashboard/MessagesPanel'
 import { useMessageThreads } from '@/hooks/useCommunications'
+import { monthAnchor, recentMonthlyCounts } from '@/utils/adminAnalytics'
 
 // Phase 8 batch 7. NEW SCREEN, and it exists for a structural reason.
 //
@@ -21,6 +24,7 @@ import { useMessageThreads } from '@/hooks/useCommunications'
 // they are in, not the school's mail.
 
 export default function AdminMessages() {
+  const { school } = useAuth()
   const { state, schoolId, userId, canStartThread, reload } = useMessageThreads()
 
   return (
@@ -31,16 +35,52 @@ export default function AdminMessages() {
         empty={{ icon: MessageSquare, title: 'No conversations yet' }}
         deniedHint="Messages are available to signed-in school members."
       >
-        {(threads) => (
-          <MessagesPanel
+        {(threads) => {
+          const conversationTrend = recentMonthlyCounts(
+            threads.map((thread) => thread.createdAt),
+            6,
+            monthAnchor(school?.timezone),
+          )
+          return (
+          <>
+            <AdminSectionInsights
+              metrics={[
+                { label: 'Conversations', value: threads.length },
+                { label: 'Unread', value: threads.filter((thread) => thread.unread).length },
+                { label: 'With message history', value: threads.filter((thread) => thread.lastMessageAt !== null).length },
+              ]}
+              charts={[
+                {
+                  kind: 'line',
+                  title: 'Conversations started',
+                  categories: conversationTrend.labels,
+                  series: [{
+                    label: 'Started',
+                    values: conversationTrend.values,
+                  }],
+                },
+                {
+                  kind: 'donut',
+                  title: 'Unread conversations',
+                  segments: [
+                    { label: 'Unread', value: threads.filter((thread) => thread.unread).length, tone: 'warning' },
+                    { label: 'No unread marker', value: threads.filter((thread) => !thread.unread).length, tone: 'neutral' },
+                  ],
+                },
+              ]}
+              insight="Conversation history is available; individual message counts, reach, and reply times are not in this summary data."
+            />
+            <MessagesPanel
             threads={threads}
             schoolId={schoolId as string}
             currentUserId={userId as string}
             canStartThread={canStartThread}
             emptyDescription="Start a conversation with a teacher or a parent."
             onChanged={reload}
-          />
-        )}
+            />
+          </>
+          )
+        }}
       </ResourceGate>
     </div>
   )

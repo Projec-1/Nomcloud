@@ -1,16 +1,16 @@
 import { Plus, X } from '@phosphor-icons/react'
-import { useAuth } from '@/context/AuthContext'
 import type { IsoWeekday, TimetableSlot } from '@/types'
 import { cn } from '@/utils/cn'
-import { DEFAULT_WEEKEND_DAYS, isoWeekdayLabel, schoolWeekdays } from '@/utils/schoolCalendar'
+import { isoWeekdayLabel, TIMETABLE_WEEKDAYS } from '@/utils/schoolCalendar'
 
 export const PERIODS: { period: number; startTime: string; endTime: string }[] = [
   { period: 1, startTime: '08:00', endTime: '08:40' },
   { period: 2, startTime: '08:40', endTime: '09:20' },
   { period: 3, startTime: '09:20', endTime: '10:00' },
-  { period: 4, startTime: '10:20', endTime: '11:00' },
-  { period: 5, startTime: '11:00', endTime: '11:40' },
-  { period: 6, startTime: '11:40', endTime: '12:20' },
+  { period: 4, startTime: '10:00', endTime: '10:40' },
+  { period: 5, startTime: '10:40', endTime: '11:20' },
+  { period: 6, startTime: '11:20', endTime: '12:00' },
+  { period: 7, startTime: '12:00', endTime: '12:40' },
 ]
 
 interface TimetableGridProps {
@@ -22,10 +22,8 @@ interface TimetableGridProps {
 }
 
 export default function TimetableGrid({ slots, editable = false, onAddSlot, onEditSlot, onRemoveSlot }: TimetableGridProps) {
-  // Columns come from the signed-in school's configured weekend. The Somali
-  // default renders Saturday through Wednesday, with Thursday optional.
-  const { school } = useAuth()
-  const days = schoolWeekdays(school?.weekend_days ?? DEFAULT_WEEKEND_DAYS)
+  // Timetables use the full school week, beginning on Saturday and ending Friday.
+  const days = TIMETABLE_WEEKDAYS
   const periods = Array.from(
     new Map(
       [...PERIODS, ...slots.map((slot) => ({ period: slot.period, startTime: slot.startTime, endTime: slot.endTime }))]
@@ -37,7 +35,41 @@ export default function TimetableGrid({ slots, editable = false, onAddSlot, onEd
   const find = (day: IsoWeekday, period: number) => slots.find((s) => s.day === day && s.period === period)
 
   return (
-    <div className="overflow-x-auto">
+    <div>
+      <div className="space-y-4 md:hidden">
+        {days.map((day) => {
+          const daySlots = slots
+            .filter((slot) => slot.day === day)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.period - b.period)
+          return (
+            <section key={day} className="overflow-hidden rounded-2xl border border-ink/[0.08] dark:border-white/10">
+              <header className="border-b border-ink/[0.08] bg-mist/60 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
+                <h3 className="text-sm font-semibold text-ink dark:text-white">{isoWeekdayLabel(day)}</h3>
+                <p className="mt-0.5 text-xs text-graphite">{daySlots.length} scheduled periods</p>
+              </header>
+              <div className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
+                {daySlots.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-sm text-graphite">No lessons scheduled.</p>
+                ) : daySlots.map((slot) => (
+                  <article key={slot.id} className={cn('flex items-start gap-3 px-4 py-3', !slot.subject && 'bg-amber-400/[0.08]')}>
+                    <div className="w-20 shrink-0 text-xs tabular-nums">
+                      <p className="font-semibold text-emerald-700 dark:text-emerald-300">{slot.startTime}</p>
+                      <p className="text-red-600 dark:text-red-300">{slot.endTime}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink dark:text-white">{slot.subject || 'Break'}</p>
+                      <p className="mt-0.5 text-xs text-graphite">{slot.teacherName ? `Teacher: ${slot.teacherName}` : 'No teacher assigned'}</p>
+                      {slot.room && <p className="mt-0.5 text-xs text-graphite">{slot.room}</p>}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[640px] border-separate border-spacing-1.5 text-xs">
         <thead>
           <tr>
@@ -72,8 +104,10 @@ export default function TimetableGrid({ slots, editable = false, onAddSlot, onEd
                         >
                           <p className="font-semibold">{slot.subject || 'Break'}</p>
                           {slot.teacherName && <p className="text-[10px] text-accent/70">Teacher: {slot.teacherName}</p>}
-                          <p className="mt-1 text-[10px] text-accent/70">
-                            {slot.startTime}–{slot.endTime}
+                          <p className="mt-1 text-[10px] tabular-nums">
+                            <span className="text-emerald-700 dark:text-emerald-300">{slot.startTime}</span>
+                            <span className="px-1 text-graphite">–</span>
+                            <span className="text-red-600 dark:text-red-300">{slot.endTime}</span>
                           </p>
                           {slot.room && <p className="text-[10px] text-accent/70">{slot.room}</p>}
                         </button>
@@ -107,6 +141,7 @@ export default function TimetableGrid({ slots, editable = false, onAddSlot, onEd
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

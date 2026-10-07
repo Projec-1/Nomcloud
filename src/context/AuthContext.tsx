@@ -178,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberships([])
     setSchool(null)
     setActiveRoleState(null)
+    window.localStorage.removeItem(ACTIVE_ROLE_KEY)
     setAuthState('signed_out')
     setIsLoading(false)
   }

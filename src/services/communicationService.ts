@@ -545,6 +545,7 @@ export async function markThreadRead(schoolId: string, threadId: string, userId:
 export interface MessageableUser {
   userId: string
   name: string
+  avatarPath: string | null
   /** Every active role the person holds at this school, highest first. */
   roles: string[]
   /** Those roles for display, e.g. "Owner / Administrator". */
@@ -587,13 +588,27 @@ export async function fetchMessageableUsers(schoolId: string, excludeUserId: str
     rolesByUser.set(r.user_id, (rolesByUser.get(r.user_id) ?? new Set<string>()).add(r.role))
   }
 
-  const names = await profileNames(schoolId, Array.from(rolesByUser.keys()))
+  const userIds = Array.from(rolesByUser.keys())
+  const names = await profileNames(schoolId, userIds)
+  const avatarsByUser = new Map<string, string | null>()
+  if (userIds.length > 0) {
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, avatar_url')
+      .eq('school_id', schoolId)
+      .in('id', userIds)
+    if (profileError) throw profileError
+    for (const row of (profiles ?? []) as { id: string; avatar_url: string | null }[]) {
+      avatarsByUser.set(row.id, row.avatar_url)
+    }
+  }
 
   return Array.from(rolesByUser, ([userId, roleSet]) => {
     const roles = Array.from(roleSet).sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b))
     return {
       userId,
       name: names.get(userId) ?? 'School member',
+      avatarPath: avatarsByUser.get(userId) ?? null,
       roles,
       role: roles.map(roleLabel).join(' / '),
     }

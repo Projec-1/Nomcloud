@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, Pencil, Trash as Trash2, ChartBar as BarChart3, Clock, MapPin } from '@phosphor-icons/react'
 import { useToast } from '@/context/ToastContext'
 import PageHeader from '@/components/ui/PageHeader'
+import AdminSectionInsights from '@/components/dashboard/AdminSectionInsights'
 import Select from '@/components/ui/Select'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -25,6 +26,8 @@ import {
   type ExamView,
 } from '@/services/teachingRecordsService'
 import { errorMessage } from '@/utils/errorMessage'
+import { todayInTimeZone } from '@/utils/schoolCalendar'
+import { useAuth } from '@/context/AuthContext'
 
 // ---------------------------------------------------------------------------
 // Phase 8 batch 5. Reads and writes real exams.
@@ -68,6 +71,7 @@ const statusOptions: ExamView['status'][] = ['scheduled', 'completed', 'cancelle
 
 export default function AdminExams() {
   const { showToast } = useToast()
+  const { school } = useAuth()
   const { state: classState, classes, canManage, schoolId } = useRecordableClasses()
   const { state: academicState } = useAcademicStructure()
 
@@ -80,6 +84,7 @@ export default function AdminExams() {
 
   const [exams, setExams] = useState<ExamView[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [nonce, setNonce] = useState(0)
 
@@ -98,12 +103,14 @@ export default function AdminExams() {
     }
 
     setIsLoading(true)
+    setLoadError(false)
     fetchExams(schoolId, classIds)
       .then((rows) => {
         if (!cancelled) setExams(rows)
       })
       .catch((err: unknown) => {
         if (cancelled) return
+        setLoadError(true)
         showToast({
           type: 'error',
           title: 'Could not load exams',
@@ -255,6 +262,38 @@ export default function AdminExams() {
       >
         {(visibleClasses) => (
           <>
+            {!isLoading && !loadError && (() => {
+              const today = todayInTimeZone(school?.timezone)
+              const completed = filtered.filter((exam) => exam.status === 'completed').length
+              const scheduled = filtered.filter((exam) => exam.status === 'scheduled').length
+              const cancelled = filtered.filter((exam) => exam.status === 'cancelled').length
+              const upcoming = filtered.filter((exam) => exam.status === 'scheduled' && exam.examDate >= today).length
+              return (
+                <AdminSectionInsights
+                  metrics={[
+                    { label: 'Upcoming exams', value: upcoming },
+                    { label: 'Completed', value: completed },
+                    {
+                      label: 'Completion rate',
+                      value: filtered.length ? `${Math.round((completed / filtered.length) * 100)}%` : '—',
+                      progress: filtered.length ? (completed / filtered.length) * 100 : 0,
+                    },
+                  ]}
+                  charts={[
+                    {
+                      kind: 'donut',
+                      title: 'Exam status',
+                      segments: [
+                        { label: 'Completed', value: completed, tone: 'positive' },
+                        { label: 'Scheduled', value: scheduled, tone: 'brand' },
+                        { label: 'Cancelled', value: cancelled, tone: 'neutral' },
+                      ],
+                    },
+                  ]}
+                  insight="Exam scores and pass rates are not available in the current scheduled-exam records."
+                />
+              )
+            })()}
             <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="mb-6 sm:w-56">
               <option value="all">All Classes</option>
               {visibleClasses.map((c) => (

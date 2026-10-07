@@ -5,6 +5,7 @@ import { useToast } from '@/context/ToastContext'
 import PageHeader from '@/components/ui/PageHeader'
 import Tabs from '@/components/ui/Tabs'
 import Button from '@/components/ui/Button'
+import PrintButton from '@/components/ui/PrintButton'
 import Avatar from '@/components/ui/Avatar'
 import ResourceGate from '@/components/ui/ResourceGate'
 import { deriveResourceState } from '@/lib/resourceState'
@@ -260,15 +261,24 @@ export default function AdminReports() {
         title="Reports"
         description={`Insights across ${students.length} students, ${teachers.length} teachers and ${classes.length} classes`}
         actions={
-          <Button onClick={handleExport} icon={<Download className="h-4 w-4" />}>
-            Export CSV
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <PrintButton />
+            <Button onClick={handleExport} icon={<Download className="h-4 w-4" />}>
+              Export CSV
+            </Button>
+          </div>
         }
       />
 
-      <Tabs tabs={tabs} active={tab} onChange={(id) => setTab(id as ReportTab)} />
+      <div className="print-hide">
+        <Tabs tabs={tabs} active={tab} onChange={(id) => setTab(id as ReportTab)} />
+      </div>
 
-      <div className="card mt-8 p-6">
+      <div className="card print-document mt-8 p-6">
+        <header className="print-only mb-6 border-b border-gray-300 pb-4">
+          <p className="text-lg font-semibold">{school?.name ?? 'School'}</p>
+          <p className="mt-1 text-sm">Reports · {new Intl.DateTimeFormat().format(new Date())}</p>
+        </header>
         {tab === 'attendance' && (
           <>
             <ReportHeading icon={CalendarCheck} tone="bg-emerald-500/10 text-emerald-600" title="Attendance Rate by Class" subtitle="All attendance recorded to date" />

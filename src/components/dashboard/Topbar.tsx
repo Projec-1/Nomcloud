@@ -93,7 +93,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         </button>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink dark:text-white">{school?.name ?? ''}</p>
-          <p className="text-xs text-graphite">{t(roleLabelKey[visibleRole])} Workspace</p>
+          <p className="text-xs text-graphite">{t(roleLabelKey[visibleRole])} {t('dash.workspace')}</p>
         </div>
       </div>
 
@@ -129,12 +129,15 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             <ChevronDown className="hidden h-3.5 w-3.5 text-graphite sm:block" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
+            <div className="absolute right-0 top-11 z-50 w-60 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
               <div className="border-b border-ink/5 px-4 py-3 dark:border-white/10">
                 <p className="truncate text-sm font-medium text-ink dark:text-white">{profile.full_name}</p>
                 <p className="truncate text-xs text-graphite">{profile.email}</p>
               </div>
               <div className="p-1.5">
+                <div className="mb-1 border-b border-ink/5 px-2 pb-2 dark:border-white/10 sm:hidden">
+                  <LanguageSwitcher className="[&_button]:min-h-11 [&_button]:w-full [&_button]:justify-start [&_button]:rounded-xl [&_button]:px-2" />
+                </div>
                 {canSetAvatar && (
                   <>
                     <input
@@ -165,20 +168,24 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                     )}
                   </>
                 )}
-                {visibleRole === 'admin' && (
+                {visibleRole && (
                   <Link
-                    to="/app/admin/settings"
+                    to={visibleRole === 'admin' ? '/app/admin/settings' : visibleRole === 'teacher' ? '/app/teacher/profile' : '/app/parent/settings'}
                     onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink hover:bg-ink/5 dark:text-white dark:hover:bg-white/10"
                   >
-                    <Settings className="h-4 w-4" /> {t('dash.nav.settings')}
+                    <Settings className="h-4 w-4" /> {t('dash.profile.account')}
                   </Link>
                 )}
-                <SignOutButton
-                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-red-500 hover:bg-red-500/10"
-                >
-                  <LogOut className="h-4 w-4" /> {t('dash.topbar.signOut')}
-                </SignOutButton>
+                {visibleRole !== 'teacher' && (
+                  <SignOutButton
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-red-500 hover:bg-red-500/10"
+                    confirm={false}
+                    onSignOutStart={() => setMenuOpen(false)}
+                  >
+                    <LogOut className="h-4 w-4" /> {t('dash.topbar.signOut')}
+                  </SignOutButton>
+                )}
               </div>
             </div>
           )}

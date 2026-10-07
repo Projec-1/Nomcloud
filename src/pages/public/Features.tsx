@@ -46,7 +46,7 @@ export default function Features() {
         <div className="container space-y-16">
           <Reveal>
             <p className="mb-4 text-center text-sm font-semibold uppercase tracking-wider text-graphite">{t('features.adminLabel')}</p>
-            <AdministratorWorkspacePreview />
+            <AdministratorWorkspacePreview interactive />
           </Reveal>
           <div className="grid gap-8 lg:grid-cols-2">
             <Reveal>
