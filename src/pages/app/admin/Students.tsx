@@ -972,7 +972,7 @@ function GuardianInviteOption({
   onInviteChange: (invited: boolean) => void
 }) {
   const email = guardian?.email ?? ''
-  const canInvite = email && isValidEmail(email)
+  const canInvite = email.length > 0 && isValidEmail(email)
 
   return (
     <label className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 ${canInvite ? 'bg-brand/5 dark:bg-brand/10' : 'bg-ink/5 dark:bg-white/5'}`}>
