@@ -125,6 +125,7 @@ export default function App() {
           <Route path="schools" element={<PlatformWorkspace />} />
           <Route path="people" element={<PlatformWorkspace />} />
           <Route path="requests" element={<PlatformWorkspace />} />
+          <Route path="operations/*" element={<PlatformWorkspace />} />
           <Route path="communications" element={<PlatformWorkspace />} />
           <Route path="operators" element={<PlatformWorkspace />} />
           <Route path="permissions" element={<PlatformWorkspace />} />

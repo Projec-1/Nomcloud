@@ -146,6 +146,12 @@ Two amendments changed this plan from its original form:
 - **RLS policies are not in this plan at all.** They are Phase 7, as their own migration series,
   applied after the schema is stable and verified.
 
+## Prepared, not yet applied
+
+| Timestamp | Scope | What it adds | Status |
+|---|---|---|---|
+| `20261011000001_platform_operations` | Platform operations | Persistent operator cases and append-only case history, incident command/response logs, contact-enquiry synchronization, operator team assignments, platform-admin-only RLS, and audit-log triggers. No student records are copied into case context. | Prepared in the repository; apply to Supabase before using the new Operator Center workflow. |
+
 ## Outstanding, carried across migrations
 
 **Nothing is currently outstanding.** Every deferred constraint has been settled,

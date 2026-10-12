@@ -34,6 +34,7 @@ import {
   Sliders,
   CreditCard,
   UserCircle,
+  Briefcase,
 } from '@phosphor-icons/react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
@@ -78,6 +79,9 @@ import DataSection from './operator/DataSection'
 import PeopleSection from './operator/PeopleSection'
 import CommunicationsSection from './operator/CommunicationsSection'
 import { billingInvoices, billingPayments, healthIncidents, integrations, securitySignals, webhookEndpoints } from './operator/prototypeData'
+import OperationsView from './OperationsView'
+import IncidentCommand from './IncidentCommand'
+import { fetchPlatformCaseWorkload, type PlatformCase } from '@/services/platformOperationsService'
 
 // Alert counts the sidebar shows next to the sections that own them. They come
 // from the sample data those sections render, and they disappear when nothing
@@ -109,6 +113,7 @@ const navGroups = [
   {
     label: 'Operations',
     items: [
+      { label: 'Operations Queue', path: '/platform/operations', icon: Briefcase },
       { label: 'Analytics', path: '/platform/analytics', icon: BarChart3 },
       { label: 'Activity', path: '/platform/activity', icon: Activity },
       { label: 'Audit Logs', path: '/platform/audit', icon: FileText },
@@ -533,6 +538,7 @@ export default function PlatformWorkspace() {
           {section === 'People' && <PeopleSection onNotify={notify} operator={displayName} />}
           {section === 'Communications' && <CommunicationsSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
           {section === 'Requests & Reviews' && <RequestsSection requests={requestRecords} operators={operatorRecords} work={requestWork} onWorkChange={setRequestWork} onResolve={updateRequest} onOpenSchool={(name) => { const match = schoolRecords.find((item) => item.name === name); if (match) setSchool(match); else notify('That school is not registered on the platform, so no record can be opened.') }} notify={notify} operator={displayName} />}
+          {section === 'Operations Queue' && authUser && <OperationsView currentPath={currentPath} authUserId={authUser.id} schools={schoolRecords} operators={operatorRecords} navigate={navigate} notify={notify} />}
           {section === 'Operators' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading operators…</p> : <OperatorsSection operators={operatorRecords} onNotify={notify} operator={displayName} />)}
           {section === 'Permissions' && <PermissionsSection onNotify={notify} operator={displayName} />}
           {section === 'Audit Logs' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditSection rows={auditEntries} notify={notify} onNavigate={navigate} operator={displayName} />)}
@@ -541,7 +547,7 @@ export default function PlatformWorkspace() {
           {section === 'Backups & Recovery' && <BackupsSection onNotify={notify} operator={displayName} />}
           {section === 'Analytics' && <AnalyticsSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
           {section === 'Activity' && <ActivitySection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'System Health' && <HealthSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
+          {section === 'System Health' && <SystemHealthWithIncidents onNotify={notify} onNavigate={navigate} operator={displayName} operators={operatorRecords} authUserId={authUser?.id ?? ''} />}
           {section === 'Features' && <FeaturesSection onNotify={notify} operator={displayName} />}
           {section === 'Integrations' && <IntegrationsSection onNotify={notify} operator={displayName} />}
           {section === 'Billing' && <BillingSection onNotify={notify} operator={displayName} />}
@@ -653,4 +659,57 @@ function SchoolModal({ school, onClose, onAction, onStatusChange }: { school: Sc
 
 function RequestModal({ request, onClose, onAction, onDecision, onSchool }: { request: Request | null; onClose: () => void; onAction: (message: string) => void; onDecision: (id: string, status: RequestStatus, message: string) => void; onSchool: (name: string) => void }) {
   return <Modal open={Boolean(request)} onClose={onClose} size="lg" title={request?.type} description={request ? `${request.id} · ${request.school}` : ''} footer={request ? <><Button variant="outline" onClick={() => onDecision(request.id, 'In review', 'Changes requested from school')}>Request changes</Button><Button variant="danger" onClick={() => onDecision(request.id, 'Resolved', 'Request rejected')}>Reject</Button><Button variant="accent" onClick={() => onDecision(request.id, 'Resolved', 'Request approved')}>Approve</Button></> : null}>{request && <div className="space-y-5"><div className="rounded-2xl border border-brand/15 bg-brand/[0.06] p-4"><p className="text-sm font-semibold">{request.summary}</p><p className="mt-2 text-xs text-graphite">Submitted by {request.submittedBy} · {request.submitted}</p></div><div className="grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-semibold text-graphite">School context</p><button onClick={() => onSchool(request.school)} className="mt-2 flex w-full items-center justify-between rounded-2xl border border-ink/10 p-4 text-left text-sm font-semibold hover:bg-ink/[0.03] dark:border-white/10 dark:hover:bg-white/[0.05]">Open {request.school}<Eye className="h-4 w-4 text-graphite" /></button></div><div><p className="text-xs font-semibold text-graphite">Current status</p><div className="mt-2 rounded-2xl border border-ink/10 p-4 dark:border-white/10"><Status value={request.status} /></div></div></div><div><p className="text-xs font-semibold text-graphite">Operator notes</p><textarea placeholder="Add context for the next operator…" className="input mt-2 min-h-24 resize-none" /></div><div className="rounded-2xl bg-ink/[0.035] p-4 text-sm dark:bg-white/[0.05]"><p className="font-semibold">Previous actions</p><p className="mt-2 text-xs text-graphite">No previous actions recorded. All decisions will be added to the audit log.</p></div></div>}</Modal>
+}
+
+function SystemHealthWithIncidents({
+  onNotify,
+  onNavigate,
+  operator,
+  operators,
+  authUserId,
+}: {
+  onNotify: (message: string) => void
+  onNavigate: (path: string) => void
+  operator: string
+  operators: PlatformOperatorRecord[]
+  authUserId: string
+}) {
+  const [cases, setCases] = useState<PlatformCase[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    fetchPlatformCaseWorkload()
+      .then((rows) => {
+        if (!cancelled) setCases(rows)
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [refresh])
+
+  return (
+    <>
+      <HealthSection onNotify={onNotify} onNavigate={onNavigate} operator={operator} />
+      {error && (
+        <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-y border-red-500/30 p-4 text-sm text-red-800 dark:text-red-300">
+          <span>Could not load incident case context: {error}</span>
+          <Button size="sm" variant="outline" onClick={() => setRefresh((value) => value + 1)}>Retry</Button>
+        </div>
+      )}
+      {loading
+        ? <p role="status" className="py-6 text-sm text-graphite">Loading incident context…</p>
+        : <IncidentCommand operators={operators} cases={cases} authUserId={authUserId} notify={onNotify} />}
+    </>
+  )
 }
