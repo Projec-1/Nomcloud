@@ -221,9 +221,9 @@ Deno.serve(async (request) => {
 
   const redirectTo = activationRedirect(request)
 
-  // ---- resend: an already-approved school whose administrator needs a new link
+  // ---- resend: an approved/onboarding school whose administrator needs a new link
   if (isResend) {
-    if (application.status !== 'approved') {
+    if (application.status !== 'approved' && application.status !== 'onboarding') {
       return json({ error: 'This application has not been approved yet, so there is nothing to activate.' }, 409)
     }
     const resent = await sendActivationEmail(adminClient, application.email, redirectTo)
@@ -235,7 +235,9 @@ Deno.serve(async (request) => {
     return json({ activation_email_sent: true, email: application.email, email_kind: resent.kind })
   }
 
-  if (application.status !== 'pending') return json({ error: 'Application is no longer pending' }, 409)
+  if (application.status !== 'pending' && application.status !== 'awaiting_information') {
+    return json({ error: 'Application is no longer awaiting review' }, 409)
+  }
 
   let authUserId: string
   let reusedExistingAccount = false

@@ -13,7 +13,13 @@ export default function PlatformLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-[#202328] text-white">
+    <div className="dark min-h-screen bg-[#202328] text-white">
+      <a
+        href="#platform-applications-content"
+        className="sr-only z-50 rounded-lg bg-white px-4 py-3 font-semibold text-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to application content
+      </a>
       <header className="border-b border-[#343A41] bg-[#17191C]">
         <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-8">
           <button onClick={() => navigate('/platform')} className="flex items-center gap-3 text-left">
@@ -27,7 +33,7 @@ export default function PlatformLayout() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-3 py-5 sm:px-8 sm:py-8">
-        <main className="min-w-0"><Outlet /></main>
+        <main id="platform-applications-content" tabIndex={-1} className="min-w-0"><Outlet /></main>
       </div>
     </div>
   )

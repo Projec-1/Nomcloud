@@ -147,6 +147,7 @@ export default function App() {
           <Route path="templates/receipts" element={<OperatorTemplates kind="receipt" />} />
           <Route path="templates/records" element={<OperatorTemplates kind="record" />} />
           <Route path="applications" element={<PlatformApprovalPanel />} />
+          <Route path="applications/:applicationId" element={<PlatformApprovalPanel />} />
         </Route>
 
         <Route
