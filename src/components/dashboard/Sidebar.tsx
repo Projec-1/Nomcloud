@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { X, SignOut as LogOut, UserCircle } from '@phosphor-icons/react'
+import { X, SignOut as LogOut, UserCircle, CreditCard } from '@phosphor-icons/react'
 import SchoolBrandLogo from '@/components/dashboard/SchoolBrandLogo'
 import { navByRole, roleLabelKey } from '@/components/dashboard/navConfig'
 import type { Role } from '@/types'
@@ -15,18 +15,24 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ role, mobileOpen, onClose }: SidebarProps) {
-  const items = navByRole[role]
   const { t } = useLanguage()
+  const { activeMembership } = useAuth()
+  const billingOnly = role === 'admin' && ['owner', 'director'].includes(activeMembership?.role ?? '')
+  const items = billingOnly
+    ? [{ to: '/app/billing', labelKey: 'dash.nav.subscriptionBilling', icon: CreditCard }]
+    : navByRole[role]
 
   const content = (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-5 py-5">
-        <SchoolBrandLogo to={`/app/${role}`} />
+        <SchoolBrandLogo to={billingOnly ? '/app/billing' : `/app/${role}`} />
         <button onClick={onClose} className="rounded-full p-1.5 text-graphite hover:bg-ink/5 dark:hover:bg-white/10 lg:hidden" aria-label="Close menu">
           <X className="h-4 w-4" />
         </button>
       </div>
-      <p className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-graphite/70">{t(roleLabelKey[role])} {t('dash.workspace')}</p>
+      <p className="px-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-graphite/70">
+        {billingOnly ? t('billing.workspace') : t(roleLabelKey[role])} {t('dash.workspace')}
+      </p>
       <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4 [scrollbar-gutter:stable]">
         {items.map((item, index) => (
           <div key={item.to}>

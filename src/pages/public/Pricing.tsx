@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Minus, Users, Wallet, Buildings as Building2 } from '@phosphor-icons/react'
 import SEO from '@/components/layout/SEO'
@@ -7,12 +6,7 @@ import FaqAccordion from '@/components/marketing/FaqAccordion'
 import { PaymentMarquee } from '@/components/marketing/PaymentLogos'
 import { cn } from '@/utils/cn'
 import { useLanguage } from '@/context/LanguageContext'
-
-const planDefs = [
-  { name: 'Starter', prefix: 'pricing.starter', monthly: 149, annual: 119, highlight: false, features: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10'] },
-  { name: 'Growth', prefix: 'pricing.growth', monthly: 349, annual: 279, highlight: true, features: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12'] },
-  { name: 'Enterprise', prefix: 'pricing.enterprise', monthly: null as number | null, annual: null as number | null, highlight: false, features: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12'] },
-]
+import { subscriptionPlans } from '@/data/subscriptionPlans'
 
 const comparisonCategories: {
   icon: typeof Users
@@ -56,7 +50,6 @@ function formatUSD(amount: number) {
 
 export default function Pricing() {
   const { t } = useLanguage()
-  const [annual, setAnnual] = useState(true)
   const faqs = faqNums.map((n) => ({ q: t(`pricing.faq.q${n}`), a: t(`pricing.faq.a${n}`) }))
   const supportLabels = { starter: t('pricing.support.email'), growth: t('pricing.support.priority'), enterprise: t('pricing.support.sla') }
 
@@ -73,26 +66,12 @@ export default function Pricing() {
             <h1 className="mx-auto max-w-3xl text-display-lg text-ink dark:text-white">{t('pricing.title')}</h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-graphite">{t('pricing.subtitle')}</p>
           </Reveal>
-          <Reveal delay={120} className="mt-10 inline-flex items-center gap-3 rounded-full bg-ink/5 p-1.5 dark:bg-white/10">
-            <button
-              onClick={() => setAnnual(false)}
-              className={cn('rounded-full px-5 py-2 text-sm font-medium transition-all', !annual ? 'bg-white shadow-soft dark:bg-white/10' : 'text-graphite')}
-            >
-              {t('pricing.monthly')}
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              className={cn('rounded-full px-5 py-2 text-sm font-medium transition-all', annual ? 'bg-white shadow-soft dark:bg-white/10' : 'text-graphite')}
-            >
-              {t('pricing.annual')} <span className="text-emerald-600">{t('pricing.save')}</span>
-            </button>
-          </Reveal>
         </div>
       </section>
 
       <section className="pb-24">
         <div className="container grid gap-6 lg:grid-cols-3">
-          {planDefs.map((plan, i) => (
+          {subscriptionPlans.map((plan, i) => (
             <Reveal key={plan.name} delay={i * 100}>
               <div
                 className={cn(
@@ -108,12 +87,12 @@ export default function Pricing() {
                 <h3 className="text-xl font-semibold text-ink dark:text-white">{plan.name}</h3>
                 <p className="mt-1.5 text-sm text-graphite">{t(`${plan.prefix}.tagline`)}</p>
                 <div className="mt-6">
-                  {plan.monthly ? (
+                  {plan.monthlyPrice !== null ? (
                     <>
                       <span className="text-4xl font-semibold tracking-tight text-ink dark:text-white">
-                        {formatUSD(annual ? plan.annual! : plan.monthly)}
+                        {formatUSD(plan.monthlyPrice)}
                       </span>
-                      <span className="text-sm text-graphite"> {t('pricing.perMonth')}</span>
+                      <span className="ms-1 text-sm text-graphite">{t('pricing.perMonth')}</span>
                     </>
                   ) : (
                     <span className="text-4xl font-semibold tracking-tight text-ink dark:text-white">{t('pricing.custom')}</span>
@@ -128,10 +107,10 @@ export default function Pricing() {
                   ))}
                 </ul>
                 <Link
-                  to={plan.monthly ? '/signup' : '/contact'}
+                  to={plan.monthlyPrice !== null ? '/signup' : '/contact'}
                   className={cn('mt-8 w-full justify-center py-3.5 text-sm transition-all', plan.highlight ? 'btn-accent hover:shadow-lg' : 'btn-outline hover:border-brand hover:text-brand')}
                 >
-                  {plan.monthly ? t('pricing.getStarted') : t('pricing.contactSales')}
+                  {plan.monthlyPrice !== null ? t('pricing.getStarted') : t('pricing.contactSales')}
                 </Link>
               </div>
             </Reveal>
@@ -211,7 +190,7 @@ export default function Pricing() {
           </div>
 
           <Reveal delay={100} className="mx-auto mt-10 grid max-w-3xl grid-cols-3 gap-3 sm:mt-14">
-            {planDefs.map((p) => (
+            {subscriptionPlans.map((p) => (
               <div key={p.name} className="rounded-2xl bg-mist py-3 text-center dark:bg-white/[0.04]">
                 <p className="text-sm font-semibold text-ink dark:text-white">{p.name}</p>
               </div>

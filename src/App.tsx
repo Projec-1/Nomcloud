@@ -45,6 +45,8 @@ import AdminTeacherActivity from '@/pages/app/admin/TeacherActivity'
 import AdminAcademicYears from '@/pages/app/admin/AcademicYears'
 import AdminTutorials from '@/pages/app/admin/Tutorials'
 import AdminSettings from '@/pages/app/admin/Settings'
+import SubscriptionBilling from '@/pages/app/admin/SubscriptionBilling'
+import SubscriptionRoleRoute from '@/routes/SubscriptionRoleRoute'
 import OperatorTemplates from '@/pages/platform/Templates'
 
 import TeacherDashboard from '@/pages/app/teacher/Dashboard'
@@ -178,6 +180,19 @@ export default function App() {
           <Route path="academic-years" element={<AdminAcademicYears />} />
           <Route path="tutorials" element={<AdminTutorials />} />
           <Route path="settings" element={<AdminSettings />} />
+        </Route>
+
+        <Route
+          path="/app/billing"
+          element={
+            <ProtectedRoute>
+              <SubscriptionRoleRoute>
+                <DashboardLayout role="admin" />
+              </SubscriptionRoleRoute>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<SubscriptionBilling />} />
         </Route>
 
         <Route
