@@ -45,8 +45,6 @@ import AdminTeacherActivity from '@/pages/app/admin/TeacherActivity'
 import AdminAcademicYears from '@/pages/app/admin/AcademicYears'
 import AdminTutorials from '@/pages/app/admin/Tutorials'
 import AdminSettings from '@/pages/app/admin/Settings'
-import OperatorTemplates from '@/pages/platform/Templates'
-
 import TeacherDashboard from '@/pages/app/teacher/Dashboard'
 import TeacherClasses from '@/pages/app/teacher/Classes'
 import TeacherTimetable from '@/pages/app/teacher/ConnectedTimetable'
@@ -142,10 +140,7 @@ export default function App() {
           <Route path="maintenance" element={<PlatformWorkspace />} />
           <Route path="analytics" element={<PlatformWorkspace />} />
           <Route path="settings" element={<PlatformWorkspace />} />
-          <Route path="templates/email" element={<OperatorTemplates kind="announcement" />} />
-          <Route path="templates/announcements" element={<OperatorTemplates kind="announcement" />} />
-          <Route path="templates/receipts" element={<OperatorTemplates kind="receipt" />} />
-          <Route path="templates/records" element={<OperatorTemplates kind="record" />} />
+          <Route path="templates/*" element={<Navigate to="/platform" replace />} />
           <Route path="applications" element={<PlatformApprovalPanel />} />
           <Route path="applications/:applicationId" element={<PlatformApprovalPanel />} />
         </Route>
