@@ -1,5 +1,5 @@
 import type { Icon as PhosphorIcon } from '@phosphor-icons/react'
-import { Layout as LayoutDashboard, Users, GraduationCap, BookOpen, CalendarCheck, ClipboardText as ClipboardList, ClipboardText as ClipboardCheck, ChartBar as BarChart3, Wallet, Bell, ChatText as MessageSquare, CalendarBlank as CalendarRange, Table as Table2, Gear as Settings, BellRinging as BellRing, UserCircle, PlayCircle, Pulse as Activity, TrendUp as TrendingUp } from '@phosphor-icons/react'
+import { Layout as LayoutDashboard, Users, GraduationCap, BookOpen, CalendarCheck, ClipboardText as ClipboardList, ClipboardText as ClipboardCheck, ChartBar as BarChart3, Wallet, Bell, ChatText as MessageSquare, CalendarBlank as CalendarRange, Table as Table2, Gear as Settings, BellRinging as BellRing, UserCircle, PlayCircle, Pulse as Activity, TrendUp as TrendingUp, CreditCard } from '@phosphor-icons/react'
 import type { Role } from '@/types'
 
 export interface NavItem {
@@ -24,6 +24,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { to: '/app/admin/exams', labelKey: 'dash.nav.exams', icon: BarChart3 },
     { to: '/app/admin/fees', labelKey: 'dash.nav.fees', icon: Wallet },
     { to: '/app/admin/fee-insights', labelKey: 'dash.nav.feeInsights', icon: TrendingUp },
+    { to: '/app/billing', labelKey: 'dash.nav.subscriptionBilling', icon: CreditCard },
     { to: '/app/admin/announcements', labelKey: 'dash.nav.announcements', icon: Bell },
     { to: '/app/admin/messages', labelKey: 'dash.nav.messages', icon: MessageSquare },
     { to: '/app/admin/reports', labelKey: 'dash.nav.reports', icon: BarChart3 },

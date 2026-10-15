@@ -1869,6 +1869,20 @@ table {
     color: #111 !important;
   }
 
+  .print-document * {
+    color: #111 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .print-document [class*='text-graphite'] {
+    color: #444 !important;
+  }
+
+  .print-document .border-red-300 {
+    border-color: #991b1b !important;
+  }
+
   .print-document table {
     width: 100% !important;
     border-collapse: collapse !important;
