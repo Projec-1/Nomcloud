@@ -11,7 +11,6 @@ interface ModalProps {
   children: ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
   footer?: ReactNode
-  darkMode?: boolean
 }
 
 const sizeClass: Record<NonNullable<ModalProps['size']>, string> = {
@@ -21,7 +20,7 @@ const sizeClass: Record<NonNullable<ModalProps['size']>, string> = {
   xl: 'max-w-4xl',
 }
 
-export default function Modal({ open, onClose, title, description, children, size = 'md', footer, darkMode = false }: ModalProps) {
+export default function Modal({ open, onClose, title, description, children, size = 'md', footer }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   const titleId = useId()
@@ -82,7 +81,7 @@ export default function Modal({ open, onClose, title, description, children, siz
   if (!open) return null
 
   return createPortal(
-    <div className={cn('fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6', darkMode && 'dark')}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
       <div className="absolute inset-0 bg-ink/50 animate-fade-in" onClick={onClose} aria-hidden="true" />
       <div
         ref={dialogRef}
@@ -91,7 +90,7 @@ export default function Modal({ open, onClose, title, description, children, siz
         aria-describedby={description ? descriptionId : undefined}
         aria-label={title ? undefined : 'Dialog'}
         className={cn(
-          'modal-content relative w-full max-w-full overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-[#202328] animate-fade-up max-h-[90vh] flex flex-col focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand',
+          'modal-content relative w-full max-w-full overflow-hidden rounded-[var(--nc-radius)] border border-ink/10 bg-[var(--nc-surface)] dark:border-white/10 animate-fade-up max-h-[90vh] flex flex-col focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand',
           sizeClass[size],
         )}
         role="dialog"

@@ -29,6 +29,7 @@ import Modal from '@/components/ui/Modal'
 import Select from '@/components/ui/Select'
 import Textarea from '@/components/ui/Textarea'
 import { errorMessage } from '@/utils/errorMessage'
+import { SectionHeader } from './operator/PrototypeKit'
 
 type ApplicationStatus = 'pending' | 'awaiting_information' | 'approved' | 'rejected' | 'onboarding' | 'withdrawn'
 type ApplicationPriority = 'low' | 'normal' | 'high' | 'urgent'
@@ -209,12 +210,12 @@ const statusLabel: Record<ApplicationStatus, string> = {
 }
 
 const statusClass: Record<ApplicationStatus, string> = {
-  pending: 'border-amber-300/40 bg-amber-300/10 text-amber-200',
-  awaiting_information: 'border-blue-300/40 bg-blue-300/10 text-blue-200',
-  approved: 'border-emerald-300/40 bg-emerald-300/10 text-emerald-200',
-  rejected: 'border-rose-300/40 bg-rose-300/10 text-rose-200',
-  onboarding: 'border-violet-300/40 bg-violet-300/10 text-violet-200',
-  withdrawn: 'border-slate-300/30 bg-slate-300/10 text-slate-200',
+  pending: 'border-amber-500/30 dark:border-amber-300/40 bg-amber-500/10 dark:bg-amber-300/10 text-amber-700 dark:text-amber-200',
+  awaiting_information: 'border-blue-500/30 dark:border-blue-300/40 bg-blue-500/10 dark:bg-blue-300/10 text-blue-700 dark:text-blue-200',
+  approved: 'border-emerald-500/30 dark:border-emerald-300/40 bg-emerald-500/10 dark:bg-emerald-300/10 text-emerald-700 dark:text-emerald-200',
+  rejected: 'border-red-500/30 dark:border-rose-300/40 bg-red-500/10 dark:bg-rose-300/10 text-red-700 dark:text-rose-200',
+  onboarding: 'border-violet-500/30 dark:border-violet-300/40 bg-violet-500/10 dark:bg-violet-300/10 text-violet-700 dark:text-violet-200',
+  withdrawn: 'border-slate-400/30 dark:border-slate-300/30 bg-slate-400/10 dark:bg-slate-300/10 text-ink dark:text-slate-200',
 }
 
 const rejectionReasons = [
@@ -1146,14 +1147,14 @@ export default function ApplicationsManagement() {
   if (!authUser) return null
 
   if (loading) {
-    return <p className="py-12 text-center text-sm text-slate-300" role="status">Loading school applications…</p>
+    return <p className="py-12 text-center text-sm text-graphite dark:text-slate-300" role="status">Loading school applications…</p>
   }
 
   if (!isPlatformAdmin) {
     return (
-      <section className="max-w-xl rounded-xl border border-rose-300/30 bg-rose-300/5 p-6">
-        <h1 className="text-xl font-semibold text-white">Platform-admin access required</h1>
-        <p className="mt-2 text-sm text-slate-300">School application review is restricted to active platform administrators.</p>
+      <section className="max-w-xl rounded-xl border border-red-500/25 dark:border-rose-300/30 bg-red-500/[0.06] dark:bg-rose-300/5 p-6">
+        <h1 className="text-xl font-semibold text-ink dark:text-white">Platform-admin access required</h1>
+        <p className="mt-2 text-sm text-graphite dark:text-slate-300">School application review is restricted to active platform administrators.</p>
       </section>
     )
   }
@@ -1176,7 +1177,7 @@ export default function ApplicationsManagement() {
 
   function ErrorNotice({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss?: () => void }) {
     return (
-      <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-rose-300/30 bg-rose-300/5 p-3 text-sm text-rose-100">
+      <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-500/25 dark:border-rose-300/30 bg-red-500/[0.06] dark:bg-rose-300/5 p-3 text-sm text-red-700 dark:text-rose-100">
         <span className="min-w-0 flex-1">{message}</span>
         {onRetry && <Button size="sm" className="min-h-11" variant="outline" onClick={onRetry}>Try again</Button>}
         {onDismiss && <Button size="sm" className="min-h-11 min-w-11" variant="ghost" onClick={onDismiss} aria-label="Dismiss error"><X className="h-4 w-4" /></Button>}
@@ -1196,7 +1197,7 @@ export default function ApplicationsManagement() {
     resentNote: string | null
   }) {
     return (
-      <div className={`rounded-lg border p-4 ${result.activation_email_sent ? 'border-emerald-300/30 bg-emerald-300/5 text-emerald-100' : 'border-rose-300/30 bg-rose-300/5 text-rose-100'}`}>
+      <div className={`rounded-lg border p-4 ${result.activation_email_sent ? 'border-emerald-500/25 dark:border-emerald-300/30 bg-emerald-500/[0.06] dark:bg-emerald-300/5 text-emerald-700 dark:text-emerald-100' : 'border-red-500/25 dark:border-rose-300/30 bg-red-500/[0.06] dark:bg-rose-300/5 text-red-700 dark:text-rose-100'}`}>
         <h2 className="font-semibold">{result.school_name} is approved</h2>
         {result.activation_email_sent ? (
           <p className="mt-1 text-sm">An activation link was sent to {result.email}. The administrator will choose their own password.</p>
@@ -1216,42 +1217,42 @@ export default function ApplicationsManagement() {
 
   function BulkApprovalResult({ summary }: { summary: { approved: number; failures: string[]; emailFailures: Array<{ applicationId: string; school: string; email: string }>; onboardingFailures: Array<{ applicationId: string; school: string; error: string }> } }) {
     return (
-      <section className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-4" aria-label="Bulk approval results">
-        <h2 className="font-semibold text-white">
+      <section className="space-y-2 rounded-lg border border-ink/10 dark:border-white/10 bg-ink/[0.03] dark:bg-white/[0.03] p-4" aria-label="Bulk approval results">
+        <h2 className="font-semibold text-ink dark:text-white">
           {summary.approved} application{summary.approved === 1 ? '' : 's'} approved
         </h2>
         {summary.failures.length > 0 && (
-          <div className="text-sm text-rose-100">
+          <div className="text-sm text-red-700 dark:text-rose-100">
             <p>These applications were not approved:</p>
             <ul className="mt-1 list-inside list-disc">{summary.failures.map((failure) => <li key={failure}>{failure}</li>)}</ul>
           </div>
         )}
         {summary.emailFailures.length > 0 && (
-          <div className="text-sm text-amber-100">
+          <div className="text-sm text-amber-700 dark:text-amber-100">
             <p>Activation emails were not sent; resend them after restoring email delivery:</p>
             <ul className="mt-1 space-y-1">
               {summary.emailFailures.map((failure) => (
                 <li key={failure.applicationId}>
-                  {failure.school} ({failure.email}) — <Link className="underline underline-offset-2 hover:text-white" to={`/platform/applications/${encodeURIComponent(failure.applicationId)}`}>open application to resend</Link>
+                  {failure.school} ({failure.email}) — <Link className="underline underline-offset-2 hover:text-ink dark:hover:text-white" to={`/platform/applications/${encodeURIComponent(failure.applicationId)}`}>open application to resend</Link>
                 </li>
               ))}
             </ul>
           </div>
         )}
         {summary.onboardingFailures.length > 0 && (
-          <div className="text-sm text-amber-100">
+          <div className="text-sm text-amber-700 dark:text-amber-100">
             <p>These approved schools need onboarding follow-up:</p>
             <ul className="mt-1 list-inside list-disc">
               {summary.onboardingFailures.map((failure) => (
                 <li key={failure.applicationId}>
-                  {failure.school}: {failure.error} (<Link className="underline underline-offset-2 hover:text-white" to={`/platform/applications/${encodeURIComponent(failure.applicationId)}`}>open application</Link>)
+                  {failure.school}: {failure.error} (<Link className="underline underline-offset-2 hover:text-ink dark:hover:text-white" to={`/platform/applications/${encodeURIComponent(failure.applicationId)}`}>open application</Link>)
                 </li>
               ))}
             </ul>
           </div>
         )}
         {summary.failures.length === 0 && summary.emailFailures.length === 0 && summary.onboardingFailures.length === 0 && (
-          <p className="text-sm text-emerald-100">All activation emails were sent successfully.</p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-100">All activation emails were sent successfully.</p>
         )}
       </section>
     )
@@ -1259,15 +1260,15 @@ export default function ApplicationsManagement() {
 
   function BulkActionResult({ summary }: { summary: BulkActionSummary }) {
     return (
-      <section className="space-y-2 rounded-lg border border-amber-300/25 bg-amber-300/5 p-4" aria-label={`${summary.action} results`}>
-        <h2 className="font-semibold text-white">
+      <section className="space-y-2 rounded-lg border border-amber-500/25 dark:border-amber-300/25 bg-amber-500/[0.06] dark:bg-amber-300/5 p-4" aria-label={`${summary.action} results`}>
+        <h2 className="font-semibold text-ink dark:text-white">
           {summary.action}: {summary.succeeded} of {summary.total} application{summary.total === 1 ? '' : 's'} succeeded
         </h2>
-        <ul className="space-y-2 text-sm text-amber-100">
+        <ul className="space-y-2 text-sm text-amber-700 dark:text-amber-100">
           {summary.issues.map((issue) => (
             <li key={issue.applicationId}>
-              <Link className="font-medium underline underline-offset-2 hover:text-white" to={`/platform/applications/${encodeURIComponent(issue.applicationId)}`}>{issue.school}</Link>
-              <ul className="ml-4 list-inside list-disc text-amber-50/80">
+              <Link className="font-medium underline underline-offset-2 hover:text-ink dark:hover:text-white" to={`/platform/applications/${encodeURIComponent(issue.applicationId)}`}>{issue.school}</Link>
+              <ul className="ml-4 list-inside list-disc text-amber-700/80 dark:text-amber-50/80">
                 {issue.details.map((detail, index) => <li key={`${issue.applicationId}-${index}`}>{detail}</li>)}
               </ul>
             </li>
@@ -1279,10 +1280,10 @@ export default function ApplicationsManagement() {
 
   function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-white/15 bg-[#25282d] px-4 py-3 text-sm text-white" role="status" aria-live="polite">
-        <CheckCircle className="h-5 w-5 shrink-0 text-emerald-300" aria-hidden="true" />
+      <div className="fixed bottom-4 right-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-[var(--nc-line)] bg-[var(--nc-surface)] px-4 py-3 text-sm text-[var(--nc-text)]" role="status" aria-live="polite">
+        <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden="true" />
         <span className="min-w-0 flex-1">{message}</span>
-        <button type="button" onClick={onDismiss} className="min-h-11 min-w-11 rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Dismiss notification">
+        <button type="button" onClick={onDismiss} className="min-h-11 min-w-11 rounded-md p-2 text-graphite dark:text-slate-300 hover:bg-ink/5 dark:hover:bg-white/10 hover:text-ink dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Dismiss notification">
           <X className="mx-auto h-4 w-4" />
         </button>
       </div>
@@ -1546,12 +1547,12 @@ export default function ApplicationsManagement() {
     if (!application) {
       return (
         <section className="space-y-5">
-          <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-slate-300 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+          <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-graphite dark:text-slate-300 hover:text-ink dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
             <ArrowLeft className="h-4 w-4" /> Back to applications
           </button>
-          <div className="rounded-xl border border-white/10 bg-[#1b1d21] p-8 text-center">
-            <h1 className="text-xl font-semibold text-white">Application not found</h1>
-            <p className="mt-2 text-sm text-slate-300">This application may have been removed or may no longer be available.</p>
+          <div className="rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-8 text-center">
+            <h1 className="text-xl font-semibold text-ink dark:text-white">Application not found</h1>
+            <p className="mt-2 text-sm text-graphite dark:text-slate-300">This application may have been removed or may no longer be available.</p>
           </div>
         </section>
       )
@@ -1570,37 +1571,37 @@ export default function ApplicationsManagement() {
 
     return (
       <section className="space-y-5">
-        <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-slate-300 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+        <button type="button" onClick={onBack} className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm text-graphite dark:text-slate-300 hover:text-ink dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
           <ArrowLeft className="h-4 w-4" /> Back to applications
         </button>
 
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-ink/10 dark:border-white/10 pb-5">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="break-words text-2xl font-semibold tracking-tight text-white sm:text-3xl">{application.school_name}</h1>
+              <h1 className="break-words text-2xl font-semibold tracking-tight text-ink dark:text-white sm:text-3xl">{application.school_name}</h1>
               <StatusBadge status={application.status} />
             </div>
-            <p className="mt-2 break-all font-mono text-xs text-slate-300">{application.id}</p>
-            <p className="mt-1 text-sm text-slate-300">Submitted {formatDateTime(application.created_at)}</p>
+            <p className="mt-2 break-all font-mono text-xs text-graphite dark:text-slate-300">{application.id}</p>
+            <p className="mt-1 text-sm text-graphite dark:text-slate-300">Submitted {formatDateTime(application.created_at)}</p>
           </div>
-          <div className="min-w-[190px] rounded-lg border border-white/10 bg-white/[0.03] p-3">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300"><Clock className="h-4 w-4" /> Review SLA</p>
+          <div className="min-w-[190px] rounded-lg border border-ink/10 dark:border-white/10 bg-ink/[0.03] dark:bg-white/[0.03] p-3">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-graphite dark:text-slate-300"><Clock className="h-4 w-4" /> Review SLA</p>
             {application.review_due_at ? (
               <>
-                <p className="mt-1.5 text-sm font-semibold tabular-nums text-white">Waiting {formatDuration(now - new Date(application.created_at).getTime())}</p>
-                <p className={`mt-1 text-sm font-semibold tabular-nums ${overdue ? 'text-rose-200' : 'text-emerald-100'}`}>
+                <p className="mt-1.5 text-sm font-semibold tabular-nums text-ink dark:text-white">Waiting {formatDuration(now - new Date(application.created_at).getTime())}</p>
+                <p className={`mt-1 text-sm font-semibold tabular-nums ${overdue ? 'text-red-700 dark:text-rose-200' : 'text-emerald-700 dark:text-emerald-100'}`}>
                   {overdue ? `Overdue by ${formatDuration(now - new Date(application.review_due_at).getTime())}` : `Due in ${formatDuration(new Date(application.review_due_at).getTime() - now)}`}
                 </p>
-                <p className="mt-1 text-xs tabular-nums text-slate-400">{formatDateTime(application.review_due_at)}</p>
+                <p className="mt-1 text-xs tabular-nums text-graphite dark:text-slate-400">{formatDateTime(application.review_due_at)}</p>
               </>
             ) : (
-              <p className="mt-1.5 text-sm text-slate-200">No review deadline set</p>
+              <p className="mt-1.5 text-sm text-ink dark:text-slate-200">No review deadline set</p>
             )}
             <div className="mt-2 flex items-center gap-2">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-xs font-semibold text-slate-100" aria-hidden="true">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-ink/15 dark:border-white/15 bg-ink/[0.05] dark:bg-white/[0.06] text-xs font-semibold text-ink dark:text-white" aria-hidden="true">
                 {currentReviewer ? reviewerInitials : <UserCircle className="h-5 w-5" />}
               </span>
-              <p className="min-w-0 break-words text-xs text-slate-300">{reviewerName}</p>
+              <p className="min-w-0 break-words text-xs text-graphite dark:text-slate-300">{reviewerName}</p>
             </div>
           </div>
         </header>
@@ -1608,17 +1609,17 @@ export default function ApplicationsManagement() {
         {actionError && <ErrorNotice message={actionError} onDismiss={() => setActionError(null)} />}
         {detailError && <ErrorNotice message={detailError} onRetry={() => setDetailRevision((value) => value + 1)} />}
         {approvalResult && <ApprovalResult result={approvalResult} onResend={onResendActivation} resending={resendingActivation} resentNote={resentNote} />}
-        <section aria-labelledby="risk-heading" className="rounded-lg border border-amber-300/30 bg-amber-300/5 p-4">
-            <h2 id="risk-heading" className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+        <section aria-labelledby="risk-heading" className="rounded-lg border border-amber-500/25 dark:border-amber-300/30 bg-amber-500/[0.06] dark:bg-amber-300/5 p-4">
+            <h2 id="risk-heading" className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-100">
               <ShieldWarning className="h-4 w-4" /> Human review flags
             </h2>
             {riskFlags.length > 0 && (
-              <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-amber-100">
+              <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-amber-700 dark:text-amber-100">
                 {riskFlags.map((flag) => <li key={flag}>{flag}</li>)}
               </ul>
             )}
             <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-              <label className="flex min-h-11 items-center gap-2 text-sm text-amber-50">
+              <label className="flex min-h-11 items-center gap-2 text-sm text-amber-700 dark:text-amber-50">
                 <input
                   type="checkbox"
                   checked={detail?.reviewFlags.duplicate_suspected ?? false}
@@ -1628,7 +1629,7 @@ export default function ApplicationsManagement() {
                 />
                 Possible duplicate submission
               </label>
-              <label className="flex min-h-11 items-center gap-2 text-sm text-amber-50">
+              <label className="flex min-h-11 items-center gap-2 text-sm text-amber-700 dark:text-amber-50">
                 <input
                   type="checkbox"
                   checked={detail?.reviewFlags.contact_mismatch_suspected ?? false}
@@ -1639,13 +1640,13 @@ export default function ApplicationsManagement() {
                 Contact details need verification
               </label>
             </div>
-            <p className="mt-2 text-xs text-amber-100/80">Flags support human review only; they never make or change an application decision.</p>
+            <p className="mt-2 text-xs text-amber-700/90 dark:text-amber-100/80">Flags support human review only; they never make or change an application decision.</p>
           </section>
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-6">
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-white">School and administrator</h2>
+              <h2 className="text-lg font-semibold text-ink dark:text-white">School and administrator</h2>
               <dl className="grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
                 {[
                   ['Administrator', application.administrator_name],
@@ -1664,15 +1665,15 @@ export default function ApplicationsManagement() {
                   ['Current system', application.current_system],
                   ['Reasons for applying', application.reasons?.join(', ')],
                 ].map(([label, value]) => (
-                  <div key={label} className="min-w-0 border-t border-white/10 py-3">
-                    <dt className="text-xs text-slate-400">{label}</dt>
-                    <dd className="mt-1 break-words text-sm font-medium text-slate-100">{value || 'Not provided'}</dd>
+                  <div key={label} className="min-w-0 border-t border-ink/10 dark:border-white/10 py-3">
+                    <dt className="text-xs text-graphite dark:text-slate-400">{label}</dt>
+                    <dd className="mt-1 break-words text-sm font-medium text-ink dark:text-white">{value || 'Not provided'}</dd>
                   </div>
                 ))}
                 {application.message && (
-                  <div className="border-t border-white/10 py-3 sm:col-span-2 lg:col-span-3">
-                    <dt className="text-xs text-slate-400">Additional information</dt>
-                    <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-100">{application.message}</dd>
+                  <div className="border-t border-ink/10 dark:border-white/10 py-3 sm:col-span-2 lg:col-span-3">
+                    <dt className="text-xs text-graphite dark:text-slate-400">Additional information</dt>
+                    <dd className="mt-1 whitespace-pre-wrap break-words text-sm text-ink dark:text-white">{application.message}</dd>
                   </div>
                 )}
               </dl>
@@ -1681,10 +1682,10 @@ export default function ApplicationsManagement() {
             <section className="space-y-3">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-white">Document verification</h2>
-                  <p className="mt-1 text-sm text-slate-300">Add requirements as needed, then record each item&apos;s current state.</p>
+                  <h2 className="text-lg font-semibold text-ink dark:text-white">Document verification</h2>
+                  <p className="mt-1 text-sm text-graphite dark:text-slate-300">Add requirements as needed, then record each item&apos;s current state.</p>
                 </div>
-                {detailLoading && <span className="text-xs text-slate-400" role="status">Loading review records…</span>}
+                {detailLoading && <span className="text-xs text-graphite dark:text-slate-400" role="status">Loading review records…</span>}
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <Input label="New document requirement" value={newDocumentId} onChange={(event) => setNewDocumentId(event.target.value)} placeholder="e.g. School registration certificate" maxLength={200} />
@@ -1708,15 +1709,15 @@ export default function ApplicationsManagement() {
                 </Button>
               </div>
               {docList.length === 0 ? (
-                <p className="rounded-lg border border-white/10 p-4 text-sm text-slate-300">No document checklist is available for this application.</p>
+                <p className="rounded-lg border border-ink/10 dark:border-white/10 p-4 text-sm text-graphite dark:text-slate-300">No document checklist is available for this application.</p>
               ) : (
-                <ul className="divide-y divide-white/10 border-y border-white/10">
+                <ul className="divide-y divide-ink/10 dark:divide-white/10 border-y border-ink/10 dark:border-white/10">
                   {docList.map((document) => (
                     <li key={document.id} className="flex flex-wrap items-center gap-3 py-3">
-                      <FileText className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                      <FileText className="h-4 w-4 shrink-0 text-graphite dark:text-slate-400" aria-hidden="true" />
                       <div className="min-w-0 flex-1">
-                        <p className="break-words text-sm font-medium text-white">{document.name}</p>
-                        <p className="mt-0.5 text-xs text-slate-300">
+                        <p className="break-words text-sm font-medium text-ink dark:text-white">{document.name}</p>
+                        <p className="mt-0.5 text-xs text-graphite dark:text-slate-300">
                           {documentStatusLabel[document.status]}
                           {document.reviewed_at ? ` · Reviewed ${formatDate(document.reviewed_at)}` : ''}
                           {document.note ? ` · ${document.note}` : ''}
@@ -1736,8 +1737,8 @@ export default function ApplicationsManagement() {
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-white">Review checklist</h2>
-              <ul className="divide-y divide-white/10 border-y border-white/10">
+              <h2 className="text-lg font-semibold text-ink dark:text-white">Review checklist</h2>
+              <ul className="divide-y divide-ink/10 dark:divide-white/10 border-y border-ink/10 dark:border-white/10">
                 {checklist.length ? checklist.map((item) => (
                   <li key={item.key} className="flex min-h-14 items-center gap-3 py-3">
                     <input
@@ -1757,23 +1758,23 @@ export default function ApplicationsManagement() {
                       disabled={localBusy}
                       className="h-4 w-4 shrink-0 accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                     />
-                    <label htmlFor={`check-${application.id}-${item.key}`} className="flex min-h-11 flex-1 cursor-pointer items-center justify-between gap-3 text-sm text-slate-100">
+                    <label htmlFor={`check-${application.id}-${item.key}`} className="flex min-h-11 flex-1 cursor-pointer items-center justify-between gap-3 text-sm text-ink dark:text-white">
                       <span>{item.label}</span>
-                      <span className="text-right text-xs text-slate-300">{item.verified ? 'Verified' : 'Not verified'}</span>
+                      <span className="text-right text-xs text-graphite dark:text-slate-300">{item.verified ? 'Verified' : 'Not verified'}</span>
                     </label>
                   </li>
-                )) : <li className="py-4 text-sm text-slate-300">Checklist records are not available.</li>}
+                )) : <li className="py-4 text-sm text-graphite dark:text-slate-300">Checklist records are not available.</li>}
               </ul>
             </section>
 
             {(application.status === 'approved' || application.status === 'onboarding') && (
               <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-white">Onboarding progress</h2>
+                <h2 className="text-lg font-semibold text-ink dark:text-white">Onboarding progress</h2>
                 <ol className="grid gap-3 sm:grid-cols-3">
                   {onboardingSteps.map(([key, label]) => {
                     const complete = detail?.onboarding[key] === true
                     return (
-                      <li key={key} className={`rounded-lg border p-3 ${complete ? 'border-emerald-300/30 bg-emerald-300/5' : 'border-white/10 bg-white/[0.02]'}`}>
+                      <li key={key} className={`rounded-lg border p-3 ${complete ? 'border-emerald-500/25 dark:border-emerald-300/30 bg-emerald-500/[0.06] dark:bg-emerald-300/5' : 'border-ink/10 dark:border-white/10 bg-ink/[0.02] dark:bg-white/[0.02]'}`}>
                         <label className="flex min-h-11 items-center gap-2">
                           <input
                             type="checkbox"
@@ -1782,9 +1783,9 @@ export default function ApplicationsManagement() {
                             disabled={localBusy}
                             className="h-4 w-4 accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                           />
-                          <span className={`text-sm font-semibold ${complete ? 'text-emerald-100' : 'text-slate-200'}`}>{label}</span>
+                          <span className={`text-sm font-semibold ${complete ? 'text-emerald-700 dark:text-emerald-100' : 'text-ink dark:text-slate-200'}`}>{label}</span>
                         </label>
-                        <p className="mt-1 text-xs text-slate-300">{complete ? 'Completed' : 'Not completed'}</p>
+                        <p className="mt-1 text-xs text-graphite dark:text-slate-300">{complete ? 'Completed' : 'Not completed'}</p>
                       </li>
                     )
                   })}
@@ -1794,14 +1795,14 @@ export default function ApplicationsManagement() {
 
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold text-white">Internal notes</h2>
-                <span className="rounded-md border border-white/10 px-2 py-1 text-xs text-slate-300">Private to operators</span>
+                <h2 className="text-lg font-semibold text-ink dark:text-white">Internal notes</h2>
+                <span className="rounded-md border border-ink/10 dark:border-white/10 px-2 py-1 text-xs text-graphite dark:text-slate-300">Private to operators</span>
               </div>
               <form onSubmit={submitNote} className="space-y-3">
                 <Textarea label="Add a private note" value={noteText} onChange={(event) => setNoteText(event.target.value)} placeholder="Record review context for the team. Use @mention to include an operator." rows={3} />
                 <div className="flex flex-wrap items-center gap-2">
-                  <label htmlFor="mention-operator" className="text-xs text-slate-300">Mention operator</label>
-                  <Select id="mention-operator" value={mentionOperatorId} onChange={(event) => setMentionOperatorId(event.target.value)} className="!min-h-11 !w-auto !min-w-[180px] !border-white/15 !bg-[#202328] !text-white">
+                  <label htmlFor="mention-operator" className="text-xs text-graphite dark:text-slate-300">Mention operator</label>
+                  <Select id="mention-operator" value={mentionOperatorId} onChange={(event) => setMentionOperatorId(event.target.value)} className="!min-h-11 !w-auto !min-w-[180px] !border-[var(--nc-line)] !bg-[var(--nc-surface)] !text-[var(--nc-text)]">
                     <option value="">Choose operator</option>
                     {operators.map((operator) => <option key={operator.id} value={operator.userId}>{operator.fullName || operator.email}</option>)}
                   </Select>
@@ -1817,57 +1818,57 @@ export default function ApplicationsManagement() {
                   </Button>
                 </div>
               </form>
-              <ol className="divide-y divide-white/10 border-y border-white/10">
+              <ol className="divide-y divide-ink/10 dark:divide-white/10 border-y border-ink/10 dark:border-white/10">
                 {noteList.length ? noteList.map((note) => (
                   <li key={note.id} className="py-3">
-                    <p className="whitespace-pre-wrap break-words text-sm text-slate-100">{note.body}</p>
-                    <p className="mt-1 text-xs text-slate-400">{note.author_name} · {formatDateTime(note.created_at)}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm text-ink dark:text-white">{note.body}</p>
+                    <p className="mt-1 text-xs text-graphite dark:text-slate-400">{note.author_name} · {formatDateTime(note.created_at)}</p>
                   </li>
-                )) : <li className="py-4 text-sm text-slate-300">No internal notes yet.</li>}
+                )) : <li className="py-4 text-sm text-graphite dark:text-slate-300">No internal notes yet.</li>}
               </ol>
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-white">Communication history</h2>
-              <ol className="divide-y divide-white/10 border-y border-white/10">
+              <h2 className="text-lg font-semibold text-ink dark:text-white">Communication history</h2>
+              <ol className="divide-y divide-ink/10 dark:divide-white/10 border-y border-ink/10 dark:border-white/10">
                 {communications.length ? communications.map((item) => (
                   <li key={item.id} className="py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-white">{item.subject}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${item.status === 'failed' ? 'border-rose-300/30 text-rose-100' : item.status === 'sent' ? 'border-emerald-300/30 text-emerald-100' : 'border-white/15 text-slate-200'}`}>
+                      <p className="text-sm font-semibold text-ink dark:text-white">{item.subject}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs ${item.status === 'failed' ? 'border-red-500/25 dark:border-rose-300/30 text-red-700 dark:text-rose-100' : item.status === 'sent' ? 'border-emerald-500/25 dark:border-emerald-300/30 text-emerald-700 dark:text-emerald-100' : 'border-ink/15 dark:border-white/15 text-ink dark:text-slate-200'}`}>
                         {item.status === 'sent' ? 'Accepted by provider' : item.status === 'failed' ? 'Failed' : 'Queued'}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">{item.direction === 'outbound' ? 'Sent' : 'Received'} · {formatDateTime(item.created_at)}</p>
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-200">{item.body}</p>
+                    <p className="mt-1 text-xs text-graphite dark:text-slate-400">{item.direction === 'outbound' ? 'Sent' : 'Received'} · {formatDateTime(item.created_at)}</p>
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink dark:text-slate-200">{item.body}</p>
                   </li>
-                )) : <li className="py-4 text-sm text-slate-300">No applicant emails are recorded yet.</li>}
+                )) : <li className="py-4 text-sm text-graphite dark:text-slate-300">No applicant emails are recorded yet.</li>}
               </ol>
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-white">Activity</h2>
-              <ol className="space-y-0 border-l border-white/15 pl-4">
+              <h2 className="text-lg font-semibold text-ink dark:text-white">Activity</h2>
+              <ol className="space-y-0 border-l border-ink/15 dark:border-white/15 pl-4">
                 {activity.length ? activity.map((event) => (
-                  <li key={event.id} className="relative border-b border-white/[0.07] py-3 last:border-0">
-                    <span className="absolute -left-[21px] top-4 h-2.5 w-2.5 rounded-full border-2 border-[#202328] bg-slate-400" aria-hidden="true" />
-                    <p className="text-sm font-medium text-white">{event.action}</p>
-                    <p className="mt-0.5 text-sm text-slate-200">{event.summary}</p>
-                    <p className="mt-1 text-xs text-slate-400">{event.actor_name} · {formatDateTime(event.created_at)}</p>
+                  <li key={event.id} className="relative border-b border-ink/[0.07] dark:border-white/[0.07] py-3 last:border-0">
+                    <span className="absolute -left-[21px] top-4 h-2.5 w-2.5 rounded-full border-2 border-[var(--nc-surface)] bg-graphite" aria-hidden="true" />
+                    <p className="text-sm font-medium text-ink dark:text-white">{event.action}</p>
+                    <p className="mt-0.5 text-sm text-ink dark:text-slate-200">{event.summary}</p>
+                    <p className="mt-1 text-xs text-graphite dark:text-slate-400">{event.actor_name} · {formatDateTime(event.created_at)}</p>
                   </li>
-                )) : <li className="py-3 text-sm text-slate-300">No activity has been recorded yet.</li>}
+                )) : <li className="py-3 text-sm text-graphite dark:text-slate-300">No activity has been recorded yet.</li>}
               </ol>
             </section>
           </div>
 
           <aside className="space-y-5 xl:sticky xl:top-5">
-            <section className="space-y-4 rounded-xl border border-white/10 bg-[#1b1d21] p-4">
+            <section className="space-y-4 rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-4">
               <div>
-                <h2 className="text-base font-semibold text-white">Review actions</h2>
-                <p className="mt-1 text-xs text-slate-300">Changes are recorded in the application history.</p>
+                <h2 className="text-base font-semibold text-ink dark:text-white">Review actions</h2>
+                <p className="mt-1 text-xs text-graphite dark:text-slate-300">Changes are recorded in the application history.</p>
               </div>
               {application.status === 'pending' && (
-                <div className="space-y-3 border-t border-white/10 pt-4">
+                <div className="space-y-3 border-t border-ink/10 dark:border-white/10 pt-4">
                   <Input label="School shortcode" value={shortcodes[application.id] ?? ''} onChange={(event) => setShortcodes((current) => ({ ...current, [application.id]: event.target.value }))} placeholder="school-code" />
                   <Button className="w-full" variant="accent" loading={approvingId === application.id} disabled={!shortcodes[application.id]?.trim()} onClick={() => setConfirmApprove(true)}>
                     <Check className="h-4 w-4" /> Approve and start onboarding
@@ -1876,7 +1877,7 @@ export default function ApplicationsManagement() {
                 </div>
               )}
               {application.status === 'awaiting_information' && (
-                <div className="space-y-3 border-t border-white/10 pt-4">
+                <div className="space-y-3 border-t border-ink/10 dark:border-white/10 pt-4">
                   <Input label="School shortcode" value={shortcodes[application.id] ?? ''} onChange={(event) => setShortcodes((current) => ({ ...current, [application.id]: event.target.value }))} placeholder="school-code" />
                   <Button className="w-full" variant="accent" loading={approvingId === application.id} disabled={!shortcodes[application.id]?.trim()} onClick={() => setConfirmApprove(true)}>
                     <Check className="h-4 w-4" /> Approve and start onboarding
@@ -1895,13 +1896,13 @@ export default function ApplicationsManagement() {
                 </Button>
               )}
               {isActionable(application) && (
-                <form className="space-y-3 border-t border-white/10 pt-4" onSubmit={submitRequest}>
-                  <h3 className="text-sm font-semibold text-white">Request information</h3>
+                <form className="space-y-3 border-t border-ink/10 dark:border-white/10 pt-4" onSubmit={submitRequest}>
+                  <h3 className="text-sm font-semibold text-ink dark:text-white">Request information</h3>
                   {docList.length > 0 && (
                     <fieldset className="space-y-2">
-                      <legend className="text-xs font-medium text-slate-300">Missing items</legend>
+                      <legend className="text-xs font-medium text-graphite dark:text-slate-300">Missing items</legend>
                       {docList.map((document) => (
-                        <label key={document.id} className="flex min-h-11 items-center gap-2 text-sm text-slate-200">
+                        <label key={document.id} className="flex min-h-11 items-center gap-2 text-sm text-ink dark:text-slate-200">
                           <input type="checkbox" checked={missingDocumentIds.includes(document.id)} onChange={(event) => setMissingDocumentIds((current) => event.target.checked ? [...current, document.id] : current.filter((id) => id !== document.id))} className="h-4 w-4 accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" />
                           {document.name}
                         </label>
@@ -1917,8 +1918,8 @@ export default function ApplicationsManagement() {
               )}
             </section>
 
-            <section className="space-y-3 rounded-xl border border-white/10 bg-[#1b1d21] p-4">
-              <h2 className="text-base font-semibold text-white">Reviewer and priority</h2>
+            <section className="space-y-3 rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-4">
+              <h2 className="text-base font-semibold text-ink dark:text-white">Reviewer and priority</h2>
               <Select label="Assigned reviewer" value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}>
                 <option value="">Unassigned</option>
                 {operators.map((operator) => <option key={operator.id} value={operator.userId}>{operator.fullName || operator.email}</option>)}
@@ -1936,8 +1937,8 @@ export default function ApplicationsManagement() {
               </Button>
             </section>
 
-            <section className="space-y-3 rounded-xl border border-white/10 bg-[#1b1d21] p-4">
-              <h2 className="text-base font-semibold text-white">Email applicant</h2>
+            <section className="space-y-3 rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-4">
+              <h2 className="text-base font-semibold text-ink dark:text-white">Email applicant</h2>
               <form className="space-y-3" onSubmit={submitEmail}>
                 <Select label="Template" value={emailTemplate} onChange={(event) => {
                   const nextTemplate = event.target.value as EmailTemplateId
@@ -1965,7 +1966,7 @@ export default function ApplicationsManagement() {
             </section>
 
             {(application.status === 'approved' || application.status === 'onboarding') && (
-              <p className="rounded-lg border border-emerald-300/25 bg-emerald-300/5 p-3 text-sm text-emerald-100">
+              <p className="rounded-lg border border-emerald-500/25 dark:border-emerald-300/25 bg-emerald-500/[0.06] dark:bg-emerald-300/5 p-3 text-sm text-emerald-700 dark:text-emerald-100">
                 The school has been approved and its onboarding progress is shown above.
               </p>
             )}
@@ -1974,19 +1975,18 @@ export default function ApplicationsManagement() {
 
         <Modal
           open={confirmApprove}
-          darkMode
           onClose={() => setConfirmApprove(false)}
           title="Approve school application?"
           description="This creates the school and administrator account, then sends a single-use activation link. The administrator sets their own password."
         >
           <div className="space-y-4">
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm">
-              <p className="font-semibold text-white">{application.school_name}</p>
-              <p className="mt-1 break-all text-slate-300">{application.email}</p>
-              <p className="mt-1 text-xs text-slate-400">Shortcode: {shortcodes[application.id]}</p>
+            <div className="rounded-lg border border-ink/10 dark:border-white/10 bg-ink/[0.03] dark:bg-white/[0.03] p-3 text-sm">
+              <p className="font-semibold text-ink dark:text-white">{application.school_name}</p>
+              <p className="mt-1 break-all text-graphite dark:text-slate-300">{application.email}</p>
+              <p className="mt-1 text-xs text-graphite dark:text-slate-400">Shortcode: {shortcodes[application.id]}</p>
             </div>
-            {actionError && <p role="alert" className="text-sm text-rose-100">{actionError}</p>}
-            <div className="flex flex-wrap justify-end gap-2 border-t border-white/10 pt-4">
+            {actionError && <p role="alert" className="text-sm text-red-700 dark:text-rose-100">{actionError}</p>}
+            <div className="flex flex-wrap justify-end gap-2 border-t border-ink/10 dark:border-white/10 pt-4">
               <Button variant="outline" onClick={() => setConfirmApprove(false)} disabled={approvingId === application.id}>Cancel</Button>
               <Button variant="accent" loading={approvingId === application.id} onClick={() => {
                 setConfirmApprove(false)
@@ -1998,7 +1998,6 @@ export default function ApplicationsManagement() {
 
         <Modal
           open={confirmReopen}
-          darkMode
           onClose={() => setConfirmReopen(false)}
           title="Reopen this application?"
           description="The application will return to review. The rejection and its audit history will remain recorded."
@@ -2013,6 +2012,7 @@ export default function ApplicationsManagement() {
         </Modal>
       </section>
     )
+
   }
 
   if (applicationId) {
@@ -2043,7 +2043,6 @@ export default function ApplicationsManagement() {
         {pendingAction?.kind === 'reject' && selectedApplication && (
           <Modal
             open
-            darkMode
             onClose={() => {
               if (!busy) {
                 setPendingAction(null)
@@ -2054,17 +2053,17 @@ export default function ApplicationsManagement() {
             description="Review the reason and applicant-facing message before recording this decision."
           >
             <form className="space-y-4" onSubmit={(event) => void rejectOne(event)}>
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm">
-                <p className="font-semibold text-white">{selectedApplication.school_name}</p>
-                <p className="mt-1 break-all font-mono text-xs text-slate-400">{selectedApplication.id}</p>
+              <div className="rounded-lg border border-ink/10 dark:border-white/10 bg-ink/[0.03] dark:bg-white/[0.03] p-3 text-sm">
+                <p className="font-semibold text-ink dark:text-white">{selectedApplication.school_name}</p>
+                <p className="mt-1 break-all font-mono text-xs text-graphite dark:text-slate-400">{selectedApplication.id}</p>
               </div>
               <Select label="Rejection reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} required>
                 <option value="">Choose a standardized reason</option>
                 {rejectionReasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
               </Select>
               <Textarea label="Applicant message" value={rejectionMessage} onChange={(event) => setRejectionMessage(event.target.value)} placeholder="Optional message explaining the decision" rows={4} />
-              {actionError && <p role="alert" className="rounded-lg border border-rose-300/30 bg-rose-300/5 p-3 text-sm text-rose-100">{actionError}</p>}
-              <div className="flex justify-end gap-2 border-t border-white/10 pt-4">
+              {actionError && <p role="alert" className="rounded-lg border border-red-500/25 dark:border-rose-300/30 bg-red-500/[0.06] dark:bg-rose-300/5 p-3 text-sm text-red-700 dark:text-rose-100">{actionError}</p>}
+              <div className="flex justify-end gap-2 border-t border-ink/10 dark:border-white/10 pt-4">
                 <Button type="button" variant="outline" onClick={() => setPendingAction(null)} disabled={busy}>Cancel</Button>
                 <Button type="submit" variant="danger" loading={busy} disabled={!rejectionReason}>Confirm rejection</Button>
               </div>
@@ -2080,10 +2079,10 @@ export default function ApplicationsManagement() {
     <section className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">School applications</h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-slate-300">Review submissions, verify school details, and move each application forward.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink dark:text-white sm:text-3xl">School applications</h1>
+          <p className="mt-1.5 max-w-2xl text-sm text-graphite dark:text-slate-300">Review submissions, verify school details, and move each application forward.</p>
         </div>
-        <p className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs tabular-nums text-slate-300">
+        <p className="rounded-lg border border-ink/10 dark:border-white/10 bg-ink/[0.035] dark:bg-white/[0.04] px-3 py-2 text-xs tabular-nums text-graphite dark:text-slate-300">
           {statusCounts.all} active application{statusCounts.all === 1 ? '' : 's'}
         </p>
       </header>
@@ -2094,7 +2093,7 @@ export default function ApplicationsManagement() {
       {bulkApprovalSummary && <BulkApprovalResult summary={bulkApprovalSummary} />}
       {bulkActionSummary && <BulkActionResult summary={bulkActionSummary} />}
 
-      <nav aria-label="Filter applications by status" className="flex gap-2 overflow-x-auto border-b border-white/10 pb-px">
+      <nav aria-label="Filter applications by status" className="flex gap-2 overflow-x-auto border-b border-ink/10 dark:border-white/10 pb-px">
         {statusOptions.map((option) => {
           const active = statusFilter === option.value
           return (
@@ -2104,11 +2103,11 @@ export default function ApplicationsManagement() {
               aria-pressed={active}
               onClick={() => setStatusFilter(option.value)}
               className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-                active ? 'border-brand font-semibold text-white' : 'border-transparent text-slate-300 hover:text-white'
+                active ? 'border-brand font-semibold text-ink dark:text-white' : 'border-transparent text-graphite dark:text-slate-300 hover:text-ink dark:hover:text-white'
               }`}
             >
               {option.label}
-              <span className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active ? 'bg-brand/20 text-orange-100' : 'bg-white/[0.08] text-slate-300'}`}>
+              <span className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active ? 'bg-brand/20 text-brand dark:text-orange-100' : 'bg-ink/[0.06] dark:bg-white/[0.08] text-graphite dark:text-slate-300'}`}>
                 {statusCounts[option.value]}
               </span>
             </button>
@@ -2124,20 +2123,20 @@ export default function ApplicationsManagement() {
             onChange={(event) => setSearch(event.target.value)}
             placeholder="School, ID, administrator, email"
             icon={<MagnifyingGlass className="h-4 w-4" />}
-            className="!border-white/15 !bg-white/[0.04] !text-white placeholder:!text-slate-400"
+            className="!border-ink/15 !dark:border-white/15 !bg-ink/[0.035] !dark:bg-white/[0.04] !text-ink !dark:text-white !placeholder:text-graphite !dark:placeholder:text-slate-400"
           />
-          <Select label="City or country" value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} className="!border-white/15 !bg-[#202328] !text-white">
+          <Select label="City or country" value={cityFilter} onChange={(event) => setCityFilter(event.target.value)} className="!border-[var(--nc-line)] !bg-[var(--nc-surface)] !text-[var(--nc-text)]">
             <option value="all">All locations</option>
             {cities.map((city) => <option key={city} value={city}>{city}</option>)}
           </Select>
-          <Select label="Reviewer" value={reviewerFilter} onChange={(event) => setReviewerFilter(event.target.value)} className="!border-white/15 !bg-[#202328] !text-white">
+          <Select label="Reviewer" value={reviewerFilter} onChange={(event) => setReviewerFilter(event.target.value)} className="!border-[var(--nc-line)] !bg-[var(--nc-surface)] !text-[var(--nc-text)]">
             <option value="all">All reviewers</option>
             <option value="unassigned">Unassigned</option>
             {operators.map((operator) => <option key={operator.id} value={operator.userId}>{operator.fullName || operator.email}</option>)}
           </Select>
-          <Input label="Submitted after" type="date" value={submittedAfter} onChange={(event) => setSubmittedAfter(event.target.value)} className="!border-white/15 !bg-white/[0.04] !text-white [color-scheme:dark]" />
-          <Input label="Submitted before" type="date" value={submittedBefore} onChange={(event) => setSubmittedBefore(event.target.value)} className="!border-white/15 !bg-white/[0.04] !text-white [color-scheme:dark]" />
-          <Select label="Sort by submission" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')} className="!border-white/15 !bg-[#202328] !text-white">
+          <Input label="Submitted after" type="date" value={submittedAfter} onChange={(event) => setSubmittedAfter(event.target.value)} className="!border-ink/15 !dark:border-white/15 !bg-ink/[0.035] !dark:bg-white/[0.04] !text-ink !dark:text-white" />
+          <Input label="Submitted before" type="date" value={submittedBefore} onChange={(event) => setSubmittedBefore(event.target.value)} className="!border-ink/15 !dark:border-white/15 !bg-ink/[0.035] !dark:bg-white/[0.04] !text-ink !dark:text-white" />
+          <Select label="Sort by submission" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')} className="!border-[var(--nc-line)] !bg-[var(--nc-surface)] !text-[var(--nc-text)]">
             <option value="oldest">Oldest first</option>
             <option value="newest">Newest first</option>
           </Select>
@@ -2148,11 +2147,11 @@ export default function ApplicationsManagement() {
               type="checkbox"
               checked={needsAttention}
               onChange={(event) => setNeedsAttention(event.target.checked)}
-              className="h-4 w-4 rounded border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              className="h-4 w-4 rounded border-ink/25 dark:border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             />
             <span>
-              <span className="block text-sm font-medium text-white">Needs attention</span>
-              <span className="block text-xs text-slate-300">Overdue reviews or flagged submissions</span>
+              <span className="block text-sm font-medium text-ink dark:text-white">Needs attention</span>
+              <span className="block text-xs text-graphite dark:text-slate-300">Overdue reviews or flagged submissions</span>
             </span>
           </label>
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-3">
@@ -2160,19 +2159,19 @@ export default function ApplicationsManagement() {
               type="checkbox"
               checked={showArchived}
               onChange={(event) => setShowArchived(event.target.checked)}
-              className="h-4 w-4 rounded border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              className="h-4 w-4 rounded border-ink/25 dark:border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             />
-            <span className="text-sm text-slate-200">Include archived applications</span>
+            <span className="text-sm text-ink dark:text-slate-200">Include archived applications</span>
           </label>
-          <p className="text-xs tabular-nums text-slate-400" aria-live="polite">
+          <p className="text-xs tabular-nums text-graphite dark:text-slate-400" aria-live="polite">
             Showing {filteredApplications.length} of {showArchived ? applications.length : statusCounts.all}
           </p>
         </div>
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-brand/40 bg-[#282b30] p-3" aria-label={`${selectedIds.length} applications selected`}>
-          <span className="mr-auto px-1 text-sm font-semibold text-white">{selectedIds.length} selected</span>
+        <div className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-brand/40 bg-[var(--nc-surface)] p-3" aria-label={`${selectedIds.length} applications selected`}>
+          <span className="mr-auto px-1 text-sm font-semibold text-ink dark:text-white">{selectedIds.length} selected</span>
           <Button size="sm" className="min-h-11" variant="outline" disabled={!canEditSelected} onClick={() => setPendingAction({ kind: 'assign_reviewer' })} icon={<Users className="h-4 w-4" />}>Assign reviewer</Button>
           <Button size="sm" className="min-h-11" variant="outline" disabled={!canEditSelected} onClick={() => {
             setTemplate('documents_needed')
@@ -2185,18 +2184,18 @@ export default function ApplicationsManagement() {
           {allSelectedArchived
             ? <Button size="sm" className="min-h-11" variant="outline" onClick={() => setPendingAction({ kind: 'unarchive' })}>Restore from archive</Button>
             : <Button size="sm" className="min-h-11" variant="outline" disabled={!canEditSelected} onClick={() => setPendingAction({ kind: 'archive' })} icon={<Archive className="h-4 w-4" />}>Archive</Button>}
-          <button type="button" className="min-h-11 min-w-11 rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Clear selection" onClick={() => setSelectedIds([])}>
+          <button type="button" className="min-h-11 min-w-11 rounded-lg p-2 text-graphite dark:text-slate-300 hover:bg-ink/5 dark:hover:bg-white/10 hover:text-ink dark:hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Clear selection" onClick={() => setSelectedIds([])}>
             <X className="mx-auto h-4 w-4" />
           </button>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1b1d21]">
+      <div className="overflow-hidden rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)]">
         {filteredApplications.length === 0 ? (
           <div className="px-5 py-16 text-center">
-            <FileText className="mx-auto h-8 w-8 text-slate-400" aria-hidden="true" />
-            <h2 className="mt-3 text-base font-semibold text-white">No applications found</h2>
-            <p className="mt-1 text-sm text-slate-300">Try changing the status or clearing one of the filters.</p>
+            <FileText className="mx-auto h-8 w-8 text-graphite dark:text-slate-400" aria-hidden="true" />
+            <h2 className="mt-3 text-base font-semibold text-ink dark:text-white">No applications found</h2>
+            <p className="mt-1 text-sm text-graphite dark:text-slate-300">Try changing the status or clearing one of the filters.</p>
             <Button variant="outline" size="sm" onClick={() => {
               setSearch('')
               setStatusFilter('all')
@@ -2211,7 +2210,7 @@ export default function ApplicationsManagement() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] border-collapse text-left">
-              <thead className="border-b border-white/10 bg-white/[0.03] text-xs font-semibold uppercase tracking-wide text-slate-300">
+              <thead className="border-b border-ink/10 dark:border-white/10 bg-ink/[0.03] dark:bg-white/[0.03] text-xs font-semibold uppercase tracking-wide text-graphite dark:text-slate-300">
                 <tr>
                   <th scope="col" className="w-12 px-4 py-3">
                     <label className="flex min-h-11 min-w-11 items-center justify-center">
@@ -2220,7 +2219,7 @@ export default function ApplicationsManagement() {
                         aria-label="Select all applications on this page"
                         checked={filteredApplications.length > 0 && filteredApplications.every((application) => selectedIds.includes(application.id))}
                         onChange={(event) => selectVisible(event.target.checked)}
-                        className="h-4 w-4 rounded border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                        className="h-4 w-4 rounded border-ink/25 dark:border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                       />
                     </label>
                   </th>
@@ -2233,7 +2232,7 @@ export default function ApplicationsManagement() {
                   <th scope="col" className="px-4 py-3">Review due</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.07]">
+              <tbody className="divide-y divide-ink/[0.06] dark:divide-white/[0.07]">
                 {filteredApplications.map((application) => {
                   const reviewer = operators.find((operator) => operator.userId === application.assigned_reviewer)
                   const duplicate = duplicateEmails.has(application.email.trim().toLowerCase())
@@ -2246,7 +2245,7 @@ export default function ApplicationsManagement() {
                         if (target instanceof Element && target.closest('a, button, input, label')) return
                         navigate(`/platform/applications/${encodeURIComponent(application.id)}`, { state: { applicationsList: currentListState } })
                       }}
-                      className={`cursor-pointer transition-colors hover:bg-white/[0.035] ${selectedIds.includes(application.id) ? 'bg-brand/[0.06]' : ''}`}
+                      className={`cursor-pointer transition-colors hover:bg-ink/[0.035] dark:hover:bg-white/[0.035] ${selectedIds.includes(application.id) ? 'bg-brand/[0.06]' : ''}`}
                     >
                       <td className="px-4 py-4 align-top">
                         <label className="flex min-h-11 min-w-11 items-start justify-center pt-0.5">
@@ -2255,7 +2254,7 @@ export default function ApplicationsManagement() {
                             aria-label={`Select ${application.school_name}`}
                             checked={selectedIds.includes(application.id)}
                             onChange={() => toggleSelected(application.id)}
-                            className="mt-2 h-4 w-4 rounded border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+                            className="mt-2 h-4 w-4 rounded border-ink/25 dark:border-white/30 bg-transparent accent-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
                           />
                         </label>
                       </td>
@@ -2265,27 +2264,27 @@ export default function ApplicationsManagement() {
                           state={{ applicationsList: currentListState }}
                           className="group block rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                         >
-                          <span className="flex items-start gap-2 font-semibold text-white group-hover:text-orange-200">
-                            <Buildings className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                          <span className="flex items-start gap-2 font-semibold text-ink dark:text-white group-hover:text-brand dark:group-hover:text-orange-200">
+                            <Buildings className="mt-0.5 h-4 w-4 shrink-0 text-graphite dark:text-slate-400" aria-hidden="true" />
                             <span className="break-words">{application.school_name}</span>
                             <ArrowSquareOut className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-0 group-hover:opacity-100" aria-hidden="true" />
                           </span>
-                          <span className="mt-1 block pl-6 text-xs text-slate-300">{application.administrator_name} · {application.email}</span>
-                          <span className="mt-1 block break-all pl-6 text-[11px] text-slate-400">{application.id}</span>
+                          <span className="mt-1 block pl-6 text-xs text-graphite dark:text-slate-300">{application.administrator_name} · {application.email}</span>
+                          <span className="mt-1 block break-all pl-6 text-[11px] text-graphite dark:text-slate-400">{application.id}</span>
                         </Link>
                         {flagged && (
-                          <span className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-300/25 bg-amber-300/10 px-2 py-1 text-xs text-amber-100">
+                          <span className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/25 dark:border-amber-300/25 bg-amber-500/10 dark:bg-amber-300/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-100">
                             <ShieldWarning className="h-3.5 w-3.5" aria-hidden="true" />
                             Human review
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-200">{application.city || application.country || 'Not provided'}</td>
-                      <td className="whitespace-nowrap px-4 py-4 align-top text-sm tabular-nums text-slate-200">{formatDate(application.created_at)}</td>
-                      <td className="px-4 py-4 align-top text-sm text-slate-200">{reviewer?.fullName || reviewer?.email || 'Unassigned'}</td>
-                      <td className="px-4 py-4 align-top text-sm capitalize text-slate-200">{application.priority || 'Normal'}</td>
+                      <td className="px-4 py-4 align-top text-sm text-ink dark:text-slate-200">{application.city || application.country || 'Not provided'}</td>
+                      <td className="whitespace-nowrap px-4 py-4 align-top text-sm tabular-nums text-ink dark:text-slate-200">{formatDate(application.created_at)}</td>
+                      <td className="px-4 py-4 align-top text-sm text-ink dark:text-slate-200">{reviewer?.fullName || reviewer?.email || 'Unassigned'}</td>
+                      <td className="px-4 py-4 align-top text-sm capitalize text-ink dark:text-slate-200">{application.priority || 'Normal'}</td>
                       <td className="px-4 py-4 align-top"><StatusBadge status={application.status} /></td>
-                      <td className={`whitespace-nowrap px-4 py-4 align-top text-sm tabular-nums ${isOverdue(application, now) ? 'font-semibold text-rose-200' : 'text-slate-200'}`}>
+                      <td className={`whitespace-nowrap px-4 py-4 align-top text-sm tabular-nums ${isOverdue(application, now) ? 'font-semibold text-red-700 dark:text-rose-200' : 'text-ink dark:text-slate-200'}`}>
                         {application.review_due_at ? formatDate(application.review_due_at) : 'Not set'}
                         {isOverdue(application, now) && <span className="mt-1 block text-xs">Overdue</span>}
                       </td>
@@ -2301,7 +2300,6 @@ export default function ApplicationsManagement() {
       {pendingAction && (
         <Modal
           open
-          darkMode
           onClose={() => {
             if (!busy) {
               setPendingAction(null)
@@ -2313,12 +2311,12 @@ export default function ApplicationsManagement() {
           size="lg"
         >
           <form className="space-y-4" onSubmit={(event) => pendingAction.kind === 'reject' && selectedApplication ? void rejectOne(event) : void submitBulkAction(event)}>
-            <div className="max-h-44 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-3">
-              <ul className="space-y-2 text-sm text-slate-200">
+            <div className="max-h-44 overflow-y-auto rounded-lg border border-ink/10 dark:border-white/10 bg-ink/[0.03] dark:bg-white/[0.03] p-3">
+              <ul className="space-y-2 text-sm text-ink dark:text-slate-200">
                 {(selectedApplication ? [selectedApplication] : selectedApplications).map((application) => (
                   <li key={application.id} className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="font-medium">{application.school_name}</span>
-                    <span className="font-mono text-xs text-slate-400">{application.id}</span>
+                    <span className="font-mono text-xs text-graphite dark:text-slate-400">{application.id}</span>
                   </li>
                 ))}
               </ul>
@@ -2365,21 +2363,21 @@ export default function ApplicationsManagement() {
                   {rejectionReasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
                 </Select>
                 <Textarea label="Applicant message" value={rejectionMessage} onChange={(event) => setRejectionMessage(event.target.value)} placeholder="Optional message explaining the decision" rows={4} />
-                <p className="text-xs text-slate-300">This is a permanent decision for the selected application. Reopening remains available from its detail view.</p>
+                <p className="text-xs text-graphite dark:text-slate-300">This is a permanent decision for the selected application. Reopening remains available from its detail view.</p>
               </div>
             )}
 
             {pendingAction.kind === 'archive' && (
-              <p className="text-sm text-slate-200">Archived applications leave the active queue and remain available in the audit history.</p>
+              <p className="text-sm text-ink dark:text-slate-200">Archived applications leave the active queue and remain available in the audit history.</p>
             )}
 
             {pendingAction.kind === 'unarchive' && (
-              <p className="text-sm text-slate-200">These applications will return to the active queue. Their review history will be preserved.</p>
+              <p className="text-sm text-ink dark:text-slate-200">These applications will return to the active queue. Their review history will be preserved.</p>
             )}
 
             {pendingAction.kind === 'approve' && (
               <div className="space-y-3">
-                <p className="text-sm text-slate-200">Each school is created separately and its administrator receives a single-use activation link. Enter a unique shortcode for each school before confirming.</p>
+                <p className="text-sm text-ink dark:text-slate-200">Each school is created separately and its administrator receives a single-use activation link. Enter a unique shortcode for each school before confirming.</p>
                 <div className="space-y-3">
                   {selectedApplications.map((application) => (
                     <Input
@@ -2395,9 +2393,9 @@ export default function ApplicationsManagement() {
               </div>
             )}
 
-            {actionError && <p role="alert" className="rounded-lg border border-rose-300/30 bg-rose-300/5 p-3 text-sm text-rose-100">{actionError}</p>}
+            {actionError && <p role="alert" className="rounded-lg border border-red-500/25 dark:border-rose-300/30 bg-red-500/[0.06] dark:bg-rose-300/5 p-3 text-sm text-red-700 dark:text-rose-100">{actionError}</p>}
 
-            <div className="flex flex-wrap justify-end gap-2 border-t border-white/10 pt-4">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-ink/10 dark:border-white/10 pt-4">
               <Button type="button" variant="outline" onClick={() => setPendingAction(null)} disabled={busy}>Cancel</Button>
               <Button
                 type="submit"

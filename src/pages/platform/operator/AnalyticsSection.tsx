@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react'
-import { ArrowUpRight, Buildings as Building2, CaretRight as ChevronRight, CreditCard, GraduationCap, Users } from '@phosphor-icons/react'
+import { ArrowUpRight, Buildings as Building2, CalendarPlus, CaretRight as ChevronRight, CreditCard, GraduationCap, Users } from '@phosphor-icons/react'
+import Button from '@/components/ui/Button'
+import Switch from '@/components/ui/Switch'
 import { formatCurrency } from '@/utils/format'
 import {
+  ActionDialog,
+  ActionLogPanel,
   BarSeries,
   DataTable,
   DetailModal,
@@ -15,10 +19,14 @@ import {
   PrototypeNotice,
   SectionHeader,
   Sparkline,
+  VerificationPanel,
   downloadCsv,
+  useActionLog,
+  relativeDays,
+  type ActionRequest,
   type Column,
 } from './PrototypeKit'
-import { analyticsSeries, analyticsSnapshot, trendLabels, trendWindows, windowSize, type TrendWindow } from './prototypeData'
+import { analyticsSeries, analyticsSnapshot, reportSchedules, trendLabels, trendWindows, windowSize, type ReportSchedule, type TrendWindow } from './prototypeData'
 
 interface RegionRow {
   region: string
@@ -27,7 +35,7 @@ interface RegionRow {
   mrr: number
 }
 
-function slice(values: number[], window: TrendWindow): number[] {
+function slice<T>(values: T[], window: TrendWindow): T[] {
   return values.slice(-windowSize(window))
 }
 
@@ -43,9 +51,13 @@ function changeFor(values: number[], window: TrendWindow): { start: number; end:
   return { start, end, delta, percent: baseline === 0 ? 0 : delta / baseline }
 }
 
-export default function AnalyticsSection({ onNotify, onNavigate }: { onNotify: (message: string) => void; onNavigate?: (path: string) => void }) {
+export default function AnalyticsSection({ onNotify, onNavigate, operator }: { onNotify: (message: string) => void; onNavigate?: (path: string) => void; operator: string }) {
   const [window, setWindow] = useState<TrendWindow>('Last 30 days')
   const [region, setRegion] = useState<RegionRow | null>(null)
+  const [schedules, setSchedules] = useState<ReportSchedule[]>(reportSchedules)
+  const [request, setRequest] = useState<ActionRequest | null>(null)
+  const [verified, setVerified] = useState<Array<{ label: string; value: string; ok?: boolean }> | null>(null)
+  const { entries, record } = useActionLog(operator)
 
   const metrics = useMemo(() => ({
     schools: changeFor(analyticsSeries.schools, window),
@@ -79,6 +91,66 @@ export default function AnalyticsSection({ onNotify, onNavigate }: { onNotify: (
     onNotify(`Analytics report exported for ${window.toLowerCase()}.`)
   }
 
+  const scheduleReport = () => {
+    setRequest({
+      title: 'Schedule this report',
+      target: `${window} · network summary`,
+      description: 'The report is generated on the schedule and emailed to the people you choose. Figures are the same ones shown on this screen, so the recipient sees what you see.',
+      confirmLabel: 'Schedule report',
+      requiresReason: true,
+      reasonLabel: 'Who is this for, and what decision does it support?',
+      options: [{ key: 'exceptions', label: 'Include a section listing the schools that need attention' }],
+    onConfirm: ({ reason, options }) => {
+        const schedule: ReportSchedule = {
+          id: `RS-${Math.floor(32 + Math.random() * 20)}`,
+          name: `Network summary · ${window.toLowerCase()}`,
+          frequency: window === 'Last 7 days' ? 'Weekly, on Monday' : 'Monthly, on the 1st',
+          recipients: 'Founders and operations',
+          format: options.exceptions ? 'PDF + CSV with exceptions' : 'PDF + CSV',
+          enabled: true,
+          lastSentAt: null,
+          owner: operator,
+        }
+        setSchedules((current) => [schedule, ...current])
+        record({
+          action: 'Scheduled a recurring report',
+          target: `${schedule.id} · ${schedule.name}`,
+          reason,
+          before: 'Not scheduled',
+          after: `${schedule.frequency} to ${schedule.recipients}`,
+          result: 'Applied',
+          options: options.exceptions ? ['Includes the exceptions section'] : [],
+        })
+        setVerified([
+          { label: 'Report', value: schedule.name },
+          { label: 'Frequency', value: schedule.frequency },
+          { label: 'Recipients', value: schedule.recipients },
+          { label: 'First delivery', value: 'At the next scheduled run' },
+          { label: 'Included in the report', value: options.exceptions ? 'Exceptions section included' : 'Headline figures only' },
+        ])
+        onNotify(`${schedule.name} scheduled.`)
+      },
+    })
+  }
+
+  const toggleSchedule = (schedule: ReportSchedule) => {
+    setSchedules((current) => current.map((item) => item.id === schedule.id ? { ...item, enabled: !item.enabled } : item))
+    record({
+      action: schedule.enabled ? 'Paused a recurring report' : 'Resumed a recurring report',
+      target: `${schedule.id} · ${schedule.name}`,
+      reason: 'Delivery reviewed: this report is not needed on its current schedule.',
+      before: schedule.enabled ? 'Enabled' : 'Paused',
+      after: schedule.enabled ? 'Paused' : 'Enabled',
+      result: 'Applied',
+    })
+    setVerified([
+      { label: 'Report', value: schedule.name },
+      { label: 'Schedule', value: schedule.frequency },
+      { label: 'State', value: schedule.enabled ? 'Enabled → Paused' : 'Paused → Enabled' },
+      { label: 'Recipients', value: schedule.enabled ? 'Will not receive it while paused' : schedule.recipients },
+    ])
+  }
+
   const regionColumns: Array<Column<RegionRow>> = [
     { key: 'region', label: 'Region', width: 'minmax(0,1.2fr)', render: (row) => <span className="font-semibold">{row.region}</span> },
     { key: 'schools', label: 'Schools', render: (row) => <span>{row.schools}</span> },
@@ -103,6 +175,7 @@ export default function AnalyticsSection({ onNotify, onNavigate }: { onNotify: (
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <FilterChips options={trendWindows} value={window} onChange={setWindow} label="Comparison period" />
         <span className="text-xs text-graphite">Compared with the previous period of the same length.</span>
+        <Button variant="outline" size="sm" onClick={scheduleReport}><CalendarPlus className="h-4 w-4" /> Schedule this report</Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -209,6 +282,31 @@ export default function AnalyticsSection({ onNotify, onNavigate }: { onNotify: (
           <ArrowUpRight className="h-3.5 w-3.5" /> Region-level figures are sample data, not a measurement.
         </p>
       </DetailModal>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.3fr_1fr]">
+        <Panel title="Report delivery" description="Recurring reports generated from this screen, and who receives them." action={<ExportButton onClick={() => downloadCsv('scheduled-reports.csv', [['Report', 'Frequency', 'Recipients', 'Format', 'State', 'Last sent', 'Owner'], ...schedules.map((schedule) => [schedule.name, schedule.frequency, schedule.recipients, schedule.format, schedule.enabled ? 'Enabled' : 'Paused', schedule.lastSentAt ?? 'Never sent', schedule.owner])])} label="Export schedules" />}>
+          <ul className="space-y-2">
+            {schedules.map((schedule) => (
+              <li key={schedule.id} className="rounded-xl bg-ink/[0.035] p-3 dark:bg-white/[0.05]">
+                <Switch
+                  checked={schedule.enabled}
+                  onChange={() => toggleSchedule(schedule)}
+                  label={schedule.name}
+                  description={`${schedule.frequency} · ${schedule.recipients} · ${schedule.format}${schedule.lastSentAt ? ` · last sent ${relativeDays(schedule.lastSentAt)}` : ' · never sent yet'}`}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-graphite">Schedules are sample data. Delivery needs a report service and an email provider, neither of which exists yet.</p>
+        </Panel>
+
+        <div className="space-y-6">
+          <ActionLogPanel entries={entries} description="Reporting decisions from this session." />
+          {verified && <VerificationPanel title="Result of the last action" checks={verified} note="Verification reads the schedule list back. A real delivery would also be confirmed by the email provider." />}
+        </div>
+      </div>
+
+      <ActionDialog request={request} onClose={() => setRequest(null)} actor={operator} />
 
       <p className="mt-6 text-xs text-graphite">
         {labels.length} days of trend data are shown. Figures marked as sample data are stable sample values, not measurements.

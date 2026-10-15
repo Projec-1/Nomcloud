@@ -140,6 +140,23 @@ export const analyticsSnapshot = {
   ],
 }
 
+export interface ReportSchedule {
+  id: string
+  name: string
+  frequency: string
+  recipients: string
+  format: string
+  enabled: boolean
+  lastSentAt: string | null
+  owner: string
+}
+
+export const reportSchedules: ReportSchedule[] = [
+  { id: 'RS-31', name: 'Network growth summary', frequency: 'Monthly, on the 1st', recipients: 'Founders and operations', format: 'PDF + CSV', enabled: true, lastSentAt: daysAgo(13, 6), owner: 'Leila Hassan' },
+  { id: 'RS-30', name: 'Subscription and payment exceptions', frequency: 'Weekly, on Monday', recipients: 'Billing team', format: 'CSV', enabled: true, lastSentAt: daysAgo(6, 6), owner: 'Daniel Otieno' },
+  { id: 'RS-29', name: 'School activation and churn', frequency: 'Monthly, on the 1st', recipients: 'School success team', format: 'PDF', enabled: false, lastSentAt: daysAgo(44, 6), owner: 'Amina Yusuf' },
+]
+
 // ---------------------------------------------------------------------------
 // Activity
 // ---------------------------------------------------------------------------

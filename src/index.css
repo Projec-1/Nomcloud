@@ -115,16 +115,16 @@
     @apply inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-300 ease-apple whitespace-nowrap select-none disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-primary {
-    @apply btn bg-ink text-white hover:bg-[#30343A] dark:bg-white dark:text-ink dark:hover:bg-mist shadow-soft hover:shadow-card hover:-translate-y-0.5;
+    @apply btn;
   }
   .btn-accent {
-    @apply btn bg-brand text-white hover:bg-brand-600 shadow-soft hover:shadow-card hover:-translate-y-0.5;
+    @apply btn;
   }
   .btn-outline {
-    @apply btn border border-ink/15 dark:border-white/20 text-ink dark:text-white hover:border-ink/40 dark:hover:border-white/40 hover:-translate-y-0.5;
+    @apply btn;
   }
   .btn-ghost {
-    @apply btn text-ink dark:text-white hover:bg-ink/5 dark:hover:bg-white/10;
+    @apply btn;
   }
   .link-underline {
     @apply relative after:absolute after:left-0 after:-bottom-0.5 after:h-px after:w-0 after:bg-current after:transition-all after:duration-300 hover:after:w-full;
@@ -993,6 +993,21 @@
   --nc-accent: #c9471b;
   --nc-accent-action: #c9471b;
   --nc-accent-soft: #fbeee8;
+  --nc-button-primary-bg: #222321;
+  --nc-button-primary-fg: #ffffff;
+  --nc-button-primary-hover-bg: #30343a;
+  --nc-button-accent-bg: #c9471b;
+  --nc-button-accent-fg: #ffffff;
+  --nc-button-accent-hover-bg: #a83b18;
+  --nc-button-danger-bg: #b42318;
+  --nc-button-danger-hover-bg: #912018;
+  --nc-button-outline-border: #777b75;
+  --nc-button-outline-hover-bg: #f0f2ef;
+  --nc-button-ghost-hover-bg: #f0f2ef;
+  --nc-button-disabled-bg: #e5e7e3;
+  --nc-button-disabled-fg: #555954;
+  --nc-button-disabled-border: #858982;
+  --nc-focus: #c9471b;
   --nc-radius: 10px;
 }
 
@@ -1007,6 +1022,21 @@
   --nc-accent: #ff8b68;
   --nc-accent-action: #c9471b;
   --nc-accent-soft: rgb(201 71 27 / 18%);
+  --nc-button-primary-bg: #ffffff;
+  --nc-button-primary-fg: #222321;
+  --nc-button-primary-hover-bg: #e2e4e0;
+  --nc-button-accent-bg: #c9471b;
+  --nc-button-accent-fg: #ffffff;
+  --nc-button-accent-hover-bg: #a83b18;
+  --nc-button-danger-bg: #b42318;
+  --nc-button-danger-hover-bg: #912018;
+  --nc-button-outline-border: #929890;
+  --nc-button-outline-hover-bg: #353a35;
+  --nc-button-ghost-hover-bg: #353a35;
+  --nc-button-disabled-bg: #292d29;
+  --nc-button-disabled-fg: #b8bcb6;
+  --nc-button-disabled-border: #697068;
+  --nc-focus: #ff8b68;
 }
 
 html,
@@ -1192,31 +1222,120 @@ textarea,
   box-shadow: none !important;
 }
 
-.btn {
+.btn,
+.btn-primary,
+.btn-accent,
+.btn-outline,
+.btn-ghost,
+.btn-danger {
   min-height: 44px;
   transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
 }
 
 .btn-primary,
-.btn-accent,
-.dark .public-site .btn-primary,
-.dark .public-site .btn-accent {
-  border: 1px solid var(--nc-accent-action);
-  background: var(--nc-accent-action);
-  color: #ffffff;
+.btn-primary:link,
+.btn-primary:visited {
+  border: 1px solid var(--nc-button-primary-bg) !important;
+  background-color: var(--nc-button-primary-bg) !important;
+  color: var(--nc-button-primary-fg) !important;
 }
 
-.btn-primary:hover,
-.btn-accent:hover,
-.dark .public-site .btn-primary:hover,
-.dark .public-site .btn-accent:hover {
-  border-color: #a83b18;
-  background: #a83b18;
-  color: #ffffff;
+.btn-primary:hover:not(:disabled),
+.btn-primary:active:not(:disabled) {
+  border-color: var(--nc-button-primary-hover-bg) !important;
+  background-color: var(--nc-button-primary-hover-bg) !important;
+  color: var(--nc-button-primary-fg) !important;
+}
+
+.btn-accent,
+.btn-accent:link,
+.btn-accent:visited {
+  border: 1px solid var(--nc-button-accent-bg) !important;
+  background-color: var(--nc-button-accent-bg) !important;
+  color: var(--nc-button-accent-fg) !important;
+}
+
+.btn-accent:hover:not(:disabled),
+.btn-accent:active:not(:disabled) {
+  border-color: var(--nc-button-accent-hover-bg) !important;
+  background-color: var(--nc-button-accent-hover-bg) !important;
+  color: var(--nc-button-accent-fg) !important;
+}
+
+.btn-danger {
+  border: 1px solid var(--nc-button-danger-bg) !important;
+  background-color: var(--nc-button-danger-bg) !important;
+  color: #ffffff !important;
+}
+
+.btn-danger:hover:not(:disabled),
+.btn-danger:active:not(:disabled) {
+  border-color: var(--nc-button-danger-hover-bg) !important;
+  background-color: var(--nc-button-danger-hover-bg) !important;
+  color: #ffffff !important;
 }
 
 .btn-outline {
-  border-color: var(--nc-line);
+  border: 1px solid var(--nc-button-outline-border) !important;
+  background-color: transparent !important;
+  color: var(--nc-text) !important;
+}
+
+.btn-outline:hover:not(:disabled),
+.btn-outline:active:not(:disabled) {
+  border-color: var(--nc-text) !important;
+  background-color: var(--nc-button-outline-hover-bg) !important;
+  color: var(--nc-text) !important;
+}
+
+.btn-outline.text-brand {
+  color: var(--nc-accent) !important;
+}
+
+.btn-outline[class*='hover:text-brand']:hover:not(:disabled) {
+  color: var(--nc-accent) !important;
+}
+
+.btn-ghost {
+  border: 1px solid transparent !important;
+  background-color: transparent !important;
+  color: var(--nc-text) !important;
+}
+
+.btn-ghost:hover:not(:disabled),
+.btn-ghost:active:not(:disabled) {
+  border-color: transparent !important;
+  background-color: var(--nc-button-ghost-hover-bg) !important;
+  color: var(--nc-text) !important;
+}
+
+.btn:focus-visible,
+.btn-primary:focus-visible,
+.btn-accent:focus-visible,
+.btn-outline:focus-visible,
+.btn-ghost:focus-visible,
+.btn-danger:focus-visible {
+  outline: 2px solid var(--nc-focus) !important;
+  outline-offset: 2px !important;
+}
+
+.btn:disabled,
+.btn-primary:disabled,
+.btn-accent:disabled,
+.btn-outline:disabled,
+.btn-ghost:disabled,
+.btn-danger:disabled,
+.btn[aria-disabled='true'],
+.btn-primary[aria-disabled='true'],
+.btn-accent[aria-disabled='true'],
+.btn-outline[aria-disabled='true'],
+.btn-ghost[aria-disabled='true'],
+.btn-danger[aria-disabled='true'] {
+  border-color: var(--nc-button-disabled-border) !important;
+  background-color: var(--nc-button-disabled-bg) !important;
+  color: var(--nc-button-disabled-fg) !important;
+  cursor: not-allowed;
+  opacity: 1 !important;
 }
 
 .input,

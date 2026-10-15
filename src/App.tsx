@@ -69,7 +69,6 @@ import ParentNotifications from '@/pages/app/parent/Notifications'
 import ParentMessages from '@/pages/app/parent/Messages'
 import ParentTutorials from '@/pages/app/parent/Tutorials'
 import PlatformPlaceholder from '@/pages/platform/Placeholder'
-import PlatformApprovalPanel from '@/pages/platform/ApprovalPanel'
 import PlatformWorkspace from '@/pages/platform/Workspace'
 
 export default function App() {
@@ -141,8 +140,11 @@ export default function App() {
           <Route path="analytics" element={<PlatformWorkspace />} />
           <Route path="settings" element={<PlatformWorkspace />} />
           <Route path="templates/*" element={<Navigate to="/platform" replace />} />
-          <Route path="applications" element={<PlatformApprovalPanel />} />
-          <Route path="applications/:applicationId" element={<PlatformApprovalPanel />} />
+          {/* School applications run inside the same Operator Control Center
+              shell as every other platform section, so they share its header,
+              sidebar, theme switcher and spacing instead of a private layout. */}
+          <Route path="applications" element={<PlatformWorkspace />} />
+          <Route path="applications/:applicationId" element={<PlatformWorkspace />} />
         </Route>
 
         <Route

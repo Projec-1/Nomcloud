@@ -17,7 +17,7 @@ const variantClass: Record<Variant, string> = {
   accent: 'btn-accent',
   outline: 'btn-outline',
   ghost: 'btn-ghost',
-  danger: 'btn bg-red-600 text-white hover:bg-red-700 shadow-soft hover:shadow-card hover:-translate-y-0.5',
+  danger: 'btn btn-danger',
 }
 
 const sizeClass: Record<Size, string> = {
