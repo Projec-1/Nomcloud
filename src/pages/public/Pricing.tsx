@@ -43,6 +43,11 @@ const comparisonCategories: {
 ]
 
 const faqNums = ['1', '2', '3', '4', '5', '6', '7', '8']
+const comparisonColors = [
+  'bg-[#fff4cc] text-[#765700] dark:bg-[#e9ae22]/15 dark:text-[#f3ca62]',
+  'bg-[#fee8df] text-[#a63b23] dark:bg-[#e34e49]/15 dark:text-[#f28b78]',
+  'bg-[#f0e7f7] text-[#63368b] dark:bg-[#7134aa]/20 dark:text-[#c5a0e4]',
+]
 
 function formatUSD(amount: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount)
@@ -182,57 +187,119 @@ export default function Pricing() {
         </div>
       </section>
 
-      <section className="section overflow-hidden bg-white dark:bg-white/[0.02]">
+      <section className="section overflow-hidden bg-[#f7f7f5] dark:bg-[#17191c]">
         <div className="container">
-          <div className="mx-auto max-w-2xl">
-            <h2 className="text-display-md text-ink dark:text-white">{t('pricing.compare.title')}</h2>
-            <p className="mt-4 text-base text-graphite">{t('pricing.compare.subtitle')}</p>
-          </div>
-
-          <Reveal delay={100} className="mx-auto mt-10 grid max-w-3xl grid-cols-3 gap-3 sm:mt-14">
-            {subscriptionPlans.map((p) => (
-              <div key={p.name} className="rounded-2xl bg-mist py-3 text-center dark:bg-white/[0.04]">
-                <p className="text-sm font-semibold text-ink dark:text-white">{p.name}</p>
-              </div>
-            ))}
+          <Reveal className="mx-auto max-w-3xl text-center">
+            <span className="eyebrow">{t('pricing.compare.eyebrow')}</span>
+            <h2 className="mt-5 text-display-md text-ink dark:text-white">{t('pricing.compare.title')}</h2>
+            <p className="mx-auto mt-4 max-w-2xl text-base text-graphite">{t('pricing.compare.subtitle')}</p>
           </Reveal>
 
-          <div className="mt-4 space-y-6">
-            {comparisonCategories.map((cat, ci) => (
-              <Reveal key={cat.prefix} delay={ci * 120}>
-                <div className="group relative overflow-hidden rounded-[1.75rem] border border-ink/5 bg-white shadow-soft dark:border-white/10 dark:bg-[#161618]">
-                  <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-start sm:p-8">
-                    <div className="flex items-center gap-3 sm:w-56 sm:flex-shrink-0">
-                      <div className="rounded-xl bg-brand/10 p-3 text-brand">
-                        <cat.icon className="h-5 w-5" />
+          <Reveal delay={100} className="mt-12 overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-[#202320]">
+            <div className="grid items-center gap-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
+              <div className="px-4 pt-6 sm:px-8 sm:pt-8">
+                <svg aria-hidden="true" focusable="false" viewBox="0 0 520 300" className="mx-auto block w-full max-w-[520px]">
+                  <g fill="none" strokeWidth="34" strokeLinecap="round">
+                    <path d="M 42 280 A 218 218 0 0 1 478 280" className="stroke-[#ebe9e3] dark:stroke-[#35383b]" />
+                    <path d="M 94 280 A 166 166 0 0 1 426 280" className="stroke-[#ebe9e3] dark:stroke-[#35383b]" />
+                    <path d="M 146 280 A 114 114 0 0 1 374 280" className="stroke-[#ebe9e3] dark:stroke-[#35383b]" />
+                    <path d="M 42 280 A 218 218 0 0 1 478 280" stroke="#7134aa" />
+                    <path d="M 94 280 A 166 166 0 0 1 426 280" stroke="#e34e49" />
+                    <path d="M 146 280 A 114 114 0 0 1 374 280" stroke="#e9ae22" />
+                  </g>
+                  <g fill="white" fontFamily="DM Sans, sans-serif" fontSize="13" fontWeight="700" textAnchor="middle">
+                    <text x="260" y="74">03</text>
+                    <text x="260" y="126">02</text>
+                    <text x="260" y="178">01</text>
+                  </g>
+                </svg>
+              </div>
+              <div className="px-6 pb-7 sm:px-8 sm:pb-8 lg:py-8 lg:pe-10 lg:ps-4">
+                <div className="space-y-2">
+                  {comparisonCategories.map((cat, index) => {
+                    return (
+                      <div key={cat.prefix} className="flex items-center gap-4 rounded-2xl px-3 py-3 transition-colors hover:bg-mist/70 dark:hover:bg-white/[0.04]">
+                        <span className={cn('flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums', comparisonColors[index])}>
+                          0{index + 1}
+                        </span>
+                        <cat.icon aria-hidden="true" className="h-5 w-5 flex-shrink-0 text-graphite" />
+                        <span className="text-sm font-semibold text-ink dark:text-white">{t(`${cat.prefix}.title`)}</span>
                       </div>
-                      <h3 className="font-semibold text-ink dark:text-white">{t(`${cat.prefix}.title`)}</h3>
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      {cat.rows.map((row) => (
-                        <div key={row.key} className="grid grid-cols-4 items-center gap-2 rounded-xl bg-mist px-4 py-3 text-sm dark:bg-white/[0.03]">
-                          <span className="col-span-1 font-medium text-ink dark:text-white">{t(`${cat.prefix}.${row.key}`)}</span>
-                          {[row.starter, row.growth, row.enterprise].map((cell, i) => (
-                            <span key={i} className="flex items-center justify-center">
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+          <Reveal delay={160} className="mt-8 overflow-hidden rounded-3xl border border-ink/10 bg-white dark:border-white/10 dark:bg-[#202320]">
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed border-collapse text-start">
+                <colgroup>
+                  <col className="w-[36%] sm:w-[46%]" />
+                  <col className="w-[21.33%] sm:w-[18%]" />
+                  <col className="w-[21.33%] sm:w-[18%]" />
+                  <col className="w-[21.34%] sm:w-[18%]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-ink/10 dark:border-white/10">
+                    <th aria-hidden="true" className="px-3 py-4 sm:px-6" />
+                    {subscriptionPlans.map((plan) => (
+                      <th key={plan.name} scope="col" className={cn('px-0.5 py-4 text-center sm:px-4 sm:py-5', plan.highlight ? 'bg-brand/[0.06]' : '')}>
+                        <span className="block text-[11px] font-bold text-ink dark:text-white sm:text-sm">{plan.name}</span>
+                        {plan.highlight && <span className="mt-1 block text-[9px] font-semibold leading-tight text-brand sm:text-[10px]">{t('pricing.mostPopular')}</span>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                {comparisonCategories.map((cat, ci) => (
+                  <tbody key={cat.prefix}>
+                    <tr className="border-t border-ink/10 bg-mist/70 dark:border-white/10 dark:bg-white/[0.035]">
+                      <th colSpan={4} scope="rowgroup" className="px-3 py-4 text-start sm:px-6">
+                        <span className="flex items-center gap-3">
+                          <span className={cn(
+                            'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-[10px] font-bold tabular-nums',
+                            comparisonColors[ci],
+                          )}>
+                            0{ci + 1}
+                          </span>
+                          <cat.icon aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-brand" />
+                          <span className="text-sm font-semibold text-ink dark:text-white">{t(`${cat.prefix}.title`)}</span>
+                        </span>
+                      </th>
+                    </tr>
+                    {cat.rows.map((row) => {
+                      const cells = [row.starter, row.growth, row.enterprise]
+                      return (
+                        <tr key={`${cat.prefix}-${row.key}`} className="border-t border-ink/5 dark:border-white/[0.06]">
+                          <th scope="row" className="px-3 py-4 text-start text-xs font-medium leading-snug text-ink dark:text-white sm:px-6 sm:text-sm">
+                            {t(`${cat.prefix}.${row.key}`)}
+                          </th>
+                          {cells.map((cell, i) => (
+                            <td key={i} className={cn('px-0.5 py-4 text-center sm:px-4', subscriptionPlans[i].highlight ? 'bg-brand/[0.035]' : '')}>
                               {cell === 'support' ? (
-                                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-ink shadow-sm dark:bg-white/10 dark:text-white">
+                                <span className="inline-block max-w-full break-words rounded-lg bg-mist px-1 py-1 text-[10px] font-medium leading-tight text-ink dark:bg-white/10 dark:text-white sm:px-2.5 sm:text-xs">
                                   {i === 0 ? supportLabels.starter : i === 1 ? supportLabels.growth : supportLabels.enterprise}
                                 </span>
                               ) : cell ? (
-                                <Check className="h-4 w-4 text-emerald-500" />
+                                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300" aria-label={t('pricing.compare.included')}>
+                                  <Check aria-hidden="true" className="h-4 w-4" />
+                                </span>
                               ) : (
-                                <Minus className="h-4 w-4 text-graphite/30" />
+                                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-mist text-graphite/60 dark:bg-white/[0.06] dark:text-white/40" aria-label={t('pricing.compare.notIncluded')}>
+                                  <Minus aria-hidden="true" className="h-4 w-4" />
+                                </span>
                               )}
-                            </span>
+                            </td>
                           ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                ))}
+              </table>
+            </div>
+          </Reveal>
         </div>
       </section>
 
