@@ -15,16 +15,14 @@ import {
 import Button from '@/components/ui/Button'
 import Status from '@/pages/platform/StatusPill'
 import type { Request, School } from '@/pages/platform/types'
-import { downloadCsv, KpiTile, Panel, PrototypeNotice, SectionHeader, SampleTag } from './PrototypeKit'
+import { downloadCsv, KpiTile, Panel, SectionHeader } from './PrototypeKit'
 
 /**
  * Overview: the screen an operator lands on.
  *
  * Everything it reports comes from records the platform actually loaded —
  * schools, students, contact requests, pending applications, operators and the
- * audit log. The only sampled figures are the two alert counts taken from the
- * health and security prototypes, and those are labelled as sample data rather
- * than presented as live monitoring.
+ * audit log. No unavailable operational data is estimated or shown here.
  */
 
 export interface OverviewAlert {
@@ -32,7 +30,6 @@ export interface OverviewAlert {
   title: string
   detail: string
   path: string
-  sample: boolean
 }
 
 interface OverviewSectionProps {
@@ -112,8 +109,8 @@ export default function OverviewSection({
     ...(alerts.length > 0
       ? [{
           id: 'alerts',
-          label: `${alerts.length} alert${alerts.length === 1 ? '' : 's'} across health, security and billing`,
-          detail: 'Open the action centre to assign and resolve them.',
+          label: `${alerts.length} platform record${alerts.length === 1 ? '' : 's'} needing attention`,
+          detail: 'Open the action center to review the associated record.',
           path: '/platform/actions',
           icon: AlertTriangle,
           tone: 'danger' as const,
@@ -143,8 +140,8 @@ export default function OverviewSection({
     { label: 'Review applications', detail: `${pendingApplicationCount} pending`, path: '/platform/applications', icon: FileText },
     { label: 'Open request queue', detail: `${openRequests.length} open`, path: '/platform/requests', icon: ClipboardCheck },
     { label: 'Find a school', detail: `${schools.length} registered`, path: '/platform/schools', icon: Building2 },
-    { label: 'Invite an operator', detail: `${operatorCount} with access`, path: '/platform/operators', icon: UserCircle },
-    { label: 'Announce to schools', detail: 'Communications', path: '/platform/communications', icon: Megaphone },
+    { label: 'Review operator access', detail: `${operatorCount} with access`, path: '/platform/operators', icon: UserCircle },
+    { label: 'Communications status', detail: 'Platform scope unavailable', path: '/platform/communications', icon: Megaphone },
     { label: 'Check the audit log', detail: `${auditRows.length} events`, path: '/platform/audit', icon: Activity },
   ]
 
@@ -155,11 +152,6 @@ export default function OverviewSection({
         title="Platform overview"
         description="Platform-wide numbers, what needs operator attention, and the fastest route into every task."
         action={<Button variant="outline" size="sm" onClick={exportReport}><ArrowUpRight className="h-4 w-4" /> Export report</Button>}
-      />
-
-      <PrototypeNotice
-        scope="Trend, health and billing alerts"
-        detail="School, student, teacher, request and operator counts are read from the database. Alert counts marked as sample data come from the health, security and billing prototypes until those sources are connected."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -208,7 +200,7 @@ export default function OverviewSection({
 
           <Panel
             title="Alerts"
-            description="Health, security and billing signals that need a decision."
+            description="Available records that need an operator’s attention."
             action={<button onClick={() => navigate('/platform/actions')} className="text-xs font-semibold text-brand">Triage all <ArrowUpRight className="inline h-3.5 w-3.5" /></button>}
           >
             {alerts.length === 0 ? (
@@ -222,7 +214,6 @@ export default function OverviewSection({
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-semibold">{alert.title}</span>
-                          {alert.sample && <SampleTag />}
                         </span>
                         <span className="mt-1 block text-xs leading-5 text-graphite">{alert.detail}</span>
                       </span>

@@ -37,7 +37,6 @@ import {
 } from '@phosphor-icons/react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import Select from '@/components/ui/Select'
 import { useAuth } from '@/context/AuthContext'
 import type { Request, RequestStatus, School, SchoolStatus } from './types'
 import SchoolProfileModal from './SchoolProfileModal'
@@ -58,8 +57,8 @@ import { errorMessage } from '@/utils/errorMessage'
 import ThemeSwitcher from '@/components/ui/ThemeSwitcher'
 import Status from './StatusPill'
 import OverviewSection, { type OverviewAlert } from './operator/OverviewSection'
-import ActionCenterSection, { type InboxState } from './operator/ActionCenterSection'
-import RequestsSection, { type RequestWorkMap } from './operator/RequestsSection'
+import ActionCenterSection from './operator/ActionCenterSection'
+import RequestsSection from './operator/RequestsSection'
 import SettingsSection from './operator/SettingsSection'
 import { SectionHeader } from './operator/PrototypeKit'
 import AnalyticsSection from './operator/AnalyticsSection'
@@ -77,15 +76,16 @@ import BackupsSection from './operator/BackupsSection'
 import DataSection from './operator/DataSection'
 import PeopleSection from './operator/PeopleSection'
 import CommunicationsSection from './operator/CommunicationsSection'
-import { billingInvoices, billingPayments, healthIncidents, integrations, securitySignals, webhookEndpoints } from './operator/prototypeData'
 
-// Alert counts the sidebar shows next to the sections that own them. They come
-// from the sample data those sections render, and they disappear when nothing
-// needs attention, so the badge always means "there is something to look at".
+// Alert counts the sidebar shows next to the sections that own them. Since none
+// of those sections is connected to a live source yet, no alert badge is shown.
 const navBadges: Record<string, number | undefined> = {
-  'System Health': healthIncidents.filter((incident) => incident.status !== 'Resolved').length,
+  'System Health': undefined,
   Activity: 0,
-  Security: securitySignals.filter((signal) => signal.status === 'New' || signal.status === 'Investigating').length,
+  Security: undefined,
+  'Action Center': undefined,
+  Billing: undefined,
+  Integrations: undefined,
 }
 
 const navGroups = [
@@ -144,14 +144,6 @@ const navGroups = [
 
 const nav = navGroups.flatMap((group) => group.items)
 
-const schoolTimeline = [
-  ['Today, 09:42', 'School approval completed', 'Leila Hassan approved the organization application.'],
-  ['Sep 22, 14:18', '3 teachers added', 'Roster import completed by Amina Yusuf.'],
-  ['Sep 20, 11:05', 'Attendance activated', 'Attendance workspace enabled for all campuses.'],
-  ['Sep 18, 08:30', 'Administrator verified', 'Identity and organization records verified.'],
-  ['Sep 15, 16:12', 'Application submitted', 'School application received by Nom Cloud.'],
-]
-
 export default function PlatformWorkspace() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -169,22 +161,15 @@ export default function PlatformWorkspace() {
   const [globalQuery, setGlobalQuery] = useState('')
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
   const [emergencyOpen, setEmergencyOpen] = useState(false)
-  const [operator, setOperator] = useState<PlatformOperatorRecord | null>(null)
   const [schoolRecords, setSchoolRecords] = useState<School[]>([])
   const [requestRecords, setRequestRecords] = useState<Request[]>([])
   const [auditRecords, setAuditRecords] = useState<string[][]>([])
   const [auditEntries, setAuditEntries] = useState<PlatformAuditRecord[]>([])
   const [operatorRecords, setOperatorRecords] = useState<PlatformOperatorRecord[]>([])
-  const [selectedOperator, setSelectedOperator] = useState<PlatformOperatorRecord | null>(null)
   const [pendingApplicationCount, setPendingApplicationCount] = useState(0)
   const [platformRecordsLoading, setPlatformRecordsLoading] = useState(true)
   const [platformRecordsError, setPlatformRecordsError] = useState<string | null>(null)
   const [platformRecordsNonce, setPlatformRecordsNonce] = useState(0)
-  // Operator workflow state (who owns an inbox item, what happened to a
-  // request). It lives here rather than inside the sections so the assignment
-  // and the decision history survive moving between screens.
-  const [inboxState, setInboxState] = useState<InboxState>({})
-  const [requestWork, setRequestWork] = useState<RequestWorkMap>({})
   const [schoolActionBusy, setSchoolActionBusy] = useState(false)
   const currentPath = location.pathname
 
@@ -257,12 +242,11 @@ export default function PlatformWorkspace() {
           source: 'contact-message',
         })))
         setOperatorRecords(operators)
-        setSelectedOperator((current) => current ? operators.find((row) => row.id === current.id) ?? null : null)
         setPendingApplicationCount(applicationsCount)
       })
       .catch((cause: unknown) => {
         if (cancelled) return
-        setPlatformRecordsError(cause instanceof Error ? cause.message : String(cause))
+        setPlatformRecordsError(errorMessage(cause, 'Could not load platform records.'))
         setSchoolRecords([])
         setAuditRecords([])
         setAuditEntries([])
@@ -318,7 +302,6 @@ export default function PlatformWorkspace() {
         title: `${pendingApplicationCount} school application${pendingApplicationCount === 1 ? '' : 's'} pending`,
         detail: 'Submitted schools are waiting for a decision.',
         path: '/platform/applications',
-        sample: false,
       })
     }
     const openRequests = requestRecords.filter((request) => request.status !== 'Resolved').length
@@ -328,7 +311,6 @@ export default function PlatformWorkspace() {
         title: `${openRequests} request${openRequests === 1 ? '' : 's'} need a decision`,
         detail: 'Contact messages from schools and the public form.',
         path: '/platform/requests',
-        sample: false,
       })
     }
     const suspended = schoolRecords.filter((school) => school.status === 'Suspended').length
@@ -338,55 +320,13 @@ export default function PlatformWorkspace() {
         title: `${suspended} school account${suspended === 1 ? '' : 's'} suspended`,
         detail: 'Confirm each suspension still has a reason and an owner.',
         path: '/platform/schools',
-        sample: false,
       })
     }
-    const incidents = healthIncidents.filter((incident) => incident.status !== 'Resolved')
-    if (incidents.length > 0) {
-      alerts.push({
-        id: 'alerts-health',
-        title: `${incidents.length} open incident${incidents.length === 1 ? '' : 's'}`,
-        detail: incidents.map((incident) => `${incident.id} ${incident.title}`).join(' · '),
-        path: '/platform/health',
-        sample: true,
-      })
-    }
-    const signals = securitySignals.filter((signal) => signal.status === 'New' || signal.status === 'Investigating')
-    if (signals.length > 0) {
-      alerts.push({
-        id: 'alerts-security',
-        title: `${signals.length} security signal${signals.length === 1 ? '' : 's'} unresolved`,
-        detail: signals.map((signal) => `${signal.id} ${signal.kind.toLowerCase()}`).join(' · '),
-        path: '/platform/security',
-        sample: true,
-      })
-    }
-    const integrationProblems = integrations.filter((item) => item.status !== 'Connected').length
-      + webhookEndpoints.filter((item) => item.status === 'Failing').length
-    if (integrationProblems > 0) {
-      alerts.push({
-        id: 'alerts-integrations',
-        title: `${integrationProblems} integration problem${integrationProblems === 1 ? '' : 's'}`,
-        detail: 'Providers that are degraded or disconnected, and webhooks that are failing.',
-        path: '/platform/integrations',
-        sample: true,
-      })
-    }
-    const billingProblems = billingInvoices.filter((invoice) => invoice.status === 'Overdue').length
-      + billingPayments.filter((payment) => payment.status === 'Failed').length
-    if (billingProblems > 0) {
-      alerts.push({
-        id: 'alerts-billing',
-        title: `${billingProblems} billing problem${billingProblems === 1 ? '' : 's'}`,
-        detail: 'Overdue invoices and payments that failed.',
-        path: '/platform/billing',
-        sample: true,
-      })
-    }
+    // Alert counts come from the sections themselves now that they report their own
+    // unavailable state. No sample data is used here.
     return alerts
   }, [pendingApplicationCount, requestRecords, schoolRecords])
 
-  const action = (message: string) => { setRequest(null); setSchool(null); notify(message) }
   const updateSchool = async (id: string, status: SchoolStatus, message: string) => {
     if (status !== 'Active' && status !== 'Suspended') {
       notify('That school status cannot be changed from this action.')
@@ -527,25 +467,25 @@ export default function PlatformWorkspace() {
         <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8">
           {platformRecordsError && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-sm text-red-700 dark:text-red-300"><span>Could not load platform records: {platformRecordsError}</span><Button variant="outline" size="sm" onClick={() => setPlatformRecordsNonce((value) => value + 1)}>Retry</Button></div>}
           {section === 'Overview' && <OverviewSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} notify={notify} schools={schoolRecords} requests={requestRecords} auditRows={auditRecords} pendingApplicationCount={pendingApplicationCount} operatorCount={activeOperators} alerts={overviewAlerts} loading={platformRecordsLoading} />}
-          {section === 'Action Center' && <ActionCenterSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} schools={schoolRecords} requests={requestRecords} pendingApplicationCount={pendingApplicationCount} operators={operatorRecords} state={inboxState} onStateChange={setInboxState} notify={notify} operator={displayName} loading={platformRecordsLoading} />}
+          {section === 'Action Center' && <ActionCenterSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} schools={schoolRecords} requests={requestRecords} pendingApplicationCount={pendingApplicationCount} loading={platformRecordsLoading} />}
           {section === 'Schools' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading schools…</p> : <SchoolsView schools={filteredSchools} query={query} setQuery={setQuery} filter={schoolFilter} setFilter={setSchoolFilter} onSchool={setSchool} onNotify={() => navigate('/platform/applications')} />)}
           {section === 'School Applications' && <PlatformApprovalPanel />}
-          {section === 'People' && <PeopleSection onNotify={notify} operator={displayName} />}
-          {section === 'Communications' && <CommunicationsSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'Requests & Reviews' && <RequestsSection requests={requestRecords} operators={operatorRecords} work={requestWork} onWorkChange={setRequestWork} onResolve={updateRequest} onOpenSchool={(name) => { const match = schoolRecords.find((item) => item.name === name); if (match) setSchool(match); else notify('That school is not registered on the platform, so no record can be opened.') }} notify={notify} operator={displayName} />}
-          {section === 'Operators' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading operators…</p> : <OperatorsSection operators={operatorRecords} onNotify={notify} operator={displayName} />)}
-          {section === 'Permissions' && <PermissionsSection onNotify={notify} operator={displayName} />}
-          {section === 'Audit Logs' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditSection rows={auditEntries} notify={notify} onNavigate={navigate} operator={displayName} />)}
-          {section === 'Security' && <SecuritySection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'Maintenance' && <MaintenanceSection onNotify={notify} operator={displayName} />}
-          {section === 'Backups & Recovery' && <BackupsSection onNotify={notify} operator={displayName} />}
-          {section === 'Analytics' && <AnalyticsSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'Activity' && <ActivitySection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'System Health' && <HealthSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'Features' && <FeaturesSection onNotify={notify} operator={displayName} />}
-          {section === 'Integrations' && <IntegrationsSection onNotify={notify} operator={displayName} />}
-          {section === 'Billing' && <BillingSection onNotify={notify} operator={displayName} />}
-          {section === 'Data' && <DataSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
+          {section === 'People' && <PeopleSection />}
+          {section === 'Communications' && <CommunicationsSection />}
+          {section === 'Requests & Reviews' && <RequestsSection requests={requestRecords} loading={platformRecordsLoading} onOpenRequest={setRequest} />}
+          {section === 'Operators' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading operators…</p> : <OperatorsSection operators={operatorRecords} onNotify={notify} />)}
+          {section === 'Permissions' && <PermissionsSection />}
+          {section === 'Audit Logs' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditSection rows={auditEntries} notify={notify} />)}
+          {section === 'Security' && <SecuritySection />}
+          {section === 'Maintenance' && <MaintenanceSection />}
+          {section === 'Backups & Recovery' && <BackupsSection />}
+          {section === 'Analytics' && <AnalyticsSection />}
+          {section === 'Activity' && <ActivitySection />}
+          {section === 'System Health' && <HealthSection />}
+          {section === 'Features' && <FeaturesSection />}
+          {section === 'Integrations' && <IntegrationsSection />}
+          {section === 'Billing' && <BillingSection />}
+          {section === 'Data' && <DataSection />}
           {section === 'Settings' && <SettingsSection onEmergency={() => setEmergencyOpen(true)} onSignOut={() => setSignOutOpen(true)} notify={notify} fullName={displayName} email={displayEmail} role={operatorRole} provider={(authUser?.app_metadata?.provider as string | undefined) ?? null} accountCreatedAt={authUser?.created_at ?? null} lastSignInAt={(authUser as { last_sign_in_at?: string } | null)?.last_sign_in_at ?? null} platform={{ schoolCount: schoolRecords.length, studentCount: totalStudents, teacherCount: totalTeachers, pendingApplications: pendingApplicationCount, operatorCount: activeOperators, requestCount: requestRecords.length, connected: !platformRecordsLoading && !platformRecordsError, error: platformRecordsError }} />}
         </div>
       </main>
@@ -556,20 +496,19 @@ export default function PlatformWorkspace() {
         auditEntries={auditEntries}
         onClose={() => setSchool(null)}
         onOpenRequest={(item) => { setSchool(null); setRequest(item) }}
-        onStatusChange={(...args) => {
+        onStatusChange={async (...args) => {
           if (schoolActionBusy) return
-          void updateSchool(...args)
+          await updateSchool(...args)
         }}
+        statusChangePending={schoolActionBusy}
       />
       <RequestReviewModal
         request={request}
         schools={schoolRecords}
         onClose={() => setRequest(null)}
         onDecision={updateRequest}
-        onNoteSaved={notify}
         onOpenSchool={(item) => { setRequest(null); setSchool(item) }}
       />
-      <OperatorModal operator={selectedOperator ?? operator} onClose={() => { setOperator(null); setSelectedOperator(null) }} onAction={notify} />
       <Modal open={emergencyOpen} onClose={() => setEmergencyOpen(false)} title="Emergency controls" description="Unavailable: these controls are not connected to live access changes or audit logging." size="md" footer={<Button variant="outline" onClick={() => setEmergencyOpen(false)}>Close</Button>}><div className="space-y-2">{['Suspend a school account', 'Revoke all sessions for a user', 'Restrict an operator account', 'Put platform into maintenance mode'].map((item) => <button key={item} type="button" disabled className="flex w-full cursor-not-allowed items-center gap-3 rounded-2xl border border-red-500/15 p-4 text-left text-sm font-semibold text-red-700 opacity-60 dark:text-red-300"><Ban className="h-4 w-4" />{item}<ChevronRight className="ml-auto h-4 w-4" /></button>)}</div></Modal>
       <Modal open={signOutOpen} onClose={() => { if (!signOutPending) setSignOutOpen(false) }} title="Sign out?" description="Are you sure you want to sign out of Nom Cloud?" size="sm" footer={<><Button variant="outline" disabled={signOutPending} onClick={() => setSignOutOpen(false)}>Cancel</Button><Button variant="danger" disabled={signOutPending} onClick={() => void handleLogout()}>{signOutPending ? 'Signing out…' : 'Sign Out'}</Button></>}><div /></Modal>
     </div>
@@ -593,64 +532,3 @@ function SchoolsView({ schools: list, query, setQuery, filter, setFilter, onScho
 }
 
 
-function OperatorsView({ operators, onNotify, onOperator }: { operators: PlatformOperatorRecord[]; onNotify: (message: string) => void; onOperator: (operator: PlatformOperatorRecord) => void }) {
-  return <><SectionHeader eyebrow="People & access" title="Operators" description="Platform access grants recorded in Nom Cloud." /><div className="overflow-hidden rounded-3xl border border-ink/[0.07] bg-white shadow-soft dark:border-white/[0.08] dark:bg-white/[0.04]"><div className="hidden grid-cols-[1.5fr_1.2fr_1fr_1fr_auto] gap-4 border-b border-ink/[0.06] px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-graphite dark:border-white/[0.08] md:grid"><span>Operator</span><span>Role</span><span>Access granted</span><span>Status</span><span>Actions</span></div>{operators.length ? operators.map((item) => {
-    const active = item.revokedAt === null
-    return <div key={item.id} className="grid gap-3 border-b border-ink/[0.06] px-5 py-4 last:border-0 dark:border-white/[0.08] md:grid-cols-[1.5fr_1.2fr_1fr_1fr_auto] md:items-center md:gap-4"><span className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">{item.fullName.charAt(0)}</span><span><span className="block text-sm font-semibold">{item.fullName}</span><span className="block text-xs text-graphite">{item.email}</span></span></span><span className="text-sm text-graphite">Platform administrator</span><span className="text-xs text-graphite">{new Date(item.grantedAt).toLocaleString()}</span><Status value={active ? 'Active' : 'Revoked'} /><span className="flex gap-2"><button onClick={() => onOperator(item)} className="rounded-xl border border-ink/10 px-3 py-2 text-xs font-semibold dark:border-white/10">View</button>{active && <button onClick={() => onNotify('Operator access revocation is not available from this client.')} className="rounded-xl bg-ink/[0.05] p-2 dark:bg-white/[0.08]" title="Manage operator access" aria-label={`Manage access for ${item.fullName}`}><RotateCcw className="h-3.5 w-3.5" /></button>}</span></div>
-  }) : <p className="p-6 text-sm text-graphite">No operator access records were found.</p>}</div></>
-}
-
-function OperatorModal({ operator, onClose, onAction }: { operator: PlatformOperatorRecord | null; onClose: () => void; onAction: (message: string) => void }) {
-  // Only what platform_admins actually stores: who they are and when the grant
-  // was made. The previous version showed a fixed creation date, "last active"
-  // time, device count and a sentence of invented recent actions.
-  return (
-    <Modal
-      open={Boolean(operator)}
-      onClose={onClose}
-      size="lg"
-      title={operator?.fullName ?? ''}
-      description="Operator record"
-      footer={operator ? <Button variant="outline" onClick={() => onAction('Operator changes are not available yet.')}>Manage access</Button> : null}
-    >
-      {operator && (
-        <div className="space-y-5">
-          <div className="flex items-center gap-4 rounded-2xl bg-ink/[0.035] p-4 dark:bg-white/[0.05]">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand text-lg font-bold text-white">
-              {operator.fullName.charAt(0).toUpperCase()}
-            </span>
-            <div>
-              <p className="font-semibold">{operator.fullName}</p>
-              <p className="text-sm text-graphite">{operator.email}</p>
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-ink/10 p-4 dark:border-white/10">
-              <p className="text-xs text-graphite">Access granted</p>
-              <p className="mt-2 text-sm font-semibold">{new Date(operator.grantedAt).toLocaleDateString()}</p>
-            </div>
-            <div className="rounded-2xl border border-ink/10 p-4 dark:border-white/10">
-              <p className="text-xs text-graphite">Status</p>
-              <p className="mt-2 text-sm font-semibold">{operator.revokedAt ? 'Revoked' : 'Active'}</p>
-            </div>
-          </div>
-          <p className="text-xs text-graphite">
-            Sign-in history and per-operator permissions are not recorded yet, so nothing more is shown here.
-          </p>
-        </div>
-      )}
-    </Modal>
-  )
-}
-
-
-
-function SchoolModal({ school, onClose, onAction, onStatusChange }: { school: School | null; onClose: () => void; onAction: (message: string) => void; onStatusChange: (id: string, status: SchoolStatus, message: string) => void }) {
-  const [tab, setTab] = useState('Overview')
-  useEffect(() => { if (school) setTab('Overview') }, [school])
-  return <Modal open={Boolean(school)} onClose={onClose} size="xl" title={school?.name} description={school ? `${school.id} · ${school.location}` : ''} footer={school ? <><Button variant="outline" onClick={() => onAction('School marked for review')}>Request changes</Button>{school.status === 'Suspended' ? <Button variant="accent" onClick={() => onStatusChange(school.id, 'Active', 'School reactivated')}>Reactivate school</Button> : <Button variant="danger" onClick={() => onStatusChange(school.id, 'Suspended', 'School suspended')}>Suspend school</Button>}{school.status === 'Pending' && <Button variant="accent" onClick={() => onStatusChange(school.id, 'Active', 'School approved')}>Approve school</Button>}</> : null}>{school && <><div className="flex gap-1 overflow-x-auto border-b border-ink/[0.07] pb-3 dark:border-white/[0.08]">{['Overview', 'School Information', 'Users', 'Activity', 'Requests', 'Documents', 'Billing', 'Permissions', 'Audit History'].map((item) => <button key={item} onClick={() => setTab(item)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold ${tab === item ? 'bg-ink text-white dark:bg-white dark:text-ink' : 'text-graphite hover:bg-ink/[0.05]'}`}>{item}</button>)}</div>{tab === 'Overview' && <div className="mt-6 grid gap-4 sm:grid-cols-2"><div className="sm:col-span-2 rounded-2xl border border-brand/15 bg-brand/[0.05] p-4"><p className="text-xs font-semibold uppercase tracking-wider text-brand">Primary contact</p><p className="mt-2 text-sm font-semibold">{school.admin}</p><p className="mt-1 text-xs text-graphite">{school.email} · {school.phone}</p></div>{[['Account status', <Status value={school.status} />], ['Subscription', school.plan], ['Students', school.students.toLocaleString()], ['Teachers', school.teachers], ['Registered', school.registered], ['Last activity', school.activity]].map(([label, value]) => <div key={String(label)} className="rounded-2xl bg-ink/[0.035] p-4 dark:bg-white/[0.05]"><p className="text-xs text-graphite">{label}</p><div className="mt-2 text-sm font-semibold">{value}</div></div>)}<div className="sm:col-span-2 rounded-2xl border border-ink/10 p-4 dark:border-white/10"><div className="flex items-center justify-between"><p className="font-semibold">Internal operator note</p><span className="text-[10px] font-bold uppercase tracking-wider text-brand">Private</span></div><p className="mt-2 text-sm text-graphite">School requested an administrator change. Waiting for verification documents.</p></div></div>}{tab === 'Activity' && <div className="mt-6 space-y-5">{schoolTimeline.map((event) => <div key={event[0]} className="relative flex gap-4 pl-1"><span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-brand ring-4 ring-brand/10" /><div><p className="text-xs font-semibold text-graphite">{event[0]}</p><p className="mt-1 text-sm font-semibold">{event[1]}</p><p className="mt-1 text-xs leading-5 text-graphite">{event[2]}</p></div></div>)}</div>}{tab === 'Documents' && <div className="mt-6 space-y-3">{['Organization registration.pdf', 'Administrator identity.pdf', 'School verification photos.zip'].map((document) => <div key={document} className="flex items-center gap-3 rounded-2xl border border-ink/10 p-4 dark:border-white/10"><FileText className="h-4 w-4 text-brand" /><span className="flex-1 text-sm font-semibold">{document}<span className="block text-xs font-normal text-graphite">Uploaded Sep 18, 2026 · Verification record</span></span><button onClick={() => onAction(`${document} preview opened`)} className="rounded-xl border border-ink/10 px-3 py-2 text-xs font-semibold dark:border-white/10">Preview</button></div>)}</div>}{tab === 'Billing' && <div className="mt-6 grid gap-4 sm:grid-cols-2">{[['Current plan', school.plan], ['Renewal date', 'Oct 08, 2026'], ['Billing status', 'Paid'], ['Usage', '72% of plan limits']].map(([label, value]) => <div key={label} className="rounded-2xl bg-ink/[0.035] p-4 dark:bg-white/[0.05]"><p className="text-xs text-graphite">{label}</p><p className="mt-2 text-sm font-semibold">{value}</p></div>)}</div>}{tab !== 'Overview' && tab !== 'Activity' && tab !== 'Documents' && tab !== 'Billing' && <div className="mt-6 rounded-2xl bg-ink/[0.035] p-6 text-sm text-graphite dark:bg-white/[0.05]"><p className="font-semibold text-ink dark:text-white">{tab}</p><p className="mt-2">Mock {tab.toLowerCase()} for {school.name} is ready for backend connection.</p></div>}</>}</Modal>
-}
-
-function RequestModal({ request, onClose, onAction, onDecision, onSchool }: { request: Request | null; onClose: () => void; onAction: (message: string) => void; onDecision: (id: string, status: RequestStatus, message: string) => void; onSchool: (name: string) => void }) {
-  return <Modal open={Boolean(request)} onClose={onClose} size="lg" title={request?.type} description={request ? `${request.id} · ${request.school}` : ''} footer={request ? <><Button variant="outline" onClick={() => onDecision(request.id, 'In review', 'Changes requested from school')}>Request changes</Button><Button variant="danger" onClick={() => onDecision(request.id, 'Resolved', 'Request rejected')}>Reject</Button><Button variant="accent" onClick={() => onDecision(request.id, 'Resolved', 'Request approved')}>Approve</Button></> : null}>{request && <div className="space-y-5"><div className="rounded-2xl border border-brand/15 bg-brand/[0.06] p-4"><p className="text-sm font-semibold">{request.summary}</p><p className="mt-2 text-xs text-graphite">Submitted by {request.submittedBy} · {request.submitted}</p></div><div className="grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-semibold text-graphite">School context</p><button onClick={() => onSchool(request.school)} className="mt-2 flex w-full items-center justify-between rounded-2xl border border-ink/10 p-4 text-left text-sm font-semibold hover:bg-ink/[0.03] dark:border-white/10 dark:hover:bg-white/[0.05]">Open {request.school}<Eye className="h-4 w-4 text-graphite" /></button></div><div><p className="text-xs font-semibold text-graphite">Current status</p><div className="mt-2 rounded-2xl border border-ink/10 p-4 dark:border-white/10"><Status value={request.status} /></div></div></div><div><p className="text-xs font-semibold text-graphite">Operator notes</p><textarea placeholder="Add context for the next operator…" className="input mt-2 min-h-24 resize-none" /></div><div className="rounded-2xl bg-ink/[0.035] p-4 text-sm dark:bg-white/[0.05]"><p className="font-semibold">Previous actions</p><p className="mt-2 text-xs text-graphite">No previous actions recorded. All decisions will be added to the audit log.</p></div></div>}</Modal>
-}
