@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CalendarBlank as CalendarRange } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
+import { useLanguage } from '@/context/LanguageContext'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import ChildSwitcher from '@/components/dashboard/ChildSwitcher'
 import TimetableGrid from '@/components/dashboard/TimetableGrid'
@@ -14,6 +15,7 @@ import { toError } from '@/utils/errorMessage'
 
 export default function ParentTimetable() {
   const { school } = useAuth()
+  const { t } = useLanguage()
   const { children, selectedChild, selectChild, state: childrenState } = useSelectedChild()
   const [slots, setSlots] = useState<TimetableSlotView[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -53,8 +55,8 @@ export default function ParentTimetable() {
   if (childrenState.status !== 'ready') {
     return (
       <div>
-        <PageHeader title="Timetable" />
-        <ResourceGate state={childrenState} empty={{ title: 'No children linked yet' }} deniedHint="Timetables are available to a linked parent or guardian.">
+        <PageHeader title={t('parent.timetable.title')} />
+        <ResourceGate state={childrenState} empty={{ title: t('parent.timetable.noChildren') }} deniedHint={t('parent.fees.access')}>
           {() => null}
         </ResourceGate>
       </div>
@@ -64,11 +66,11 @@ export default function ParentTimetable() {
   if (!selectedChild) {
     return (
       <div>
-        <PageHeader title="Timetable" />
+        <PageHeader title={t('parent.timetable.title')} />
         <EmptyState
           icon={CalendarRange}
-          title="No children linked yet"
-          description="Contact your school administrator to link your child's record to this account."
+          title={t('parent.timetable.noChildren')}
+          description={t('parent.timetable.contactAdmin')}
         />
       </div>
     )
@@ -77,10 +79,10 @@ export default function ParentTimetable() {
   if (!classId) {
     return (
       <div>
-        <PageHeader title="Timetable" description={`${selectedChild.name} has no active class enrolment.`} />
+        <PageHeader title={t('parent.timetable.title')} description={t('parent.timetable.noEnrolment', { name: selectedChild.name })} />
         <ChildSwitcher children={children} selectedId={selectedChild.id} onSelect={selectChild} classLabel={(child) => child.className ?? ''} />
         <div className="mt-6">
-          <EmptyState icon={CalendarRange} title="No class timetable yet" description="The school timetable will appear here after a class is assigned." />
+          <EmptyState icon={CalendarRange} title={t('parent.timetable.noClassTimetable')} description={t('parent.timetable.noClassTimetableDescription')} />
         </div>
       </div>
     )
@@ -97,11 +99,11 @@ export default function ParentTimetable() {
   return (
     <div>
       <PageHeader
-        title="Timetable"
-        description={`${selectedChild.name} · ${selectedChild.className ?? 'Assigned class'}`}
+        title={t('parent.timetable.title')}
+        description={`${selectedChild.name} · ${selectedChild.className ?? t('parent.timetable.assignedClass')}`}
         actions={<ChildSwitcher children={children} selectedId={selectedChild.id} onSelect={selectChild} classLabel={(child) => child.className ?? ''} />}
       />
-      <ResourceGate state={timetableState} empty={{ icon: CalendarRange, title: 'No timetable published yet' }} deniedHint="This timetable is not available to your account.">
+      <ResourceGate state={timetableState} empty={{ icon: CalendarRange, title: t('parent.timetable.noPublishedTimetable') }} deniedHint={t('parent.timetable.unavailable')}>
         {(data) => <TimetableGrid slots={data} />}
       </ResourceGate>
     </div>

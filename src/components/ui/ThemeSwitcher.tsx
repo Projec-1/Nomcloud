@@ -56,7 +56,7 @@ export default function ThemeSwitcher({ className }: { className?: string }) {
         <div
           id={menuId}
           aria-label="Theme options"
-          className="absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-1.5"
+          className="interaction-menu absolute right-0 top-full z-50 mt-2 min-w-44 rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-1.5"
         >
           {OPTIONS.map((option) => {
             const Icon = option.icon

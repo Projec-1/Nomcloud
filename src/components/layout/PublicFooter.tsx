@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { TwitterLogo as Twitter, LinkedinLogo as Linkedin, FacebookLogo as Facebook, Envelope as Mail, CreditCard } from '@phosphor-icons/react'
-import Logo from '@/components/layout/Logo'
+import { CreditCard } from '@phosphor-icons/react'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -163,20 +162,16 @@ export default function PublicFooter() {
         <div className="container relative py-16">
           <div className="grid grid-cols-2 gap-10 md:grid-cols-6">
             <div className="col-span-2">
-              <Logo textClassName="text-white" className="text-white" />
+              <Link to="/" className="group inline-flex items-center gap-2.5 text-white">
+                <img
+                  src="/logo_white_transparent.png"
+                  alt="Nom Cloud"
+                  className="h-8 w-8 shrink-0 object-contain"
+                  draggable={false}
+                />
+                <span className="text-[1.05rem] font-semibold tracking-tight text-white">Nom Cloud</span>
+              </Link>
               <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/80">{t('footer.tagline')}</p>
-              <div className="mt-6 flex items-center gap-3">
-                {[Twitter, Linkedin, Facebook, Mail].map((Icon, i) => (
-                  <a
-                    key={i}
-                    href="#"
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/12 text-white transition-colors hover:bg-white hover:text-[#FF4500]"
-                    aria-label="Social link"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </a>
-                ))}
-              </div>
             </div>
             {columns.map((col) => (
               <div key={col.titleKey}>
@@ -201,7 +196,7 @@ export default function PublicFooter() {
               </p>
               <div className="flex items-center gap-2 text-xs text-white/85">
                 <span className="hidden sm:inline">{t('footer.language')}:</span>
-                <LanguageSwitcher className="[&_button]:text-white/90 [&_button:hover]:text-[#FF4500] [&_button:hover]:bg-white" />
+                <LanguageSwitcher className="[&_.language-switcher-trigger]:!text-white/90 [&_.language-switcher-trigger:hover]:!text-[#FF4500] [&_.language-switcher-trigger:hover]:!bg-white" />
               </div>
             </div>
           </div>

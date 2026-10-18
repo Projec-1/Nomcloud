@@ -92,7 +92,6 @@ export default function App() {
           <Route path="/terms" element={<Terms />} />
           <Route path="/cookies" element={<Cookies />} />
         </Route>
-
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         {/* Where Supabase's password-recovery link lands. Public by design: the

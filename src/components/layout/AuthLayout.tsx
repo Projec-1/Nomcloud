@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Logo from '@/components/layout/Logo'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function AuthLayout({
   children,
@@ -12,6 +13,8 @@ export default function AuthLayout({
   subtitle: string
   singleScreen?: boolean
 }) {
+  const { t } = useLanguage()
+
   return (
     <div className={`auth-page min-h-screen bg-mist dark:bg-[#171917] lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(400px,0.9fr)] ${singleScreen ? 'auth-page--single-screen' : ''}`}>
       <main className="flex min-w-0 flex-col justify-center px-4 py-8 sm:px-10 sm:py-12 lg:px-16 xl:px-24">
@@ -28,19 +31,19 @@ export default function AuthLayout({
           Nom Cloud
         </div>
         <div className="my-16 max-w-xl">
-          <p className="text-sm font-medium text-accent">One connected school system</p>
+          <p className="text-sm font-medium text-accent">{t('auth.layout.eyebrow')}</p>
           <h2 className="mt-4 font-display text-4xl font-semibold leading-tight tracking-tight text-ink dark:text-white xl:text-5xl">
-            A clearer day for every part of school life.
+            {t('auth.layout.title')}
           </h2>
           <p className="mt-5 max-w-md text-base leading-7 text-graphite">
-            Administration, teaching, and family communication in one school-branded workspace.
+            {t('auth.layout.description')}
           </p>
           <div className="mt-10 border-t border-ink/10 pt-5 dark:border-white/10">
-            <p className="text-sm font-medium text-ink dark:text-white">Built for school communities</p>
-            <p className="mt-1 text-sm text-graphite">Private by design · Clear by default</p>
+            <p className="text-sm font-medium text-ink dark:text-white">{t('auth.layout.community')}</p>
+            <p className="mt-1 text-sm text-graphite">{t('auth.layout.privacy')}</p>
           </div>
         </div>
-        <p className="text-xs text-graphite">Nom Cloud platform</p>
+        <p className="text-xs text-graphite">{t('auth.layout.platform')}</p>
       </aside>
     </div>
   )

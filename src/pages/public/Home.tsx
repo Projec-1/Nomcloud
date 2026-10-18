@@ -1,12 +1,10 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, ShieldCheck, Lightning as Zap, Users, CalendarCheck, BookOpen, Wallet, Bell, ChatText as MessageSquare, ChartBar as BarChart3, ClipboardText as ClipboardCheck, GraduationCap, CalendarBlank as CalendarRange, Buildings, UserCircle, Heart, ThumbsUp, CheckCircle as CheckCircle2 } from '@phosphor-icons/react'
+import { ArrowRight, ShieldCheck, Lightning as Zap, Users, CalendarCheck, BookOpen, Wallet, Bell, ChatText as MessageSquare, ChartBar as BarChart3, ClipboardText as ClipboardCheck, GraduationCap, CalendarBlank as CalendarRange, Buildings, CheckCircle as CheckCircle2 } from '@phosphor-icons/react'
 import SEO from '@/components/layout/SEO'
 import Reveal from '@/components/marketing/Reveal'
 import AdministratorWorkspacePreview from '@/components/marketing/previews/AdministratorWorkspacePreview'
 import TeacherDashboardMock from '@/components/marketing/previews/TeacherDashboardMock'
 import ParentAppMock from '@/components/marketing/previews/ParentAppMock'
-import CountUp from '@/components/marketing/CountUp'
-import { useInView } from '@/hooks/useInView'
 import { useLanguage } from '@/context/LanguageContext'
 import { img } from '@/data/images'
 
@@ -41,72 +39,112 @@ function HeroVisual() {
   )
 }
 
-function SocialProofArc() {
-  const { t } = useLanguage()
-  const { ref, inView } = useInView<HTMLDivElement>()
-  const people = [
-    { icon: Buildings, style: 'left-[13%] top-[58%]', tone: 'bg-brand/10 text-brand' },
-    { icon: UserCircle, style: 'left-[31%] top-[28%]', tone: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' },
-    { icon: GraduationCap, style: 'left-1/2 top-[44%]', tone: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
-    { icon: UserCircle, style: 'left-[69%] top-[28%]', tone: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-    { icon: Buildings, style: 'left-[87%] top-[58%]', tone: 'bg-violet-500/10 text-violet-700 dark:text-violet-300' },
-  ]
+const sampleActivityBars = [28, 40, 48, 58, 68, 81, 94]
 
+const impactHighlights = [
+  { icon: Buildings, title: 'Growing Network', description: 'School communities, connected.' },
+  { icon: BookOpen, title: 'Active Learning', description: 'Learning stays part of the daily flow.' },
+  { icon: ShieldCheck, title: 'Reliable & Secure', description: 'Thoughtful tools for school operations.' },
+  { icon: Zap, title: 'Always On', description: 'Ready when the school day begins.' },
+]
+
+function FloatingAfricaMap() {
   return (
-    <section className="home-social-proof overflow-hidden py-8 sm:py-12" aria-labelledby="home-proof-title">
+    <div className="hidden h-36 items-center justify-center overflow-visible md:flex" aria-hidden="true">
+      <img className="home-africa-map home-africa-map--light h-[220px] w-auto max-w-full" src="/assets/africa-reference-map-light.png?v=5" alt="" width="1347" height="768" />
+      <img className="home-africa-map home-africa-map--dark h-[168px] w-auto max-w-full" src="/assets/africa-reference-map.png" alt="" width="670" height="385" />
+    </div>
+  )
+}
+
+function LivePlatformSection() {
+  return (
+    <section className="home-live-platform bg-[#f7f8f6] py-10 dark:bg-[#171917] sm:py-14" aria-labelledby="home-proof-title">
       <div className="container">
-        <div ref={ref} className={`home-social-proof__content mx-auto max-w-5xl${inView ? ' is-visible' : ''}`}>
-          <div className="relative mx-auto aspect-[1000/340] min-h-[190px] w-full sm:min-h-0" aria-hidden="true">
-            <svg className="home-social-proof__arcs absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 1000 340" preserveAspectRatio="none" fill="none">
-              <path d="M45 330C130 54 870 54 955 330" className="home-social-proof__arc home-social-proof__arc--outer stroke-ink/10 dark:stroke-white/15" strokeWidth="1.5" />
-              <path d="M180 330C260 142 740 142 820 330" className="home-social-proof__arc home-social-proof__arc--inner stroke-ink/10 dark:stroke-white/15" strokeWidth="1.5" />
-            </svg>
-            {people.map(({ icon: Icon, style, tone }, index) => (
-              <span
-                key={`${style}-${index}`}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 ${style}`}
-              >
-                <span className={`home-social-proof__node home-social-proof__node--${index + 1} relative flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white shadow-[0_8px_24px_rgba(20,30,25,0.10)] sm:h-12 sm:w-12 dark:border-white/10 dark:bg-[#202320]`}>
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-full sm:h-10 sm:w-10 ${tone}`}>
-                    <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </span>
-                  {index % 2 === 0 ? (
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-white dark:border-[#202320]">
-                      <CheckCircle2 className="h-3 w-3" weight="fill" />
-                    </span>
-                  ) : (
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-rose-500 text-white dark:border-[#202320]">
-                      {index === 1 ? <Heart className="h-2.5 w-2.5" weight="fill" /> : <ThumbsUp className="h-2.5 w-2.5" weight="fill" />}
-                    </span>
-                  )}
-                </span>
-              </span>
-            ))}
+        <div className="mx-auto max-w-6xl">
+          <div className="grid items-center gap-5 md:grid-cols-[1fr_0.9fr] md:gap-10">
+            <div className="max-w-xl">
+              <h2 id="home-proof-title" className="text-3xl font-semibold leading-[1.08] tracking-[-0.03em] text-ink dark:text-white sm:text-4xl">
+                Trusted by schools.{' '}
+                <span className="block text-accent">Live platform.</span>
+              </h2>
+              <p className="mt-4 max-w-md text-sm leading-relaxed text-graphite sm:text-base">
+                Nom Cloud powers daily operations for schools. Real activity. Real impact.
+              </p>
+              <p className="mt-3 text-xs text-graphite">
+                Illustrative metrics · sample data, not live production statistics
+              </p>
+            </div>
+
+            <FloatingAfricaMap />
           </div>
 
-          <div className="relative -mt-3 sm:-mt-8">
-            <div className="home-social-proof__metrics grid grid-cols-3 divide-x divide-ink/10 dark:divide-white/10">
-              {[
-                { value: 50, suffix: '+', label: 'home.proof.schools' },
-                { value: 10, label: 'home.proof.tools' },
-                { value: 4.9, decimals: 1, suffix: '/5', label: 'home.proof.rating' },
-              ].map(({ value, decimals, suffix, label }) => (
-                <div key={label} className="px-2 text-center sm:px-6">
-                  <p className="text-2xl font-semibold tracking-tight tabular-nums text-ink sm:text-4xl dark:text-white">
-                    <CountUp value={value} decimals={decimals} suffix={suffix} duration={1200} accent="currentColor" className="home-social-proof__count" />
-                  </p>
-                  <p className="mt-1 text-[11px] leading-tight text-graphite sm:text-sm">{t(label)}</p>
-                </div>
-              ))}
-            </div>
-            <h2 id="home-proof-title" className="home-social-proof__headline mt-6 text-center text-xl font-semibold tracking-tight text-ink sm:text-2xl dark:text-white">
-              {t('home.proof.title')}
-            </h2>
-            <div className="home-social-proof__pills mt-5 flex flex-wrap justify-center gap-2">
-              {['home.proof.attendance', 'home.proof.grades', 'home.proof.fees', 'home.proof.families'].map((label) => (
-                <span key={label} className="rounded-full border border-ink/10 bg-white/70 px-3 py-1.5 text-xs font-medium text-graphite dark:border-white/10 dark:bg-white/[0.04]">
-                  {t(label)}
+          <div className="mt-7 grid gap-3 md:grid-cols-2">
+            <article className="rounded-xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-[#202320] sm:p-5">
+              <div>
+                <h3 className="text-base font-semibold text-ink dark:text-white">Platform activity</h3>
+                <p className="mt-1 text-xs text-graphite">A snapshot of activity across the platform</p>
+              </div>
+              <div className="mt-5 grid grid-cols-[48px_minmax(0,1fr)_76px] items-end gap-3 sm:grid-cols-[56px_minmax(0,1fr)_100px] sm:gap-4">
+                <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-ink/10 text-accent dark:border-white/10 sm:h-14 sm:w-14" aria-hidden="true">
+                  <BarChart3 className="h-6 w-6" weight="regular" />
                 </span>
+                <div className="min-w-0">
+                  <p className="text-3xl font-semibold leading-none tracking-[-0.03em] tabular-nums text-ink dark:text-white">12</p>
+                  <p className="mt-1 text-sm font-medium text-accent">Activity events</p>
+                  <p className="mt-1 text-[11px] leading-snug text-graphite">Sample · last 24 hours</p>
+                </div>
+                <div className="flex h-16 items-end gap-1" aria-hidden="true">
+                  {sampleActivityBars.map((height, index) => (
+                    <span
+                      key={index}
+                      className="min-w-0 flex-1 rounded-t-sm bg-accent/80"
+                      style={{ height: `${height}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-[#202320] sm:p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-ink dark:text-white">System status</h3>
+                  <p className="mt-1 text-xs text-graphite">Illustrative monitoring preview</p>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Live preview
+                </span>
+              </div>
+              <div className="mt-5 grid grid-cols-[48px_minmax(0,1fr)_76px] items-end gap-3 sm:grid-cols-[56px_minmax(0,1fr)_100px] sm:gap-4">
+                <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-ink/10 text-emerald-600 dark:border-white/10 dark:text-emerald-400 sm:h-14 sm:w-14" aria-hidden="true">
+                  <CheckCircle2 className="h-6 w-6" weight="regular" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-3xl font-semibold leading-none tracking-[-0.03em] tabular-nums text-emerald-700 dark:text-emerald-400">99.8%</p>
+                  <p className="mt-1 text-sm font-medium text-ink dark:text-white">Sample uptime</p>
+                  <p className="mt-1 text-[11px] leading-snug text-graphite">Illustrative, not production data</p>
+                </div>
+                <svg className="h-16 w-full overflow-visible" viewBox="0 0 120 48" preserveAspectRatio="none" fill="none" aria-hidden="true">
+                  <path d="M1 32C10 28 13 39 23 34C31 30 35 26 43 28C52 31 59 17 67 21C74 25 78 31 86 21C92 13 95 24 101 17C106 12 111 8 119 10" className="stroke-emerald-500/80 dark:stroke-emerald-400/80" strokeWidth="1.5" />
+                  <path d="M1 32C10 28 13 39 23 34C31 30 35 26 43 28C52 31 59 17 67 21C74 25 78 31 86 21C92 13 95 24 101 17C106 12 111 8 119 10V48H1V32Z" className="fill-emerald-500/10 dark:fill-emerald-400/10" />
+                </svg>
+              </div>
+            </article>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-[#202320] sm:p-5">
+            <h3 className="text-base font-semibold text-ink dark:text-white">Real impact</h3>
+            <div className="mt-4 grid grid-cols-1 gap-x-5 divide-y divide-ink/10 dark:divide-white/10 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+              {impactHighlights.map(({ icon: Icon, title, description }) => (
+                <div key={title} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0 sm:px-3 sm:py-2 sm:first:pl-0 sm:first:pt-2 sm:last:pb-2 lg:first:pl-0 lg:last:pr-0">
+                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-accent" weight="regular" aria-hidden="true" />
+                  <div>
+                    <h4 className="text-sm font-medium text-ink dark:text-white">{title}</h4>
+                    <p className="mt-1 text-xs leading-relaxed text-graphite">{description}</p>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -138,57 +176,13 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="mt-8 w-full max-w-[560px] rounded-[30px] border border-[#e8e2dc] bg-[#f7f3f0] p-4 shadow-[0_20px_42px_rgba(15,23,42,0.06)] sm:p-5">
-              <div className="mb-3 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <span>Trusted by schools</span>
-                <span className="rounded-full border border-[#e8e2dc] bg-white/80 px-2 py-1 text-[9px] text-slate-600">Live platform</span>
-              </div>
-
-              <div className="relative overflow-hidden rounded-[26px] border border-[#ece5df] bg-[#f3efe9] px-3 pb-3 pt-2">
-                <svg className="absolute inset-x-0 top-4 h-28 w-full" viewBox="0 0 520 150" preserveAspectRatio="none" fill="none" aria-hidden="true">
-                  <path d="M8 92C38 38, 101 8, 150 28C185 42, 204 77, 219 92C250 123, 299 125, 340 92C370 68, 405 36, 467 42C496 45, 513 59, 512 92" stroke="#ef5ca8" strokeWidth="18" strokeLinecap="round" opacity="0.9" />
-                  <path d="M70 118C116 120, 142 90, 176 76C215 61, 280 62, 324 95C356 118, 386 128, 440 124" stroke="#f57b43" strokeWidth="16" strokeLinecap="round" opacity="0.9" />
-                </svg>
-
-                <div className="relative z-10 flex items-center justify-between pt-4">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d8d1cb] bg-[#f6f1ee] text-[10px] font-semibold text-slate-700 shadow-sm">A</div>
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d8d1cb] bg-[#efddcb] text-[10px] font-semibold text-slate-700 shadow-sm">B</div>
-                  </div>
-
-                  <div className="flex items-center gap-2 rounded-full border border-[#ebddd3] bg-white/80 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-700 shadow-sm">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#f5a85b]" />
-                    12 New posts
-                  </div>
-                </div>
-
-                <div className="relative z-10 mt-10 flex items-end justify-center">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-[28px] border border-[#d5cec8] bg-white shadow-[0_18px_30px_rgba(15,23,42,0.08)]">
-                    <div className="h-10 w-12 rounded-xl bg-[#f0efe9]" />
-                  </div>
-                </div>
-
-                <div className="relative z-10 mt-3 grid grid-cols-3 gap-2 text-center">
-                  {[
-                    { value: '99.8%', label: 'Uptime' },
-                    { value: '50+', label: 'Schools' },
-                    { value: '4.9★', label: 'Rating' },
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-2xl border border-[#e5ddd6] bg-white/80 px-2 py-2 shadow-sm">
-                      <div className="text-lg font-semibold tracking-[-0.06em] text-slate-900 sm:text-2xl">{item.value}</div>
-                      <div className="mt-1 text-[9px] font-medium uppercase tracking-[0.12em] text-slate-500">{item.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
 
           <HeroVisual />
         </div>
       </section>
 
-      <SocialProofArc />
+      <LivePlatformSection />
 
       {/* Pillars — Why Nom Cloud */}
       <section className="home-pillars section overflow-hidden">

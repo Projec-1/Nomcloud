@@ -25,7 +25,7 @@ export default function FeeAnalysisCard({
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-1 rounded-xl bg-mist p-1 dark:bg-white/10">
             {(['collected', 'outstanding'] as const).map((item) => (
-              <button key={item} type="button" onClick={() => onModeChange(item)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition ${mode === item ? 'bg-white text-ink shadow-sm dark:bg-[#343A41] dark:text-white' : 'text-graphite'}`}>
+              <button key={item} type="button" aria-pressed={mode === item} onClick={() => onModeChange(item)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition ${mode === item ? 'bg-white text-ink shadow-sm dark:bg-[#343A41] dark:text-white' : 'text-graphite hover:bg-white/50 dark:hover:bg-white/5'}`}>
                 {item}
               </button>
             ))}

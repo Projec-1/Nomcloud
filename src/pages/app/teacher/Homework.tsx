@@ -2,6 +2,7 @@ import { ClipboardText as ClipboardCheck } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import HomeworkBoard from '@/components/dashboard/HomeworkBoard'
 import { useRecordableClasses } from '@/hooks/useRecordableClasses'
 import { DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
@@ -13,12 +14,13 @@ import { DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 // basis rather than everywhere.
 
 export default function TeacherHomework() {
+  const { t } = useLanguage()
   const { school } = useAuth()
   const { state, schoolId } = useRecordableClasses()
 
   return (
     <div>
-      <PageHeader title="Homework" description="Assign and track homework for the subjects you teach." />
+      <PageHeader title={t('teacher.homework.title')} description={t('teacher.homework.description')} />
       <ResourceGate
         state={state}
         empty={{

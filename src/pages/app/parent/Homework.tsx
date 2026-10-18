@@ -2,6 +2,7 @@ import { ClipboardText as ClipboardCheck, Calendar } from '@phosphor-icons/react
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useChildHomework } from '@/hooks/useChildRecords'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ChildSwitcher from '@/components/dashboard/ChildSwitcher'
 import ResourceGate from '@/components/ui/ResourceGate'
 import Badge from '@/components/ui/Badge'
@@ -29,13 +30,14 @@ import { formatDate } from '@/utils/format'
 const statusTone = { pending: 'warning', submitted: 'info', late: 'danger', graded: 'success' } as const
 
 export default function ParentHomework() {
+  const { t } = useLanguage()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
   const { state: homeworkState } = useChildHomework(selectedChild?.id ?? null, selectedChild?.classId ?? null)
 
   if (!selectedChild) {
     return (
       <div>
-        <PageHeader title="Homework" description="Your child's homework and deadlines." />
+        <PageHeader title={t('parent.homework.title')} description={t('parent.homework.description')} />
         <ResourceGate
           state={state}
           empty={{ icon: ClipboardCheck, title: "No children linked yet", description: "Contact your school administrator to link your child's record." }}
@@ -50,7 +52,7 @@ export default function ParentHomework() {
   return (
     <div>
       <PageHeader
-        title="Homework"
+        title={t('parent.homework.title')}
         description={`${selectedChild.name} · ${selectedChild.className ?? ''}`}
         actions={<ChildSwitcher children={children} selectedId={selectedChild.id} onSelect={selectChild} classLabel={(c) => c.className ?? ''} />}
       />

@@ -1,6 +1,7 @@
 import { Wallet, CreditCard, CheckCircle as CheckCircle2, Download, Printer } from '@phosphor-icons/react'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { useLanguage } from '@/context/LanguageContext'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useChildFees } from '@/hooks/useFinance'
 import PageHeader from '@/components/ui/PageHeader'
@@ -54,6 +55,7 @@ const statusTone: Record<FeeStatus, 'success' | 'warning' | 'danger' | 'neutral'
 
 export default function ParentFees() {
   const { profile, school } = useAuth()
+  const { t } = useLanguage()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
   const { state: feesState } = useChildFees(selectedChild?.id ?? null)
   const [receiptForPrint, setReceiptForPrint] = useState<{ payment: FeePaymentView; category: string } | null>(null)
@@ -73,11 +75,11 @@ export default function ParentFees() {
   if (!selectedChild) {
     return (
       <div>
-        <PageHeader title="Fees" description="Your child's fee balance and payment history." />
+        <PageHeader title={t('parent.fees.title')} description={t('parent.fees.description')} />
         <ResourceGate
           state={state}
-          empty={{ icon: Wallet, title: "No children linked yet", description: "Contact your school administrator to link your child's record." }}
-          deniedHint="Child records are available to a linked parent or guardian."
+          empty={{ icon: Wallet, title: t('parent.fees.noChildren'), description: t('parent.fees.contactSchool') }}
+          deniedHint={t('parent.fees.access')}
         >
           {() => null}
         </ResourceGate>
@@ -102,7 +104,7 @@ export default function ParentFees() {
   return (
     <div>
       <PageHeader
-        title="Fees"
+        title={t('parent.fees.title')}
         description={`${selectedChild.name} · ${selectedChild.className ?? ''}`}
         actions={<ChildSwitcher children={children} selectedId={selectedChild.id} onSelect={selectChild} classLabel={(c) => c.className ?? ''} />}
       />
@@ -111,10 +113,10 @@ export default function ParentFees() {
         state={feesState}
         empty={{
           icon: Wallet,
-          title: 'No fee records yet',
-          description: "Fee records for your child will appear here once the school issues them.",
+          title: t('parent.fees.noRecords'),
+          description: t('parent.fees.noRecordsDescription'),
         }}
-        deniedHint="Child records are available to a linked parent or guardian."
+        deniedHint={t('parent.fees.access')}
       >
         {(records) => {
           const currency = records[0]?.currency ?? school?.currency ?? 'USD'
@@ -125,10 +127,10 @@ export default function ParentFees() {
           return (
             <>
               <div className="mb-6 grid gap-5 sm:grid-cols-3">
-                <StatCard label="Total fees" value={formatMoney(totalDue, currency)} icon={Wallet} tint="#0071E3" />
-                <StatCard label="Amount paid" value={formatMoney(totalPaid, currency)} icon={CheckCircle2} tint="#34A853" />
+                <StatCard label={t('parent.fees.total')} value={formatMoney(totalDue, currency)} icon={Wallet} tint="#0071E3" />
+                <StatCard label={t('parent.fees.paid')} value={formatMoney(totalPaid, currency)} icon={CheckCircle2} tint="#34A853" />
                 <StatCard
-                  label="Balance due"
+                  label={t('parent.fees.balance')}
                   value={formatMoney(balance, currency)}
                   icon={CreditCard}
                   tint={balance > 0 ? '#F59E0B' : '#34A853'}
@@ -141,24 +143,24 @@ export default function ParentFees() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                          <Badge tone={statusTone[f.status]}>{f.status}</Badge>
+                          <Badge tone={statusTone[f.status]}>{t(`parent.fees.status.${f.status}`)}</Badge>
                           <span className="text-xs text-graphite">{f.termName}</span>
                         </div>
                         <p className="font-medium text-ink dark:text-white">{f.category}</p>
-                        <p className="mt-1 text-xs text-graphite">Due {formatDate(f.dueDate)}</p>
+                        <p className="mt-1 text-xs text-graphite">{t('parent.fees.due', { date: formatDate(f.dueDate) })}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-ink dark:text-white">{formatMoney(f.amount, f.currency, true)}</p>
                         <p className="text-xs text-graphite">
-                          Paid {formatMoney(f.amountPaid, f.currency, true)}
-                          {f.balance > 0 ? ` · ${formatMoney(f.balance, f.currency, true)} outstanding` : ''}
+                          {t('parent.fees.paidAmount', { amount: formatMoney(f.amountPaid, f.currency, true) })}
+                          {f.balance > 0 ? ` · ${t('parent.fees.outstanding', { amount: formatMoney(f.balance, f.currency, true) })}` : ''}
                         </p>
                       </div>
                     </div>
 
                     {f.payments.length > 0 && (
                       <div className="mt-4 space-y-2 border-t border-ink/5 pt-4 dark:border-white/10">
-                        <p className="text-xs font-medium text-graphite">Payments received</p>
+                        <p className="text-xs font-medium text-graphite">{t('parent.fees.paymentsReceived')}</p>
                         {f.payments.map((p) => (
                           <div key={p.id} className="flex items-center justify-between gap-3 rounded-xl bg-mist px-3 py-2.5 dark:bg-white/5">
                             <div className="min-w-0">
@@ -166,7 +168,9 @@ export default function ParentFees() {
                                 {formatMoney(p.amount, p.currency, true)}
                               </p>
                               <p className="truncate text-xs text-graphite">
-                                {paymentMethodLabel(p.method)} · {p.reference} · {formatDate(p.paidOn)}
+                                {['cash', 'mobile_money', 'evc_plus', 'edahab', 'bank_transfer', 'card'].includes(p.method)
+                                  ? t(`parent.fees.method.${p.method}`)
+                                  : paymentMethodLabel(p.method)} · {p.reference} · {formatDate(p.paidOn)}
                               </p>
                             </div>
                             <button
@@ -174,14 +178,14 @@ export default function ParentFees() {
                               onClick={() => handleDownloadReceipt(p, f.category)}
                               className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white"
                             >
-                              <Download className="h-3.5 w-3.5" /> Receipt
+                              <Download className="h-3.5 w-3.5" /> {t('parent.fees.receipt')}
                             </button>
                             <button
                               type="button"
                               onClick={() => setReceiptForPrint({ payment: p, category: f.category })}
                               className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white"
                             >
-                              <Printer className="h-3.5 w-3.5" /> Print
+                              <Printer className="h-3.5 w-3.5" /> {t('parent.fees.print')}
                             </button>
                           </div>
                         ))}
@@ -193,8 +197,7 @@ export default function ParentFees() {
 
               {balance > 0 && (
                 <p className="mt-5 rounded-2xl border border-ink/5 bg-white/60 px-4 py-3 text-xs text-graphite dark:border-white/10 dark:bg-white/[0.03]">
-                  To settle an outstanding balance, pay at the school office. Payments appear here once the office
-                  records them.
+                  {t('parent.fees.paymentOffice')}
                 </p>
               )}
             </>
@@ -206,25 +209,27 @@ export default function ParentFees() {
           <header className="mb-8 flex items-start justify-between gap-6 border-b border-gray-300 pb-5">
             <div>
               <h1 className="text-2xl font-semibold">{school?.name ?? 'Nom Cloud School'}</h1>
-              <p className="mt-2 text-sm text-gray-600">Payment receipt</p>
+              <p className="mt-2 text-sm text-gray-600">{t('parent.fees.receiptTitle')}</p>
             </div>
             {school?.logo_path && (
               <img src={schoolLogoUrl(school.logo_path) ?? undefined} alt="" className="h-16 w-16 object-contain" />
             )}
           </header>
           <dl className="grid grid-cols-2 gap-x-8 gap-y-5 text-sm">
-            <div><dt className="text-gray-500">Receipt reference</dt><dd className="mt-1 font-semibold">{receiptForPrint.payment.reference}</dd></div>
-            <div><dt className="text-gray-500">Payment date</dt><dd className="mt-1 font-semibold">{formatDate(receiptForPrint.payment.paidOn)}</dd></div>
-            <div><dt className="text-gray-500">Student</dt><dd className="mt-1 font-semibold">{selectedChild.name}</dd></div>
-            <div><dt className="text-gray-500">Payer</dt><dd className="mt-1 font-semibold">{profile?.full_name ?? 'Parent/Guardian'}</dd></div>
-            <div><dt className="text-gray-500">Fee category</dt><dd className="mt-1 font-semibold">{receiptForPrint.category}</dd></div>
-            <div><dt className="text-gray-500">Payment method</dt><dd className="mt-1 font-semibold">{paymentMethodLabel(receiptForPrint.payment.method)}</dd></div>
+            <div><dt className="text-gray-500">{t('parent.fees.reference')}</dt><dd className="mt-1 font-semibold">{receiptForPrint.payment.reference}</dd></div>
+            <div><dt className="text-gray-500">{t('parent.fees.paymentDate')}</dt><dd className="mt-1 font-semibold">{formatDate(receiptForPrint.payment.paidOn)}</dd></div>
+            <div><dt className="text-gray-500">{t('parent.fees.student')}</dt><dd className="mt-1 font-semibold">{selectedChild.name}</dd></div>
+            <div><dt className="text-gray-500">{t('parent.fees.payer')}</dt><dd className="mt-1 font-semibold">{profile?.full_name ?? t('common.parentGuardian')}</dd></div>
+            <div><dt className="text-gray-500">{t('parent.fees.category')}</dt><dd className="mt-1 font-semibold">{receiptForPrint.category}</dd></div>
+            <div><dt className="text-gray-500">{t('parent.fees.method')}</dt><dd className="mt-1 font-semibold">{['cash', 'mobile_money', 'evc_plus', 'edahab', 'bank_transfer', 'card'].includes(receiptForPrint.payment.method)
+              ? t(`parent.fees.method.${receiptForPrint.payment.method}`)
+              : paymentMethodLabel(receiptForPrint.payment.method)}</dd></div>
           </dl>
           <div className="mt-8 border-y border-gray-300 py-5">
-            <p className="text-sm text-gray-500">Amount received</p>
+            <p className="text-sm text-gray-500">{t('parent.fees.amountReceived')}</p>
             <p className="mt-2 text-3xl font-semibold">{formatMoney(receiptForPrint.payment.amount, receiptForPrint.payment.currency, true)}</p>
           </div>
-          <p className="mt-8 text-xs text-gray-500">This receipt confirms a payment recorded by the school.</p>
+          <p className="mt-8 text-xs text-gray-500">{t('parent.fees.receiptDisclaimer')}</p>
         </article>
       )}
     </div>

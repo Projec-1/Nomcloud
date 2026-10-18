@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Bell, Checks as CheckCheck, Megaphone, BookOpen, CalendarCheck, Wallet, ClipboardText as ClipboardCheck, ChatText as MessageSquare } from '@phosphor-icons/react'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import Button from '@/components/ui/Button'
 import ResourceGate from '@/components/ui/ResourceGate'
 import { timeAgo } from '@/utils/format'
@@ -26,6 +27,7 @@ const iconByType: Record<string, typeof Bell> = {
 }
 
 export default function ParentNotifications() {
+  const { t } = useLanguage()
   const { state, notifications, unreadCount, schoolId, userId, reload } = useNotifications()
   const navigate = useNavigate()
 
@@ -42,7 +44,7 @@ export default function ParentNotifications() {
   return (
     <div>
       <PageHeader
-        title="Notifications"
+        title={t('parent.notifications.title')}
         description={unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}
         actions={
           unreadCount > 0 ? (

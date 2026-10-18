@@ -4,6 +4,7 @@ interface SEOProps {
   title: string
   description: string
   path?: string
+  siteName?: string
 }
 
 const SITE_NAME = 'Nom Cloud'
@@ -35,9 +36,9 @@ function setLink(rel: string, href: string) {
  * No external library needed (react-helmet et al. aren't installable in this
  * offline build), so this just talks to document.head directly.
  */
-export default function SEO({ title, description, path = '' }: SEOProps) {
+export default function SEO({ title, description, path = '', siteName = SITE_NAME }: SEOProps) {
   useEffect(() => {
-    const fullTitle = title.includes(SITE_NAME) ? title : `${title} — ${SITE_NAME}`
+    const fullTitle = title.includes(siteName) ? title : `${title} — ${siteName}`
     document.title = fullTitle
     setMeta('name', 'description', description)
     setLink('canonical', `${SITE_URL}${path}`)
@@ -47,13 +48,13 @@ export default function SEO({ title, description, path = '' }: SEOProps) {
     setMeta('property', 'og:type', 'website')
     setMeta('property', 'og:url', `${SITE_URL}${path}`)
     setMeta('property', 'og:image', `${SITE_URL}/logo-512.png`)
-    setMeta('property', 'og:site_name', SITE_NAME)
+    setMeta('property', 'og:site_name', siteName)
 
     setMeta('name', 'twitter:card', 'summary_large_image')
     setMeta('name', 'twitter:title', fullTitle)
     setMeta('name', 'twitter:description', description)
     setMeta('name', 'twitter:image', `${SITE_URL}/logo-512.png`)
-  }, [title, description, path])
+  }, [title, description, path, siteName])
 
   return null
 }
