@@ -715,7 +715,8 @@
     }
 
     .dashboard-shell .card,
-    .public-site .card {
+    .public-site .card,
+    .platform-main .card {
       max-width: 100%;
       min-width: 0;
     }
@@ -725,24 +726,30 @@
     }
 
     .dashboard-shell .grid,
-    .public-site .grid {
+    .public-site .grid,
+    .platform-main .grid {
       min-width: 0;
     }
 
     .dashboard-shell .flex,
-    .public-site .flex {
+    .public-site .flex,
+    .platform-main .flex,
+    .modal-content .flex {
       min-width: 0;
     }
 
     .dashboard-shell table,
-    .public-site table {
+    .public-site table,
+    .platform-main table {
       font-size: 0.8125rem;
     }
 
     .dashboard-shell table th,
     .dashboard-shell table td,
     .public-site table th,
-    .public-site table td {
+    .public-site table td,
+    .platform-main table th,
+    .platform-main table td {
       overflow-wrap: anywhere;
     }
 
@@ -751,12 +758,30 @@
     .dashboard-shell textarea,
     .public-site input,
     .public-site select,
-    .public-site textarea {
+    .public-site textarea,
+    .platform-main input,
+    .platform-main select,
+    .platform-main textarea,
+    .modal-content input,
+    .modal-content select,
+    .modal-content textarea {
       max-width: 100%;
     }
 
     .dashboard-shell .btn,
-    .public-site .btn {
+    .public-site .btn,
+    .platform-main .btn,
+    .platform-main .btn-primary,
+    .platform-main .btn-accent,
+    .platform-main .btn-outline,
+    .platform-main .btn-ghost,
+    .platform-main .btn-danger,
+    .modal-content .btn,
+    .modal-content .btn-primary,
+    .modal-content .btn-accent,
+    .modal-content .btn-outline,
+    .modal-content .btn-ghost,
+    .modal-content .btn-danger {
       min-height: 44px;
       max-width: 100%;
       white-space: normal;
@@ -789,7 +814,9 @@
     }
 
     .dashboard-shell [class*='overflow-x-auto'],
-    .public-site [class*='overflow-x-auto'] {
+    .public-site [class*='overflow-x-auto'],
+    .platform-main [class*='overflow-x-auto'],
+    .modal-content [class*='overflow-x-auto'] {
       max-width: 100%;
       overscroll-behavior-x: contain;
       -webkit-overflow-scrolling: touch;
@@ -803,7 +830,8 @@
 
   @media (max-width: 479px) {
     .dashboard-shell,
-    .public-site {
+    .public-site,
+    .platform-main {
       overflow-x: clip;
     }
 

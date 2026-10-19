@@ -242,11 +242,11 @@ export default function OverviewSection({
             {attentionSchools.length ? (
               <div className="-mx-2 divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
                 {attentionSchools.map((item) => (
-                  <button key={item.id} onClick={() => onSchool(item)} className="flex w-full items-center gap-3 px-2 py-3.5 text-left hover:bg-ink/[0.02] dark:hover:bg-white/[0.03]">
+                  <button key={item.id} onClick={() => onSchool(item)} className="flex w-full flex-wrap items-center gap-3 px-2 py-3.5 text-left hover:bg-ink/[0.02] dark:hover:bg-white/[0.03]">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink/[0.05] text-sm font-bold text-graphite dark:bg-white/[0.08] dark:text-white">{item.name.charAt(0)}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{item.name}</span>
-                      <span className="block truncate text-xs text-graphite">{item.location} · {item.code ?? item.id}</span>
+                      <span className="block break-words text-sm font-semibold">{item.name}</span>
+                      <span className="block break-words text-xs text-graphite">{item.location} · {item.code ?? item.id}</span>
                     </span>
                     <Status value={item.status} />
                     <ChevronRight className="h-4 w-4 shrink-0 text-graphite" />
@@ -287,11 +287,11 @@ export default function OverviewSection({
             {openRequests.length ? (
               <div className="-mx-2 divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
                 {openRequests.slice(0, 4).map((item) => (
-                  <button key={item.id} onClick={() => onRequest(item)} className="flex w-full items-center gap-3 px-2 py-3 text-left hover:bg-ink/[0.02] dark:hover:bg-white/[0.03]">
+                  <button key={item.id} onClick={() => onRequest(item)} className="flex w-full flex-wrap items-center gap-3 px-2 py-3 text-left hover:bg-ink/[0.02] dark:hover:bg-white/[0.03]">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"><FileText className="h-4 w-4" /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{item.type}</span>
-                      <span className="block truncate text-xs text-graphite">{item.school} · {item.submittedBy}</span>
+                      <span className="block break-words text-sm font-semibold">{item.type}</span>
+                      <span className="block break-words text-xs text-graphite">{item.school} · {item.submittedBy}</span>
                     </span>
                     <Status value={item.status} />
                   </button>
@@ -315,7 +315,7 @@ export default function OverviewSection({
               ].map((row) => (
                 <li key={row.label}>
                   <button onClick={() => navigate(row.path)} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-ink/[0.035] dark:hover:bg-white/[0.05]">
-                    <span className="min-w-0 truncate text-left text-graphite">{row.label}</span>
+                    <span className="min-w-0 break-words text-left text-graphite">{row.label}</span>
                     <span className="flex shrink-0 items-center gap-2 text-sm font-semibold">{row.value.toLocaleString()}<ChevronRight className="h-4 w-4 text-graphite" /></span>
                   </button>
                 </li>
@@ -336,8 +336,8 @@ export default function OverviewSection({
               {auditRows.slice(0, 5).map((row) => (
                 <div key={`${row[0]}-${row[3]}`} className="grid gap-2 py-3.5 text-sm sm:grid-cols-[1.3fr_1fr_1.5fr_1fr_auto] sm:items-center">
                   <span className="flex items-center gap-2 font-semibold"><span className="h-2 w-2 rounded-full bg-emerald-500" />{row[0]}</span>
-                  <span className="truncate text-graphite">{row[1]}</span>
-                  <span className="truncate text-graphite">{row[2]}</span>
+                  <span className="min-w-0 break-words text-graphite">{row[1]}</span>
+                  <span className="min-w-0 break-words text-graphite">{row[2]}</span>
                   <span className="text-xs text-graphite">{row[3]}</span>
                   <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{row[4]}</span>
                 </div>

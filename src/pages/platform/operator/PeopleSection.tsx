@@ -136,7 +136,7 @@ export default function PeopleSection({ onNotify, operator }: { onNotify: (messa
   }
 
   const columns: Array<Column<Person>> = [
-    { key: 'name', label: 'Person', width: 'minmax(0,1.4fr)', render: (person) => <span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">{person.name.charAt(0)}</span><span className="min-w-0"><span className="block font-semibold">{person.name}</span><span className="block truncate text-xs text-graphite">{person.email}</span></span></span> },
+    { key: 'name', label: 'Person', width: 'minmax(0,1.4fr)', render: (person) => <span className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/10 text-sm font-bold text-brand">{person.name.charAt(0)}</span><span className="min-w-0"><span className="block break-words font-semibold">{person.name}</span><span className="block break-words text-xs text-graphite">{person.email}</span></span></span> },
     { key: 'role', label: 'Role', render: (person) => <Pill label={person.role} tone="info" /> },
     { key: 'school', label: 'School', width: 'minmax(0,1.2fr)', render: (person) => <span className="text-sm">{person.school}</span> },
     { key: 'status', label: 'Status', render: (person) => <Pill label={person.status} /> },

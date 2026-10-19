@@ -57,8 +57,8 @@ export function toneFor(value: string): Tone {
 export function Pill({ label, tone, className }: { label: string; tone?: Tone; className?: string }) {
   const resolved = tone ?? toneFor(label)
   return (
-    <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold', toneChip[resolved], className)}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+    <span className={cn('inline-flex max-w-full min-w-0 flex-wrap items-center gap-1.5 whitespace-normal break-words rounded-full px-2.5 py-1 text-left text-xs font-semibold leading-4', toneChip[resolved], className)}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
       {label}
     </span>
   )
@@ -75,13 +75,13 @@ export function SampleTag({ className }: { className?: string }) {
 
 export function SectionHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: string; action?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-      <div>
+    <div className="mb-6 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+      <div className="min-w-0">
         {eyebrow && <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-brand">{eyebrow}</p>}
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite">{description}</p>
+        <h1 className="break-words text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
+        <p className="mt-2 max-w-2xl break-words text-sm leading-6 text-graphite">{description}</p>
       </div>
-      {action}
+      {action && <div className="min-w-0 max-w-full">{action}</div>}
     </div>
   )
 }
@@ -91,11 +91,11 @@ export function Panel({ title, description, action, children, className }: { tit
     <section className={cn('rounded-2xl border border-ink/[0.07] bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.04]', className)}>
       {(title || action) && (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            {title && <h2 className="font-semibold">{title}</h2>}
-            {description && <p className="mt-1 text-xs text-graphite">{description}</p>}
+          <div className="min-w-0">
+            {title && <h2 className="break-words font-semibold">{title}</h2>}
+            {description && <p className="mt-1 break-words text-xs text-graphite">{description}</p>}
           </div>
-          {action}
+          {action && <div className="min-w-0 max-w-full">{action}</div>}
         </div>
       )}
       {children}
@@ -108,11 +108,11 @@ export function KpiTile({ label, value, detail, icon: Icon, tone = 'brand' }: { 
   return (
     <div className="rounded-2xl border border-ink/[0.07] bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-graphite">{label}</span>
-        {Icon && <span className={cn('rounded-xl p-2.5', tint)}><Icon className="h-4 w-4" /></span>}
+        <span className="min-w-0 break-words text-sm font-medium text-graphite">{label}</span>
+        {Icon && <span className={cn('shrink-0 rounded-xl p-2.5', tint)}><Icon className="h-4 w-4" /></span>}
       </div>
-      <p className="mt-4 text-2xl font-semibold tracking-tight">{value}</p>
-      {detail && <p className="mt-1 text-xs font-medium text-graphite">{detail}</p>}
+      <p className="mt-4 break-words text-2xl font-semibold tracking-tight">{value}</p>
+      {detail && <p className="mt-1 break-words text-xs font-medium text-graphite">{detail}</p>}
     </div>
   )
 }
@@ -125,8 +125,8 @@ export function KpiTile({ label, value, detail, icon: Icon, tone = 'brand' }: { 
 export function PrototypeNotice({ scope, detail }: { scope: string; detail?: string }) {
   return (
     <div role="status" className="mb-6 border-l-2 border-amber-500 bg-amber-500/[0.06] px-4 py-3">
-      <p className="text-sm font-semibold text-ink dark:text-white">Prototype data · {scope} is not connected to a backend yet</p>
-      <p className="mt-1 text-sm leading-6 text-graphite">
+      <p className="break-words text-sm font-semibold text-ink dark:text-white">Prototype data · {scope} is not connected to a backend yet</p>
+      <p className="mt-1 break-words text-sm leading-6 text-graphite">
         {detail ?? 'Records, figures and actions on this screen come from built-in sample data. Actions behave like the real thing — they are authorised, recorded and visible below — but nothing is saved or sent until the backend is connected.'}
       </p>
     </div>
@@ -138,7 +138,7 @@ export function PrototypeNotice({ scope, detail }: { scope: string; detail?: str
 // ---------------------------------------------------------------------------
 
 export function Toolbar({ children }: { children: ReactNode }) {
-  return <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center">{children}</div>
+  return <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center">{children}</div>
 }
 
 export function SearchBox({ value, onChange, placeholder, label }: { value: string; onChange: (value: string) => void; placeholder: string; label: string }) {
@@ -202,12 +202,12 @@ export function DataTable<T>({ columns, rows, rowKey, onRow, renderActions, empt
 }) {
   const template = [...columns.map((column) => column.width ?? 'minmax(0,1fr)'), ...(renderActions ? ['auto'] : [])].join(' ')
   const style: GridStyle = { '--platform-cols': template }
-  const rowClass = 'grid gap-2 border-b border-ink/[0.06] px-5 py-4 text-sm last:border-0 md:grid-cols-[var(--platform-cols)] md:items-center md:gap-4 dark:border-white/[0.08]'
+  const rowClass = 'grid gap-2 border-b border-ink/[0.06] px-5 py-4 text-sm last:border-0 xl:grid-cols-[var(--platform-cols)] xl:items-center xl:gap-4 dark:border-white/[0.08]'
 
   return (
     <div className="overflow-hidden rounded-2xl border border-ink/[0.07] bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
-      <div style={style} className="hidden border-b border-ink/[0.06] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.15em] text-graphite md:grid md:grid-cols-[var(--platform-cols)] md:items-center md:gap-4 dark:border-white/[0.08]">
-        {columns.map((column) => <span key={column.key}>{column.label}</span>)}
+      <div style={style} className="hidden border-b border-ink/[0.06] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.15em] text-graphite xl:grid xl:grid-cols-[var(--platform-cols)] xl:items-center xl:gap-4 dark:border-white/[0.08]">
+        {columns.map((column) => <span key={column.key} className="min-w-0 break-words">{column.label}</span>)}
         {renderActions && <span>Actions</span>}
       </div>
       {rows.length === 0 && <p className="p-8 text-center text-sm text-graphite">{emptyLabel}</p>}
@@ -221,9 +221,9 @@ export function DataTable<T>({ columns, rows, rowKey, onRow, renderActions, empt
           onKeyDown={onRow ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onRow(row) } } : undefined}
           className={cn(rowClass, onRow && 'cursor-pointer text-left hover:bg-ink/[0.025] dark:hover:bg-white/[0.03]')}
         >
-          {columns.map((column) => <div key={column.key} className="min-w-0">{column.render(row)}</div>)}
+          {columns.map((column) => <div key={column.key} className="min-w-0 break-words">{column.render(row)}</div>)}
           {renderActions && (
-            <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+            <div className="flex min-w-0 flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
               {renderActions(row)}
             </div>
           )}
@@ -294,9 +294,9 @@ export function Timeline({ entries }: { entries: Array<{ at: string; title: stri
         <li key={`${entry.at}-${index}`} className="relative flex gap-3 pl-1">
           <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-brand ring-4 ring-brand/10" />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-graphite">{stamp(entry.at)}{entry.by ? ` · ${entry.by}` : ''}</p>
-            <p className="mt-1 text-sm font-semibold">{entry.title}</p>
-            {entry.detail && <p className="mt-1 text-xs leading-5 text-graphite">{entry.detail}</p>}
+            <p className="break-words text-xs font-semibold text-graphite">{stamp(entry.at)}{entry.by ? ` · ${entry.by}` : ''}</p>
+            <p className="mt-1 break-words text-sm font-semibold">{entry.title}</p>
+            {entry.detail && <p className="mt-1 break-words text-xs leading-5 text-graphite">{entry.detail}</p>}
           </div>
         </li>
       ))}
@@ -469,9 +469,9 @@ export function ActionLogPanel({ entries, title = 'Action log', description, emp
           {entries.map((entry) => (
             <li key={entry.id} className="grid gap-2 py-4 first:pt-0 last:pb-0 text-sm sm:grid-cols-[1fr_auto] sm:items-start">
               <div className="min-w-0">
-                <p className="font-semibold">{entry.action}<span className="ml-2 text-xs font-normal text-graphite">{entry.target}</span></p>
-                <p className="mt-1 text-xs text-graphite">{entry.reason}</p>
-                <p className="mt-1 text-xs text-graphite">
+                <p className="break-words font-semibold">{entry.action}<span className="ml-2 text-xs font-normal text-graphite">{entry.target}</span></p>
+                <p className="mt-1 break-words text-xs text-graphite">{entry.reason}</p>
+                <p className="mt-1 break-words text-xs text-graphite">
                   {stamp(entry.at)} · {entry.operator}
                   {entry.approver ? ` · co-signed by ${entry.approver}` : ''}
                   {entry.options && entry.options.length > 0 ? ` · ${entry.options.join(', ')}` : ''}
@@ -506,7 +506,7 @@ export function VerificationPanel({ title, checks, note }: { title: string; chec
               : <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />}
             <span className="min-w-0">
               <span className="block text-[11px] font-semibold uppercase tracking-wider text-graphite">{check.label}</span>
-              <span className="mt-1 block text-sm font-medium">{check.value}</span>
+              <span className="mt-1 block break-words text-sm font-medium">{check.value}</span>
             </span>
           </li>
         ))}

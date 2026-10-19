@@ -261,7 +261,7 @@ export default function RequestsSection({ requests, operators, work, onWorkChang
       </div>
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-ink/[0.07] bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
-        <div className="hidden gap-4 border-b border-ink/[0.06] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.15em] text-graphite dark:border-white/[0.08] md:grid md:grid-cols-[1.2fr_1.5fr_1fr_1fr_auto]">
+        <div className="hidden gap-4 border-b border-ink/[0.06] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.15em] text-graphite dark:border-white/[0.08] xl:grid xl:grid-cols-[1.2fr_1.5fr_1fr_1fr_auto]">
           <span>Request</span>
           <span>School &amp; context</span>
           <span>Submitted</span>
@@ -277,14 +277,14 @@ export default function RequestsSection({ requests, operators, work, onWorkChang
               const status = effectiveStatus(item, entry)
               return (
                 <li key={item.id}>
-                  <button onClick={() => setOpenId(item.id)} className="grid w-full gap-3 px-5 py-4 text-left hover:bg-ink/[0.025] dark:hover:bg-white/[0.03] md:grid-cols-[1.2fr_1.5fr_1fr_1fr_auto] md:items-center md:gap-4">
+                  <button onClick={() => setOpenId(item.id)} className="grid w-full min-w-0 gap-3 px-5 py-4 text-left hover:bg-ink/[0.025] dark:hover:bg-white/[0.03] xl:grid-cols-[1.2fr_1.5fr_1fr_1fr_auto] xl:items-center xl:gap-4">
                     <span className="min-w-0">
                       <span className="flex items-center gap-2 font-semibold"><FileText className="h-4 w-4 text-brand" />{item.type}</span>
-                      <span className="mt-1 block truncate text-xs text-graphite">{item.id}</span>
+                      <span className="mt-1 block break-words text-xs text-graphite">{item.id}</span>
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{item.school}</span>
-                      <span className="mt-1 block truncate text-xs text-graphite">{item.summary}</span>
+                      <span className="block break-words text-sm font-medium">{item.school}</span>
+                      <span className="mt-1 block break-words text-xs text-graphite">{item.summary}</span>
                     </span>
                     <span className="text-xs text-graphite">By {item.submittedBy}<span className="mt-1 block">{item.submitted}</span></span>
                     <span className="flex flex-wrap items-center gap-2">

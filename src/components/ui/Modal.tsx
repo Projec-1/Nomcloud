@@ -98,9 +98,9 @@ export default function Modal({ open, onClose, title, description, children, siz
       >
         {(title || description) && (
           <div className="flex items-start justify-between gap-3 border-b border-ink/5 dark:border-white/10 px-4 py-4 sm:px-8 sm:py-5">
-            <div>
-              {title && <h3 id={titleId} className="text-lg font-semibold text-ink dark:text-white">{title}</h3>}
-              {description && <p id={descriptionId} className="mt-1 text-sm text-graphite">{description}</p>}
+            <div className="min-w-0">
+              {title && <h3 id={titleId} className="break-words text-lg font-semibold text-ink dark:text-white">{title}</h3>}
+              {description && <p id={descriptionId} className="mt-1 break-words text-sm text-graphite">{description}</p>}
             </div>
             <button
               type="button"
@@ -112,7 +112,7 @@ export default function Modal({ open, onClose, title, description, children, siz
             </button>
           </div>
         )}
-        <div className="min-w-0 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">{children}</div>
+        <div className="min-w-0 overflow-y-auto break-words px-4 py-5 sm:px-8 sm:py-6">{children}</div>
         {footer && <div className="flex flex-wrap items-center justify-end gap-3 border-t border-ink/5 px-4 py-4 dark:border-white/10 sm:px-8">{footer}</div>}
       </div>
     </div>,

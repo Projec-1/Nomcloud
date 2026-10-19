@@ -186,7 +186,7 @@ export default function SettingsSection({
             <dl className="mt-6 space-y-3 text-sm">
               <div className="flex items-center justify-between gap-3 rounded-xl bg-ink/[0.035] px-3 py-2.5 dark:bg-white/[0.05]">
                 <dt className="text-graphite">Email</dt>
-                <dd className="min-w-0 truncate font-medium">{email || '—'}</dd>
+                <dd className="min-w-0 break-words font-medium">{email || '—'}</dd>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-xl bg-ink/[0.035] px-3 py-2.5 dark:bg-white/[0.05]">
                 <dt className="text-graphite">Sign-in method</dt>

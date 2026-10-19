@@ -142,7 +142,7 @@ export default function ActivitySection({ onNotify, onNavigate, operator }: { on
           <span className="mt-0.5 rounded-xl bg-brand/10 p-2 text-brand"><Activity className="h-4 w-4" /></span>
           <span className="min-w-0">
             <span className="block font-semibold">{event.title}</span>
-            <span className="mt-0.5 block truncate text-xs text-graphite">{event.summary}</span>
+            <span className="mt-0.5 block break-words text-xs text-graphite">{event.summary}</span>
           </span>
         </span>
       ),

@@ -189,7 +189,7 @@ export default function OperatorsSection({ operators, onNotify, operator }: {
   }
 
   const workloadColumns: Array<Column<OperatorProfile>> = [
-    { key: 'name', label: 'Operator', width: 'minmax(0,1.3fr)', render: (profile) => <span className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">{profile.name.charAt(0)}</span><span className="min-w-0"><span className="block font-semibold">{profile.name}</span><span className="block truncate text-xs text-graphite">{profile.email}</span></span></span> },
+    { key: 'name', label: 'Operator', width: 'minmax(0,1.3fr)', render: (profile) => <span className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">{profile.name.charAt(0)}</span><span className="min-w-0"><span className="block break-words font-semibold">{profile.name}</span><span className="block break-words text-xs text-graphite">{profile.email}</span></span></span> },
     { key: 'team', label: 'Team', render: (profile) => <span className="text-sm">{profile.team}</span> },
     { key: 'role', label: 'Role', render: (profile) => <span className="text-xs text-graphite">{profile.role}</span> },
     { key: 'cases', label: 'Cases', render: (profile) => <span className="text-sm">{profile.assigned}<span className="block text-xs text-graphite">{profile.overdue} overdue</span></span> },
@@ -199,7 +199,7 @@ export default function OperatorsSection({ operators, onNotify, operator }: {
   ]
 
   const accessColumns: Array<Column<PlatformOperatorRecord>> = [
-    { key: 'name', label: 'Operator', width: 'minmax(0,1.4fr)', render: (item) => <span><span className="block font-semibold">{item.fullName}</span><span className="block text-xs text-graphite">{item.email}</span></span> },
+    { key: 'name', label: 'Operator', width: 'minmax(0,1.4fr)', render: (item) => <span><span className="block break-words font-semibold">{item.fullName}</span><span className="block break-words text-xs text-graphite">{item.email}</span></span> },
     { key: 'granted', label: 'Access granted', render: (item) => <span className="text-xs text-graphite">{stamp(item.grantedAt)} · {timeAgo(item.grantedAt)}</span> },
     { key: 'status', label: 'Status', render: (item) => revocationRequests.includes(item.id) ? <Pill label="Revocation requested" /> : <Pill label={item.revokedAt ? 'Revoked' : 'Active'} /> },
   ]
