@@ -2,6 +2,7 @@ import { CalendarCheck } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import AttendanceMarker from '@/components/dashboard/AttendanceMarker'
 import { useRecordableClasses } from '@/hooks/useRecordableClasses'
 import { DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
@@ -13,12 +14,13 @@ import { DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 // subjects can still mark this register, which is why no subject appears here.
 
 export default function TeacherAttendance() {
+  const { t } = useLanguage()
   const { school } = useAuth()
   const { state, schoolId } = useRecordableClasses()
 
   return (
     <div>
-      <PageHeader title="Attendance" description="Mark daily attendance for your assigned classes." />
+      <PageHeader title={t('teacher.attendance.title')} description={t('teacher.attendance.description')} />
       <ResourceGate
         state={state}
         empty={{

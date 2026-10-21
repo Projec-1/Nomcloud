@@ -1,5 +1,6 @@
 import { Megaphone } from '@phosphor-icons/react'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import AnnouncementBoard from '@/components/dashboard/AnnouncementBoard'
 import { useAnnouncements } from '@/hooks/useCommunications'
@@ -12,12 +13,13 @@ import { useTeacherClasses } from '@/hooks/useTeacherClasses'
 // own, because restating that matrix client-side is how it drifts.
 
 export default function TeacherAnnouncements() {
+  const { t } = useLanguage()
   const { state, schoolId, reload } = useAnnouncements()
   const { classes: myClasses } = useTeacherClasses()
 
   return (
     <div>
-      <PageHeader title="Announcements" description="School news and updates relevant to you and your classes." />
+      <PageHeader title={t('teacher.announcements.title')} description={t('teacher.announcements.description')} />
       <ResourceGate
         state={state}
         empty={{

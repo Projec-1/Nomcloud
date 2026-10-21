@@ -22,11 +22,9 @@ import {
   Users,
   X,
   Wrench,
-  Eye,
   ChartBar as BarChart3,
   Globe as Globe2,
   Prohibit as Ban,
-  ArrowCounterClockwise as RotateCcw,
   Megaphone,
   Database,
   HardDrives,
@@ -34,6 +32,7 @@ import {
   Sliders,
   CreditCard,
   UserCircle,
+  Briefcase,
 } from '@phosphor-icons/react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
@@ -76,6 +75,9 @@ import BackupsSection from './operator/BackupsSection'
 import DataSection from './operator/DataSection'
 import PeopleSection from './operator/PeopleSection'
 import CommunicationsSection from './operator/CommunicationsSection'
+import OperationsView from './OperationsView'
+import IncidentCommand from './IncidentCommand'
+import { fetchPlatformCaseWorkload, type PlatformCase } from '@/services/platformOperationsService'
 
 // Alert counts the sidebar shows next to the sections that own them. Since none
 // of those sections is connected to a live source yet, no alert badge is shown.
@@ -109,6 +111,7 @@ const navGroups = [
   {
     label: 'Operations',
     items: [
+      { label: 'Operations Queue', path: '/platform/operations', icon: Briefcase },
       { label: 'Analytics', path: '/platform/analytics', icon: BarChart3 },
       { label: 'Activity', path: '/platform/activity', icon: Activity },
       { label: 'Audit Logs', path: '/platform/audit', icon: FileText },
@@ -378,7 +381,7 @@ export default function PlatformWorkspace() {
           {navGroups.map((group) => <section key={group.label}>
             <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-graphite/70">{group.label}</p>
             <div className="space-y-1">
-              {group.items.map((item) => { const Icon = item.icon; const active = section === item.label; const count = item.label === 'School Applications' ? pendingApplicationCount : navBadges[item.label]; return <button key={item.path} onClick={() => { navigate(item.path); setMobileNav(false) }} className={`group flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? 'border-brand/20 bg-brand/10 text-brand' : 'border-transparent text-graphite hover:bg-ink/[0.05] hover:text-ink dark:hover:bg-white/[0.06] dark:hover:text-white'}`}><Icon className="h-[17px] w-[17px]" /><span className="flex-1">{item.label}</span>{count ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-brand text-white' : 'bg-brand/10 text-brand'}`}>{count}</span> : null}</button> })}
+              {group.items.map((item) => { const Icon = item.icon; const active = section === item.label; const count = item.label === 'School Applications' ? pendingApplicationCount : navBadges[item.label]; return <button key={item.path} aria-current={active ? 'page' : undefined} onClick={() => { navigate(item.path); setMobileNav(false) }} className={`group flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? 'border-brand/20 bg-brand/10 text-brand' : 'border-transparent text-graphite hover:bg-ink/[0.05] hover:text-ink dark:hover:bg-white/[0.06] dark:hover:text-white'}`}><Icon className="h-[17px] w-[17px]" /><span className="flex-1">{item.label}</span>{count ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-brand text-white' : 'bg-brand/10 text-brand'}`}>{count}</span> : null}</button> })}
             </div>
           </section>)}
         </nav>
@@ -421,7 +424,7 @@ export default function PlatformWorkspace() {
                 {displayInitial}
               </button>
               {profileMenuOpen && (
-                <div id="operator-profile-menu" className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-4">
+                <div id="operator-profile-menu" className="interaction-menu absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-4">
                   <div className="border-b border-[var(--nc-line)] pb-3">
                     <p className="truncate text-sm font-semibold">{displayName || 'Name not available'}</p>
                     <p className="mt-1 break-all text-xs text-graphite">{displayEmail || 'Email not available'}</p>
@@ -461,7 +464,7 @@ export default function PlatformWorkspace() {
           <div className="relative order-3 basis-full min-w-0 xl:order-none xl:basis-auto xl:flex-1 xl:max-w-sm">
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" />
             <input aria-label="Search schools and platform operators" value={globalQuery} onFocus={() => setGlobalSearchOpen(true)} onChange={(event) => { setGlobalQuery(event.target.value); setGlobalSearchOpen(true) }} placeholder="Search schools and platform operators…" className="input h-11 w-full bg-[var(--nc-surface)] pl-10 pr-12" />
-            {globalSearchOpen && globalQuery && <div className="absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-2 shadow-card">{searchResults.length ? searchResults.map((result) => <button key={result.type + '-' + result.title} onClick={() => { navigate(result.path); setGlobalSearchOpen(false); setGlobalQuery('') }} className="flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand"><Search className="h-3.5 w-3.5" /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-brand">{result.type}</span><span className="block text-sm font-semibold">{result.title}</span><span className="block text-xs text-graphite">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-graphite">No matching platform records.</p>}</div>}
+            {globalSearchOpen && globalQuery && <div className="interaction-menu absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-2 shadow-card">{searchResults.length ? searchResults.map((result) => <button key={result.type + '-' + result.title} onClick={() => { navigate(result.path); setGlobalSearchOpen(false); setGlobalQuery('') }} className="flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand"><Search className="h-3.5 w-3.5" /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-brand">{result.type}</span><span className="block text-sm font-semibold">{result.title}</span><span className="block text-xs text-graphite">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-graphite">No matching platform records.</p>}</div>}
           </div>
         </header>
         <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8">
@@ -473,6 +476,7 @@ export default function PlatformWorkspace() {
           {section === 'People' && <PeopleSection />}
           {section === 'Communications' && <CommunicationsSection />}
           {section === 'Requests & Reviews' && <RequestsSection requests={requestRecords} loading={platformRecordsLoading} onOpenRequest={setRequest} />}
+          {section === 'Operations Queue' && authUser && <OperationsView currentPath={currentPath} authUserId={authUser.id} schools={schoolRecords} operators={operatorRecords} navigate={navigate} notify={notify} />}
           {section === 'Operators' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading operators…</p> : <OperatorsSection operators={operatorRecords} onNotify={notify} />)}
           {section === 'Permissions' && <PermissionsSection />}
           {section === 'Audit Logs' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditSection rows={auditEntries} notify={notify} />)}
@@ -481,7 +485,7 @@ export default function PlatformWorkspace() {
           {section === 'Backups & Recovery' && <BackupsSection />}
           {section === 'Analytics' && <AnalyticsSection />}
           {section === 'Activity' && <ActivitySection />}
-          {section === 'System Health' && <HealthSection />}
+          {section === 'System Health' && authUser && <SystemHealthWithIncidents operators={operatorRecords} authUserId={authUser.id} onNotify={notify} />}
           {section === 'Features' && <FeaturesSection />}
           {section === 'Integrations' && <IntegrationsSection />}
           {section === 'Billing' && <BillingSection />}
@@ -532,3 +536,51 @@ function SchoolsView({ schools: list, query, setQuery, filter, setFilter, onScho
 }
 
 
+function SystemHealthWithIncidents({
+  onNotify,
+  operators,
+  authUserId,
+}: {
+  onNotify: (message: string) => void
+  operators: PlatformOperatorRecord[]
+  authUserId: string
+}) {
+  const [cases, setCases] = useState<PlatformCase[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    fetchPlatformCaseWorkload()
+      .then((rows) => {
+        if (!cancelled) setCases(rows)
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) setError(errorMessage(cause, 'Could not load incident case context.'))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [refresh])
+
+  return (
+    <>
+      <HealthSection />
+      {error && (
+        <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-y border-red-500/30 p-4 text-sm text-red-800 dark:text-red-300">
+          <span>Could not load incident case context: {error}</span>
+          <Button size="sm" variant="outline" onClick={() => setRefresh((value) => value + 1)}>Retry</Button>
+        </div>
+      )}
+      {loading
+        ? <p role="status" className="py-6 text-sm text-graphite">Loading incident context…</p>
+        : <IncidentCommand operators={operators} cases={cases} authUserId={authUserId} notify={onNotify} />}
+    </>
+  )
+}

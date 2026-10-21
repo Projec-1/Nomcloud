@@ -1,5 +1,6 @@
 import { ChatText as MessageSquare } from '@phosphor-icons/react'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import MessagesPanel from '@/components/dashboard/MessagesPanel'
 import { useMessageThreads } from '@/hooks/useCommunications'
@@ -16,11 +17,12 @@ import { useMessageThreads } from '@/hooks/useCommunications'
 // messages INSERT is keyed on participation rather than on role.
 
 export default function TeacherMessages() {
+  const { t } = useLanguage()
   const { state, schoolId, userId, canStartThread, reload } = useMessageThreads()
 
   return (
     <div>
-      <PageHeader title="Messages" description="Conversations you are part of." />
+      <PageHeader title={t('teacher.messages.title')} description={t('teacher.messages.description')} />
       <ResourceGate
         state={state}
         empty={{ icon: MessageSquare, title: 'No conversations yet' }}

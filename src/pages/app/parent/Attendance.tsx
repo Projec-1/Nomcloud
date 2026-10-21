@@ -2,6 +2,7 @@ import { CalendarCheck, Check, X, Clock, Warning as FileWarning } from '@phospho
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useChildAttendance } from '@/hooks/useChildRecords'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ChildSwitcher from '@/components/dashboard/ChildSwitcher'
 import ResourceGate from '@/components/ui/ResourceGate'
 import StatCard from '@/components/ui/StatCard'
@@ -27,13 +28,14 @@ const statusMeta: Record<AttendanceStatus, { icon: typeof Check; tone: string; l
 }
 
 export default function ParentAttendance() {
+  const { t } = useLanguage()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
   const { state: attendanceState } = useChildAttendance(selectedChild?.id ?? null)
 
   if (!selectedChild) {
     return (
       <div>
-        <PageHeader title="Attendance" description="Your child's attendance record." />
+        <PageHeader title={t('parent.attendance.title')} description={t('parent.attendance.description')} />
         <ResourceGate
           state={state}
           empty={{ icon: CalendarCheck, title: "No children linked yet", description: "Contact your school administrator to link your child's record." }}
@@ -48,7 +50,7 @@ export default function ParentAttendance() {
   return (
     <div>
       <PageHeader
-        title="Attendance"
+        title={t('parent.attendance.title')}
         description={`${selectedChild.name} · ${selectedChild.className ?? ''}`}
         actions={<ChildSwitcher children={children} selectedId={selectedChild.id} onSelect={selectChild} classLabel={(c) => c.className ?? ''} />}
       />
@@ -68,9 +70,9 @@ export default function ParentAttendance() {
           return (
             <>
               <div className="mb-6 grid gap-5 sm:grid-cols-3">
-                <StatCard label="Attendance Rate" value={`${percentage(present, records.length)}%`} icon={CalendarCheck} tint="#34A853" />
-                <StatCard label="Days Present" value={present} icon={Check} tint="#0071E3" />
-                <StatCard label="Days Absent" value={absent} icon={X} tint="#EF4444" />
+                <StatCard label={t('parent.attendance.rate')} value={`${percentage(present, records.length)}%`} icon={CalendarCheck} tint="#34A853" />
+                <StatCard label={t('parent.attendance.daysPresent')} value={present} icon={Check} tint="#0071E3" />
+                <StatCard label={t('parent.attendance.daysAbsent')} value={absent} icon={X} tint="#EF4444" />
               </div>
 
               <div className="card divide-y divide-ink/5 dark:divide-white/5">

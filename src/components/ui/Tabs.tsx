@@ -12,12 +12,14 @@ export default function Tabs({ tabs, active, onChange }: TabsProps) {
       {tabs.map((tab) => (
         <button
           key={tab.id}
+          type="button"
+          aria-pressed={active === tab.id}
           onClick={() => onChange(tab.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all duration-300',
+            'inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200',
             active === tab.id
-              ? 'bg-white dark:bg-white/10 text-ink dark:text-white shadow-soft'
-              : 'text-graphite hover:text-ink dark:hover:text-white',
+              ? 'bg-[var(--nc-accent-soft)] text-[var(--nc-text)] ring-1 ring-inset ring-brand/20'
+              : 'text-graphite hover:bg-[var(--nc-surface)] hover:text-ink dark:hover:text-white',
           )}
         >
           {tab.label}

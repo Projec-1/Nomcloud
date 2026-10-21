@@ -55,9 +55,9 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     try {
       const image = await prepareImage(file, 'avatar')
       refreshProfile(await replaceOwnAvatar(profile, image))
-      showToast({ type: 'success', title: 'Profile picture updated' })
+      showToast({ type: 'success', title: t('dash.topbar.profileUpdated') })
     } catch (err) {
-      showToast({ type: 'error', title: 'Picture not uploaded', description: err instanceof Error ? err.message : 'Please try again.' })
+      showToast({ type: 'error', title: t('dash.topbar.pictureNotUploaded'), description: err instanceof Error ? err.message : t('common.tryAgain') })
     } finally {
       setAvatarBusy(false)
     }
@@ -67,9 +67,9 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     setAvatarBusy(true)
     try {
       refreshProfile(await removeOwnAvatar(profile))
-      showToast({ type: 'success', title: 'Profile picture removed' })
+      showToast({ type: 'success', title: t('dash.topbar.profileRemoved') })
     } catch (err) {
-      showToast({ type: 'error', title: 'Picture not removed', description: err instanceof Error ? err.message : 'Please try again.' })
+      showToast({ type: 'error', title: t('dash.topbar.pictureNotRemoved'), description: err instanceof Error ? err.message : t('common.tryAgain') })
     } finally {
       setAvatarBusy(false)
     }
@@ -88,7 +88,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   return (
     <header className="dashboard-topbar sticky top-0 z-30 flex h-16 flex-shrink-0 items-center justify-between border-b border-ink/5 bg-white/80 px-4 backdrop-blur-xl dark:border-[#343A41] dark:bg-[#17191C]/90 sm:px-6">
       <div className="flex min-w-0 max-w-[62%] items-center gap-3 sm:max-w-none">
-        <button onClick={onMenuClick} className="rounded-full p-2 text-ink hover:bg-ink/5 dark:text-white dark:hover:bg-white/10 lg:hidden" aria-label="Open menu">
+        <button onClick={onMenuClick} className="rounded-full p-2 text-ink hover:bg-ink/5 dark:text-white dark:hover:bg-white/10 lg:hidden" aria-label={t('dash.topbar.openMenu')}>
           <Menu className="h-5 w-5" />
         </button>
         <div className="min-w-0">
@@ -105,7 +105,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
               value={visibleRole}
               onChange={(event) => switchRole(event.target.value as Role)}
               className="input h-9 w-auto min-w-28 appearance-none py-1 pl-3 pr-2 text-xs font-medium"
-              aria-label="Switch workspace role"
+              aria-label={t('dash.topbar.switchRole')}
             >
               {availableRoles.map((role) => (
                 <option key={role} value={role}>
@@ -118,7 +118,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         <button
           onClick={toggleTheme}
           className="flex h-9 w-9 items-center justify-center rounded-full text-graphite hover:bg-ink/5 dark:hover:bg-white/10"
-          aria-label="Toggle dark mode"
+          aria-label={t('dash.topbar.toggleTheme')}
         >
           {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
         </button>
@@ -129,7 +129,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             <ChevronDown className="hidden h-3.5 w-3.5 text-graphite sm:block" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-11 z-50 w-60 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
+            <div className="interaction-menu absolute right-0 top-11 z-50 w-60 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
               <div className="border-b border-ink/5 px-4 py-3 dark:border-white/10">
                 <p className="truncate text-sm font-medium text-ink dark:text-white">{profile.full_name}</p>
                 <p className="truncate text-xs text-graphite">{profile.email}</p>
@@ -145,7 +145,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                       type="file"
                       accept={IMAGE_ACCEPT}
                       className="hidden"
-                      aria-label="Choose profile picture"
+                      aria-label={t('dash.topbar.choosePicture')}
                       onChange={handleAvatarChosen}
                     />
                     <button
@@ -154,7 +154,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                       onClick={() => avatarInput.current?.click()}
                       className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink hover:bg-ink/5 disabled:opacity-50 dark:text-white dark:hover:bg-white/10"
                     >
-                      <Camera className="h-4 w-4" /> {avatarBusy ? 'Working…' : profile.avatar_url ? 'Change picture' : 'Add picture'}
+                      <Camera className="h-4 w-4" /> {avatarBusy ? t('dash.topbar.working') : profile.avatar_url ? t('dash.topbar.changePicture') : t('dash.topbar.addPicture')}
                     </button>
                     {profile.avatar_url && (
                       <button
@@ -163,7 +163,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                         onClick={handleAvatarRemoved}
                         className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink hover:bg-ink/5 disabled:opacity-50 dark:text-white dark:hover:bg-white/10"
                       >
-                        <Trash2 className="h-4 w-4" /> Remove picture
+                        <Trash2 className="h-4 w-4" /> {t('dash.topbar.removePicture')}
                       </button>
                     )}
                   </>

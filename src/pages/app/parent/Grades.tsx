@@ -2,6 +2,7 @@ import { BookOpen } from '@phosphor-icons/react'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useChildGrades } from '@/hooks/useChildRecords'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ChildSwitcher from '@/components/dashboard/ChildSwitcher'
 import ResourceGate from '@/components/ui/ResourceGate'
 import StatCard from '@/components/ui/StatCard'
@@ -43,17 +44,18 @@ function gradeTone(grade: string): 'success' | 'info' | 'warning' | 'danger' {
 }
 
 export default function ParentGrades() {
+  const { t } = useLanguage()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
   const { state: gradesState } = useChildGrades(selectedChild?.id ?? null)
 
   if (!selectedChild) {
     return (
       <div>
-        <PageHeader title="Grades" description="Your child's academic performance." />
+        <PageHeader title={t('parent.grades.title')} description={t('parent.grades.description')} />
         <ResourceGate
           state={state}
-          empty={{ icon: BookOpen, title: "No children linked yet", description: "Contact your school administrator to link your child's record." }}
-          deniedHint="Child records are available to a linked parent or guardian."
+          empty={{ icon: BookOpen, title: t('parent.grades.noChildren'), description: t('parent.grades.contactSchool') }}
+          deniedHint={t('parent.grades.access')}
         >
           {() => null}
         </ResourceGate>
@@ -64,7 +66,7 @@ export default function ParentGrades() {
   return (
     <div>
       <PageHeader
-        title="Grades"
+        title={t('parent.grades.title')}
         description={`${selectedChild.name} · ${selectedChild.className ?? ''}`}
         actions={<ChildSwitcher children={children} selectedId={selectedChild.id} onSelect={selectChild} classLabel={(c) => c.className ?? ''} />}
       />
@@ -73,10 +75,10 @@ export default function ParentGrades() {
         state={gradesState}
         empty={{
           icon: BookOpen,
-          title: 'No grades recorded yet',
-          description: "Grades will appear here as soon as they're recorded by teachers.",
+          title: t('parent.grades.noRecords'),
+          description: t('parent.grades.noRecordsDescription'),
         }}
-        deniedHint="Child records are available to a linked parent or guardian."
+        deniedHint={t('parent.grades.access')}
       >
         {(records) => {
           const bySubjectMap = new Map<string, number[]>()
@@ -92,13 +94,13 @@ export default function ParentGrades() {
           return (
             <>
               <div className="mb-6 grid gap-5 sm:grid-cols-3">
-                <StatCard label="Overall Average" value={`${overallAvg}%`} icon={BookOpen} tint="#0071E3" />
-                <StatCard label="Assessments Recorded" value={records.length} icon={BookOpen} tint="#FF5A1F" />
-                <StatCard label="Subjects" value={bySubject.length} icon={BookOpen} tint="#A855F7" />
+                <StatCard label={t('parent.grades.overallAverage')} value={`${overallAvg}%`} icon={BookOpen} tint="#0071E3" />
+                <StatCard label={t('parent.grades.assessmentsRecorded')} value={records.length} icon={BookOpen} tint="#FF5A1F" />
+                <StatCard label={t('parent.grades.subjects')} value={bySubject.length} icon={BookOpen} tint="#A855F7" />
               </div>
 
               <div className="card mb-6 p-6">
-                <h3 className="mb-5 font-semibold text-ink dark:text-white">Average by Subject</h3>
+                <h3 className="mb-5 font-semibold text-ink dark:text-white">{t('parent.grades.averageBySubject')}</h3>
                 <div className="space-y-4">
                   {bySubject.map((s) => (
                     <div key={s.subject}>
@@ -118,12 +120,12 @@ export default function ParentGrades() {
                 <table className="w-full min-w-[640px] text-sm">
                   <thead>
                     <tr className="border-b border-ink/5 text-left text-xs text-graphite dark:border-white/10">
-                      <th className="px-5 py-3.5 font-medium">Subject</th>
-                      <th className="px-5 py-3.5 font-medium">Term</th>
-                      <th className="px-5 py-3.5 font-medium">Assessment</th>
-                      <th className="px-5 py-3.5 font-medium">Score</th>
-                      <th className="px-5 py-3.5 font-medium">Grade</th>
-                      <th className="px-5 py-3.5 font-medium">Recorded</th>
+                      <th className="px-5 py-3.5 font-medium">{t('parent.grades.subject')}</th>
+                      <th className="px-5 py-3.5 font-medium">{t('parent.grades.term')}</th>
+                      <th className="px-5 py-3.5 font-medium">{t('parent.grades.assessment')}</th>
+                      <th className="px-5 py-3.5 font-medium">{t('parent.grades.score')}</th>
+                      <th className="px-5 py-3.5 font-medium">{t('parent.grades.grade')}</th>
+                      <th className="px-5 py-3.5 font-medium">{t('parent.grades.recorded')}</th>
                     </tr>
                   </thead>
                   <tbody>

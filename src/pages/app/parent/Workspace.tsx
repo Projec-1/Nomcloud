@@ -58,7 +58,7 @@ export default function ParentWorkspace() {
               <ChevronDown className="h-4 w-4 text-graphite" />
             </button>
             {showChildMenu && (
-              <div className="absolute right-0 z-20 mt-2 w-60 rounded-xl border border-ink/10 bg-white p-2 shadow-card dark:border-white/10 dark:bg-[#161618]">
+              <div className="interaction-menu absolute right-0 z-20 mt-2 w-60 rounded-xl border border-ink/10 bg-white p-2 shadow-card dark:border-white/10 dark:bg-[#161618]">
                 {children.map((item) => (
                   <button
                     key={item.id}
@@ -66,6 +66,7 @@ export default function ParentWorkspace() {
                       selectChild(item.id)
                       setShowChildMenu(false)
                     }}
+                    aria-pressed={item.id === selectedChild.id}
                     className="flex w-full items-center gap-3 rounded-lg p-3 text-left hover:bg-brand/5"
                   >
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">

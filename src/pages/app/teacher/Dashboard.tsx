@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Users, ArrowRight, Clock } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
+import { useLanguage } from '@/context/LanguageContext'
 import { useTeacherClasses } from '@/hooks/useTeacherClasses'
 import PageHeader from '@/components/ui/PageHeader'
 import Badge from '@/components/ui/Badge'
@@ -30,6 +31,7 @@ import { fetchAttendance, fetchHomework, type HomeworkView } from '@/services/te
 
 export default function TeacherDashboard() {
   const { profile, school } = useAuth()
+  const { t } = useLanguage()
   const { state, classes: myClasses, timetable: timetables } = useTeacherClasses()
 
   const schoolId = school?.id ?? null
@@ -115,8 +117,8 @@ export default function TeacherDashboard() {
   if (state.status === 'loading' || state.status === 'denied' || state.status === 'error') {
     return (
       <div className="teacher-dashboard">
-        <PageHeader title="Dashboard" />
-        <ResourceGate state={state} empty={{ title: '' }} deniedHint="The teacher workspace is available to teaching staff.">
+        <PageHeader title={t('teacher.dashboard.title')} />
+        <ResourceGate state={state} empty={{ title: '' }} deniedHint={t('teacher.dashboard.access')}>
           {() => null}
         </ResourceGate>
       </div>
@@ -126,29 +128,31 @@ export default function TeacherDashboard() {
   return (
     <div className="teacher-dashboard">
       <div className="teacher-dashboard__header">
-        <p className="teacher-dashboard__eyebrow">Teacher workspace</p>
+        <p className="teacher-dashboard__eyebrow">{t('teacher.dashboard.eyebrow')}</p>
         <PageHeader
-          title={`Welcome back, ${profile?.full_name.split(' ')[0] ?? ''}`}
+          title={t('teacher.dashboard.welcome', { name: profile?.full_name.split(' ')[0] ?? '' })}
           description={
             myClasses.length
-              ? `You're teaching ${myClasses.length} class${myClasses.length === 1 ? '' : 'es'} this term.`
-              : 'No classes assigned yet.'
+              ? t(myClasses.length === 1 ? 'teacher.dashboard.teachingOne' : 'teacher.dashboard.teachingMany', { count: myClasses.length })
+              : t('teacher.dashboard.noClassesTerm')
           }
         />
       </div>
 
       <div className="teacher-insights grid gap-4 sm:grid-cols-2">
         <TeacherInsightCard
-          label="Attendance"
-          metricLabel="Present today"
+          label={t('teacher.dashboard.attendance')}
+          metricLabel={t('teacher.dashboard.presentToday')}
           value={todayPresent && todayPresent.marked > 0 ? `${percentage(todayPresent.present, todayPresent.marked)}%` : '—'}
-          caption={todayPresent?.marked ? `${todayPresent.present} of ${todayPresent.marked} students marked present.` : 'Attendance has not been marked yet.'}
+          caption={todayPresent?.marked
+            ? t('teacher.dashboard.attendanceMarked', { present: todayPresent.present, marked: todayPresent.marked })
+            : t('teacher.dashboard.notMarked')}
         />
         <TeacherInsightCard
-          label="Homework"
-          metricLabel="Pending submissions"
+          label={t('teacher.dashboard.homework')}
+          metricLabel={t('teacher.dashboard.pendingSubmissions')}
           value={pendingTotal}
-          caption={pendingTotal ? 'Follow up with students who still have work to submit.' : 'All student submissions are up to date.'}
+          caption={pendingTotal ? t('teacher.dashboard.followUp') : t('teacher.dashboard.submissionsUpToDate')}
         />
       </div>
 
@@ -156,8 +160,8 @@ export default function TeacherDashboard() {
         <div className="mt-8">
           <EmptyState
             icon={Users}
-            title="No classes assigned yet"
-            description="Once a school administrator assigns you to a class, it will appear here along with your students."
+            title={t('teacher.dashboard.noClasses')}
+            description={t('teacher.dashboard.assignedDescription')}
           />
         </div>
       ) : (
@@ -174,23 +178,22 @@ export default function TeacherDashboard() {
               <div>
                 {liveSlot ? (
                   <>
-                    <p className="text-sm font-semibold text-emerald-600">You have a lecture right now</p>
+                    <p className="text-sm font-semibold text-emerald-600">{t('teacher.dashboard.liveLecture')}</p>
                     <p className="text-xs text-graphite">
-                      {liveSlot.subject} · {classNameById.get(liveSlot.classId)} · {liveSlot.room} · until{' '}
-                      {liveSlot.endTime}
+                      {liveSlot.subject} · {classNameById.get(liveSlot.classId)} · {liveSlot.room} · {t('teacher.dashboard.until', { time: liveSlot.endTime })}
                     </p>
                   </>
                 ) : nextSlot ? (
                   <>
-                    <p className="text-sm font-semibold text-ink dark:text-white">No lecture right now</p>
+                    <p className="text-sm font-semibold text-ink dark:text-white">{t('teacher.dashboard.noLecture')}</p>
                     <p className="text-xs text-graphite">
-                      Next: {nextSlot.subject} · {classNameById.get(nextSlot.classId)} at {nextSlot.startTime}
+                      {t('teacher.dashboard.nextClass', { subject: nextSlot.subject, className: classNameById.get(nextSlot.classId) ?? '', time: nextSlot.startTime })}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="text-sm font-semibold text-ink dark:text-white">No lecture right now</p>
-                    <p className="text-xs text-graphite">Nothing further scheduled for today.</p>
+                    <p className="text-sm font-semibold text-ink dark:text-white">{t('teacher.dashboard.noLecture')}</p>
+                    <p className="text-xs text-graphite">{t('teacher.dashboard.nothingScheduled')}</p>
                   </>
                 )}
               </div>
@@ -200,12 +203,12 @@ export default function TeacherDashboard() {
           <div className="teacher-dashboard__panels mt-6 grid gap-6 lg:grid-cols-3">
             <div className="teacher-dashboard__panel lg:col-span-2">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-semibold text-ink dark:text-white">My Classes</h3>
+                <h3 className="font-semibold text-ink dark:text-white">{t('teacher.dashboard.myClasses')}</h3>
                 <Link
                   to="/app/teacher/classes"
                   className="link-underline flex items-center gap-1 text-xs font-medium text-accent"
                 >
-                  View all <ArrowRight className="h-3 w-3" />
+                  {t('teacher.dashboard.viewAll')} <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
               <div className="space-y-3">
@@ -216,28 +219,31 @@ export default function TeacherDashboard() {
                   >
                     <div>
                       <p className="text-sm font-medium text-ink dark:text-white">{c.name}</p>
-                      <p className="text-xs text-graphite">{c.room ?? 'No room set'}</p>
+                      <p className="text-xs text-graphite">{c.room ?? t('teacher.dashboard.noRoom')}</p>
                     </div>
                     <Badge tone="neutral">
                       {c.studentIds.length}
-                      {c.capacity ? `/${c.capacity}` : ''} students
+                      {t('teacher.dashboard.studentRoster', {
+                        count: c.studentIds.length,
+                        capacity: c.capacity ? `/${c.capacity}` : '',
+                      })}
                     </Badge>
                   </div>
                 ))}
               </div>
             </div>
             <div className="teacher-dashboard__panel">
-              <h3 className="mb-3 font-semibold text-ink dark:text-white">Upcoming Homework</h3>
+              <h3 className="mb-3 font-semibold text-ink dark:text-white">{t('teacher.dashboard.upcomingHomework')}</h3>
               <div className="space-y-3">
                 {homework.slice(0, 5).map((h) => (
                   <div key={h.id} className="border-b border-ink/5 pb-3 last:border-b-0 last:pb-0 dark:border-white/10">
                     <p className="text-sm font-medium text-ink dark:text-white">{h.title}</p>
                     <p className="text-xs text-graphite">
-                      {h.subjectName} · due {formatDate(h.dueDate)}
+                      {t('teacher.dashboard.homeworkDue', { subject: h.subjectName, date: formatDate(h.dueDate) })}
                     </p>
                   </div>
                 ))}
-                {homework.length === 0 && <p className="text-sm text-graphite">No homework assigned yet.</p>}
+                {homework.length === 0 && <p className="text-sm text-graphite">{t('teacher.dashboard.noHomework')}</p>}
               </div>
             </div>
           </div>

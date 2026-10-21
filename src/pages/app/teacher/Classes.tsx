@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Users, MapPin, BookOpen, CalendarBlank as CalendarRange, Lock } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
+import { useLanguage } from '@/context/LanguageContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import { useTeacherClasses } from '@/hooks/useTeacherClasses'
 import PageHeader from '@/components/ui/PageHeader'
@@ -32,6 +33,7 @@ import type { ClassSummary } from '@/services/teacherService'
 
 export default function TeacherClasses() {
   const { school } = useAuth()
+  const { t } = useLanguage()
   const { state, classes: myClasses, timetable } = useTeacherClasses()
   const [viewing, setViewing] = useState<ClassSummary | null>(null)
   const [roster, setRoster] = useState<RosterStudent[]>([])
@@ -62,15 +64,15 @@ export default function TeacherClasses() {
   if (myClasses.length === 0) {
     return (
       <div>
-        <PageHeader title="My Classes" description="Classes assigned to you by the school administrator." />
+        <PageHeader title={t('teacher.classes.title')} description={t('teacher.classes.description')} />
         <ResourceGate
           state={state}
           empty={{
             icon: BookOpen,
-            title: 'No classes assigned yet',
-            description: 'Reach out to your school administrator to get assigned to a class.',
+            title: t('teacher.classes.noClasses'),
+            description: t('teacher.classes.contactAdmin'),
           }}
-          deniedHint="Class records are available to an assigned teacher."
+          deniedHint={t('teacher.classes.access')}
         >
           {() => null}
         </ResourceGate>
@@ -81,8 +83,8 @@ export default function TeacherClasses() {
   return (
     <div>
       <PageHeader
-        title="My Classes"
-        description={`You are teaching ${myClasses.length} class${myClasses.length === 1 ? '' : 'es'}.`}
+        title={t('teacher.classes.title')}
+        description={t(myClasses.length === 1 ? 'teacher.classes.assignedOne' : 'teacher.classes.assignedMany', { count: myClasses.length })}
       />
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {myClasses.map((c) => (
@@ -94,15 +96,15 @@ export default function TeacherClasses() {
           >
             <p className="font-semibold text-ink dark:text-white">{c.name}</p>
             <p className="text-xs text-graphite">
-              Grade {c.grade}
-              {c.section ? ` · Section ${c.section}` : ''}
+              {t('teacher.classes.grade', { grade: c.grade })}
+              {c.section ? ` · ${t('teacher.classes.section', { section: c.section })}` : ''}
             </p>
             <div className="mt-4 space-y-2 text-xs text-graphite">
               <p className="flex items-center gap-2">
-                <Users className="h-3.5 w-3.5" /> {c.studentIds.length} students
+                <Users className="h-3.5 w-3.5" /> {t('teacher.classes.studentCount', { count: c.studentIds.length })}
               </p>
               <p className="flex items-center gap-2">
-                <MapPin className="h-3.5 w-3.5" /> {c.room ?? 'No room set'}
+                <MapPin className="h-3.5 w-3.5" /> {c.room ?? t('teacher.classes.noRoom')}
               </p>
             </div>
             <div className="mt-4 flex flex-wrap gap-1.5">
@@ -120,12 +122,15 @@ export default function TeacherClasses() {
         open={!!viewing}
         onClose={() => setViewing(null)}
         title={viewing?.name}
-        description={`${viewing?.studentIds.length ?? 0} students · ${viewing?.room ?? ''}`}
+        description={t('teacher.classes.modalStudents', {
+          count: viewing?.studentIds.length ?? 0,
+          room: viewing?.room ?? t('teacher.classes.noRoom'),
+        })}
         size="lg"
       >
         <div className="space-y-2">
           {roster.length === 0 ? (
-            <p className="text-sm text-graphite">No students enrolled in this class yet.</p>
+            <p className="text-sm text-graphite">{t('teacher.classes.noStudents')}</p>
           ) : (
             roster.map((s) => (
               <div key={s.id} className="flex items-center justify-between rounded-xl bg-mist px-4 py-3 dark:bg-white/5">
@@ -148,7 +153,7 @@ export default function TeacherClasses() {
             <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
               <CalendarRange className="h-4 w-4" />
             </div>
-            <h3 className="font-semibold text-ink dark:text-white">Weekly Timetable</h3>
+            <h3 className="font-semibold text-ink dark:text-white">{t('teacher.classes.weeklyTimetable')}</h3>
           </div>
           {myClasses.length > 1 && (
             <Select
@@ -170,7 +175,7 @@ export default function TeacherClasses() {
         </div>
         <p className="mt-3 flex items-center gap-2 text-xs text-graphite">
           <Lock className="h-3.5 w-3.5 shrink-0" />
-          Timetables are set by the school office. Ask an administrator to change a period.
+          {t('teacher.classes.timetableAdmin')}
         </p>
       </div>
     </div>

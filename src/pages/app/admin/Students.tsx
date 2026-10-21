@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Users, Plus, Pencil, Trash as Trash2, Upload, FileXls as FileSpreadsheet, CaretUp, CaretDown } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
+import { useLanguage } from '@/context/LanguageContext'
 import { useToast } from '@/context/ToastContext'
 import PageHeader from '@/components/ui/PageHeader'
 import AdminSectionInsights from '@/components/dashboard/AdminSectionInsights'
@@ -69,19 +70,23 @@ const emptyForm = {
   inviteGuardian: false,
 }
 
-function guardianLabel(g: DirectoryStudent['guardians'][number]): string {
-  return g.relationship ? `${g.name} (${g.relationship})` : g.name
+function guardianLabel(g: DirectoryStudent['guardians'][number], t: (key: string) => string): string {
+  const relationship = g.relationship && ['Mother', 'Father', 'Other'].includes(g.relationship)
+    ? t(`admin.students.relationship.${g.relationship.toLowerCase()}`)
+    : g.relationship
+  return relationship ? `${g.name} (${relationship})` : g.name
 }
 
 /** Format guardian count for table display */
-function guardianDisplay(guardians: DirectoryStudent['guardians']): string {
+function guardianDisplay(guardians: DirectoryStudent['guardians'], t: (key: string, values?: Record<string, string | number>) => string): string {
   if (guardians.length === 0) return '—'
-  if (guardians.length === 1) return `1 guardian`
-  return `${guardians.length} guardians`
+  if (guardians.length === 1) return t('admin.students.guardianCount.one')
+  return t('admin.students.guardianCount', { count: guardians.length })
 }
 
 export default function AdminStudents() {
   const { school } = useAuth()
+  const { t } = useLanguage()
   const { showToast } = useToast()
   const { classes } = useRecordableClasses()
   const { state: academicState } = useAcademicStructure()
@@ -175,9 +180,9 @@ export default function AdminStudents() {
       const image = await prepareImage(file, 'studentPhoto')
       const path = await replaceStudentPhoto(schoolId, editing.id, editing.photoPath, image)
       applyPhotoPath(editing.id, path)
-      showToast({ type: 'success', title: 'Photo updated' })
+      showToast({ type: 'success', title: t('admin.students.toast.photoUpdated') })
     } catch (err: unknown) {
-      showToast({ type: 'error', title: 'Photo not uploaded', description: errorMessage(err) })
+      showToast({ type: 'error', title: t('admin.students.toast.photoNotUploaded'), description: errorMessage(err) })
     } finally {
       setPhotoBusy(false)
     }
@@ -189,9 +194,9 @@ export default function AdminStudents() {
     try {
       await removeStudentPhoto(schoolId, editing.id, editing.photoPath)
       applyPhotoPath(editing.id, null)
-      showToast({ type: 'success', title: 'Photo removed' })
+      showToast({ type: 'success', title: t('admin.students.toast.photoRemoved') })
     } catch (err: unknown) {
-      showToast({ type: 'error', title: 'Photo not removed', description: errorMessage(err) })
+      showToast({ type: 'error', title: t('admin.students.toast.photoNotRemoved'), description: errorMessage(err) })
     } finally {
       setPhotoBusy(false)
     }
@@ -325,21 +330,21 @@ export default function AdminStudents() {
 
   const validate = () => {
     const next: FieldErrors = {}
-    if (!minLength(form.name, 2)) next.name = "Enter the student's full name."
-    if (!minLength(form.admissionNo, 2)) next.admissionNo = 'Enter an admission number.'
+    if (!minLength(form.name, 2)) next.name = t('admin.students.error.name')
+    if (!minLength(form.admissionNo, 2)) next.admissionNo = t('admin.students.error.admissionNo')
     if (form.dateOfBirth && form.dateOfBirth >= todayInTimeZone(timeZone)) {
-      next.dateOfBirth = 'Date of birth must be before today.'
+      next.dateOfBirth = t('admin.students.error.dateOfBirth')
     }
     if (form.classId && !activeYearId) {
-      next.classId = 'Set an active academic year before enrolling a student in a class.'
+      next.classId = t('admin.students.error.activeYear')
     }
-    if (guardianMode === 'existing' && !form.guardianId) next.guardianId = 'Select a guardian.'
+    if (guardianMode === 'existing' && !form.guardianId) next.guardianId = t('admin.students.error.selectGuardian')
     if (guardianMode !== 'none' && !form.guardianRelationship) {
-      next.guardianRelationship = "Choose the guardian's relationship to the student."
+      next.guardianRelationship = t('admin.students.error.relationship')
     }
     if (guardianMode === 'new') {
-      if (!minLength(form.newGuardianName, 2)) next.newGuardianName = "Enter the guardian's name."
-      if (!minLength(form.newGuardianPhone, 6)) next.newGuardianPhone = 'Enter a phone number.'
+      if (!minLength(form.newGuardianName, 2)) next.newGuardianName = t('admin.students.error.guardianName')
+      if (!minLength(form.newGuardianPhone, 6)) next.newGuardianPhone = t('admin.students.error.phone')
     }
     setErrors(next)
     return Object.keys(next).length === 0
@@ -389,15 +394,15 @@ export default function AdminStudents() {
         const chosen = guardians.find((g) => g.id === form.guardianId)
         guardianId = form.guardianId
         guardianEmail = chosen?.email ?? null
-        const name = chosen?.full_name ?? 'The guardian'
+        const name = chosen?.full_name ?? t('dash.role.parent')
         guardianNote =
           outcome === 'already_linked'
-            ? `${name} was already linked to this student.`
+            ? t('admin.students.toast.guardianAlreadyLinked', { name })
             : outcome === 'relationship_updated'
-              ? `${name}'s relationship is now ${relationship}.`
+              ? t('admin.students.toast.relationshipUpdated', { name, relationship: relationship ? t(`admin.students.relationship.${relationship.toLowerCase()}`) : '' })
               : outcome === 'linked'
-                ? `${name} was linked as ${relationship}.`
-                : `${name} is now the primary contact.`
+                ? t('admin.students.toast.guardianLinked', { name, relationship: relationship ? t(`admin.students.relationship.${relationship.toLowerCase()}`) : '' })
+                : t('admin.students.toast.primaryContact', { name })
       } else if (guardianMode === 'new') {
         guardianId = await createAndLinkGuardian(
           schoolId,
@@ -412,8 +417,8 @@ export default function AdminStudents() {
         )
         guardianEmail = form.newGuardianEmail || null
         guardianNote = form.guardianIsPrimary
-          ? `${form.newGuardianName} was added as the primary contact.`
-          : `${form.newGuardianName} was added as a guardian.`
+          ? t('admin.students.toast.primaryAdded', { name: form.newGuardianName })
+          : t('admin.students.toast.guardianAdded', { name: form.newGuardianName })
       }
 
       let inviteNote: string | undefined
@@ -422,16 +427,16 @@ export default function AdminStudents() {
           const outcome = await sendInvitation({ schoolId, role: 'guardian', personId: guardianId })
           inviteNote =
             outcome.status === 'sent'
-              ? `Invitation sent to ${outcome.email ?? guardianEmail ?? 'their email'}.`
-              : `Not invited: ${outcome.message ?? 'the invitation could not be sent.'}`
+              ? t('admin.students.toast.invitationSent', { email: outcome.email ?? guardianEmail ?? '' })
+              : t('admin.students.toast.notInvited', { message: outcome.message ?? t('common.tryAgain') })
         } catch (inviteError: unknown) {
-          inviteNote = `Not invited: ${errorMessage(inviteError)}`
+          inviteNote = t('admin.students.toast.notInvited', { message: errorMessage(inviteError) })
         }
       }
 
       showToast({
         type: 'success',
-        title: editing ? 'Student updated' : 'Student added',
+        title: editing ? t('admin.students.toast.updated') : t('admin.students.toast.added'),
         description: [guardianNote, inviteNote].filter(Boolean).join(' ') || undefined,
       })
       setModalOpen(false)
@@ -439,7 +444,7 @@ export default function AdminStudents() {
     } catch (err: unknown) {
       showToast({
         type: 'error',
-        title: editing ? 'Student not updated' : 'Student not added',
+        title: editing ? t('admin.students.toast.notUpdated') : t('admin.students.toast.notAdded'),
         description: errorMessage(err),
       })
     } finally {
@@ -451,12 +456,12 @@ export default function AdminStudents() {
     if (!deleteTarget || !schoolId) return
     try {
       await deleteStudent(schoolId, deleteTarget.id)
-      showToast({ type: 'success', title: 'Student removed' })
+      showToast({ type: 'success', title: t('admin.students.toast.removed') })
       reload()
     } catch (err: unknown) {
       showToast({
         type: 'error',
-        title: 'Student not removed',
+        title: t('admin.students.toast.notRemoved'),
         description: errorMessage(err),
       })
     } finally {
@@ -467,31 +472,31 @@ export default function AdminStudents() {
   return (
     <div>
       <PageHeader
-        title="Students"
-        description="Every student enrolled at your school."
+        title={t('admin.students.title')}
+        description={t('admin.students.description')}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setBulkOpen(true)} icon={<FileSpreadsheet className="h-4 w-4" />}>
-              Bulk Import
+              {t('admin.students.bulkImport')}
             </Button>
-            <Button onClick={openAdd} icon={<Plus className="h-4 w-4" />}>Add Student</Button>
+            <Button onClick={openAdd} icon={<Plus className="h-4 w-4" />}>{t('admin.students.add')}</Button>
           </div>
         }
       />
 
       <ResourceGate
         state={state}
-        empty={{ icon: Users, title: 'No students yet', description: 'Add your first student to get started.' }}
-        deniedHint="Student records are available to school staff."
+        empty={{ icon: Users, title: t('admin.students.empty'), description: t('admin.students.emptyDescription') }}
+        deniedHint={t('admin.students.denied')}
       >
         {() => (
           <>
             {!isLoading && !error && (
               <AdminSectionInsights
                 metrics={[
-                  { label: 'Students', value: students.length },
+                  { label: t('admin.students.title'), value: students.length },
                   {
-                    label: 'New this month',
+                    label: t('admin.students.metric.newThisMonth'),
                     value: enrollmentTrend.values.at(-1) ?? 0,
                     change: enrollmentTrendChange === null ? undefined : {
                       value: `${Math.abs(enrollmentTrendChange).toFixed(1)}%`,
@@ -499,19 +504,19 @@ export default function AdminStudents() {
                       positive: enrollmentTrendChange >= 0,
                     },
                   },
-                  { label: 'Classes', value: classes.length },
+                  { label: t('admin.students.metric.classes'), value: classes.length },
                 ]}
                 charts={[
                   {
                     kind: 'line',
-                    title: 'New student enrollment',
+                    title: t('admin.students.chart.enrollment'),
                     categories: enrollmentTrend.labels,
-                    series: [{ label: 'Enrolled', values: enrollmentTrend.values }],
+                    series: [{ label: t('admin.students.chart.enrolled'), values: enrollmentTrend.values }],
                   },
                 ]}
                 insight={enrollmentTrendChange === null
-                  ? 'Monthly enrollment counts use student enrollment dates; a percentage comparison is unavailable when last month had no new students.'
-                  : `${Math.abs(enrollmentTrendChange).toFixed(1)}% ${enrollmentTrendChange >= 0 ? 'more' : 'fewer'} new enrollments than last month.`}
+                  ? t('admin.students.chart.insight')
+                  : t(enrollmentTrendChange >= 0 ? 'admin.students.chart.more' : 'admin.students.chart.fewer', { percent: Math.abs(enrollmentTrendChange).toFixed(1) })}
               />
             )}
 
@@ -519,7 +524,7 @@ export default function AdminStudents() {
               <SearchInput 
                 value={search} 
                 onChange={setSearch} 
-                placeholder="Search by name or admission number…" 
+                placeholder={t('admin.students.search')}
                 className="sm:w-80" 
               />
               <Select 
@@ -527,7 +532,7 @@ export default function AdminStudents() {
                 onChange={(e) => setClassFilter(e.target.value)} 
                 className="sm:w-52"
               >
-                <option value="all">All Classes</option>
+                <option value="all">{t('admin.students.allClasses')}</option>
                 {classes.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -538,7 +543,7 @@ export default function AdminStudents() {
 
             {/* TABLE OR EMPTY STATE */}
             {filtered.length === 0 ? (
-              <EmptyState icon={Users} title="No students found" description="Try adjusting your search or filters." />
+              <EmptyState icon={Users} title={t('admin.students.noResults')} description={t('admin.students.noResultsDescription')} />
             ) : (
               <>
                 {/* TABLE */}
@@ -550,23 +555,23 @@ export default function AdminStudents() {
                           className="px-5 py-3.5 font-medium cursor-pointer hover:text-ink dark:hover:text-white"
                           onClick={() => handleSort('name')}
                         >
-                          Student {getSortIcon('name')}
+                          {t('admin.students.table.student')} {getSortIcon('name')}
                         </th>
                         <th 
                           className="px-5 py-3.5 font-medium cursor-pointer hover:text-ink dark:hover:text-white"
                           onClick={() => handleSort('admissionNo')}
                         >
-                          Admission No. {getSortIcon('admissionNo')}
+                          {t('admin.students.table.admissionNo')} {getSortIcon('admissionNo')}
                         </th>
-                        <th className="px-5 py-3.5 font-medium">Class</th>
-                        <th className="px-5 py-3.5 font-medium">Guardians</th>
+                        <th className="px-5 py-3.5 font-medium">{t('admin.students.table.class')}</th>
+                        <th className="px-5 py-3.5 font-medium">{t('admin.students.table.guardians')}</th>
                         <th 
                           className="px-5 py-3.5 font-medium cursor-pointer hover:text-ink dark:hover:text-white"
                           onClick={() => handleSort('status')}
                         >
-                          Status {getSortIcon('status')}
+                          {t('admin.students.table.status')} {getSortIcon('status')}
                         </th>
-                        <th className="px-5 py-3.5 text-right font-medium">Actions</th>
+                        <th className="px-5 py-3.5 text-right font-medium">{t('admin.students.table.actions')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -585,16 +590,16 @@ export default function AdminStudents() {
                           </td>
                           <td className="px-5 py-3.5 text-graphite">{s.admissionNo}</td>
                           <td className="px-5 py-3.5 text-graphite">{s.className ?? '—'}</td>
-                          <td className="px-5 py-3.5 text-graphite">{guardianDisplay(s.guardians)}</td>
+                          <td className="px-5 py-3.5 text-graphite">{guardianDisplay(s.guardians, t)}</td>
                           <td className="px-5 py-3.5">
-                            <Badge tone={s.status === 'active' ? 'success' : 'neutral'}>{s.status}</Badge>
+                            <Badge tone={s.status === 'active' ? 'success' : 'neutral'}>{['active', 'inactive', 'graduated', 'transferred'].includes(s.status) ? t(`admin.students.status.${s.status}`) : s.status}</Badge>
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => openEdit(s)}
-                                aria-label={`Edit ${s.name}`}
+                                aria-label={t('admin.students.editLabel', { name: s.name })}
                                 className="rounded-lg p-2 text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white transition-colors"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -602,7 +607,7 @@ export default function AdminStudents() {
                               <button
                                 type="button"
                                 onClick={() => setDeleteTarget(s)}
-                                aria-label={`Remove ${s.name}`}
+                                aria-label={t('admin.students.removeLabel', { name: s.name })}
                                 className="rounded-lg p-2 text-graphite hover:bg-red-500/10 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -619,7 +624,11 @@ export default function AdminStudents() {
                 {totalPages > 1 && (
                   <div className="mt-5 flex items-center justify-between">
                     <p className="text-sm text-graphite">
-                      Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, sorted.length)} of {sorted.length} students
+                      {t('admin.students.pagination', {
+                        start: (currentPage - 1) * ITEMS_PER_PAGE + 1,
+                        end: Math.min(currentPage * ITEMS_PER_PAGE, sorted.length),
+                        count: sorted.length,
+                      })}
                     </p>
                     <div className="flex gap-2">
                       <Button
@@ -628,7 +637,7 @@ export default function AdminStudents() {
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
                       >
-                        Previous
+                        {t('admin.students.previous')}
                       </Button>
                       <Button
                         variant="outline"
@@ -636,7 +645,7 @@ export default function AdminStudents() {
                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                         disabled={currentPage === totalPages}
                       >
-                        Next
+                        {t('admin.students.next')}
                       </Button>
                     </div>
                   </div>
@@ -653,22 +662,22 @@ export default function AdminStudents() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? 'Edit Student' : 'Add Student'}
+        title={editing ? t('admin.students.edit') : t('admin.students.modalAdd')}
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
-              Cancel
+              {t('admin.students.cancel')}
             </Button>
             <Button onClick={handleSubmit} disabled={isSaving}>
-              {isSaving ? 'Saving…' : editing ? 'Save Changes' : 'Add Student'}
+              {isSaving ? t('admin.students.saving') : editing ? t('admin.students.saveChanges') : t('admin.students.add')}
             </Button>
           </>
         }
       >
         {isSaving ? (
           <RequestProcessing 
-            title={editing ? 'Updating student' : 'Creating student'} 
-            description="Your student details are being saved securely." 
+            title={editing ? t('admin.students.updating') : t('admin.students.creating')}
+            description={t('admin.students.savingDescription')}
           />
         ) : (
           <div className="space-y-4">
@@ -688,7 +697,7 @@ export default function AdminStudents() {
                       type="file"
                       accept={IMAGE_ACCEPT}
                       className="hidden"
-                      aria-label="Choose student photo"
+                      aria-label={t('admin.students.choosePhoto')}
                       onChange={handlePhotoChosen}
                     />
                     <div className="flex flex-wrap gap-2 mb-2">
@@ -699,15 +708,15 @@ export default function AdminStudents() {
                         onClick={() => photoInput.current?.click()}
                         icon={<Upload className="h-4 w-4" />}
                       >
-                        {photoBusy ? 'Working…' : editing.photoPath ? 'Replace photo' : 'Upload photo'}
+                        {photoBusy ? t('admin.students.working') : editing.photoPath ? t('admin.students.replacePhoto') : t('admin.students.uploadPhoto')}
                       </Button>
                       {editing.photoPath && (
                         <Button variant="ghost" size="sm" disabled={photoBusy} onClick={handlePhotoRemoved}>
-                          Remove
+                          {t('admin.students.remove')}
                         </Button>
                       )}
                     </div>
-                    <p className="text-xs text-graphite">PNG, JPEG or WebP, up to 2 MB. Saved immediately.</p>
+                    <p className="text-xs text-graphite">{t('admin.students.photoHint')}</p>
                   </div>
                 </div>
               </div>
@@ -715,17 +724,17 @@ export default function AdminStudents() {
 
             {/* STUDENT BASIC INFO */}
             <fieldset>
-              <legend className="text-sm font-medium text-ink dark:text-white mb-3">Student Information</legend>
+              <legend className="text-sm font-medium text-ink dark:text-white mb-3">{t('admin.students.information')}</legend>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input 
-                  label="Full name" 
+                  label={t('admin.students.fullName')}
                   required 
                   value={form.name} 
                   onChange={(e) => setForm({ ...form, name: e.target.value })} 
                   error={errors.name} 
                 />
                 <Input
-                  label="Admission number"
+                  label={t('admin.students.admissionNumber')}
                   required
                   value={form.admissionNo}
                   onChange={(e) => setForm({ ...form, admissionNo: e.target.value })}
@@ -735,12 +744,12 @@ export default function AdminStudents() {
 
               <div className="grid gap-4 sm:grid-cols-2 mt-4">
                 <Select 
-                  label="Class" 
+                  label={t('admin.students.table.class')}
                   value={form.classId} 
                   onChange={(e) => setForm({ ...form, classId: e.target.value })} 
                   error={errors.classId}
                 >
-                  <option value="">Not enrolled</option>
+                  <option value="">{t('admin.students.notEnrolled')}</option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
@@ -748,13 +757,13 @@ export default function AdminStudents() {
                   ))}
                 </Select>
                 <Select 
-                  label="Status" 
+                  label={t('admin.students.status')}
                   value={form.status} 
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                 >
                   {STUDENT_STATUSES.map((s) => (
                     <option key={s.value} value={s.value}>
-                      {s.label}
+                      {t(`admin.students.status.${s.value}`)}
                     </option>
                   ))}
                   {!STUDENT_STATUSES.some((s) => s.value === form.status) && (
@@ -765,16 +774,16 @@ export default function AdminStudents() {
 
               <div className="grid gap-4 sm:grid-cols-2 mt-4">
                 <Select 
-                  label="Gender" 
+                  label={t('admin.students.gender')}
                   value={form.gender} 
                   onChange={(e) => setForm({ ...form, gender: e.target.value })}
                 >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
+                  <option value="male">{t('admin.students.gender.male')}</option>
+                  <option value="female">{t('admin.students.gender.female')}</option>
+                  <option value="other">{t('admin.students.gender.other')}</option>
                 </Select>
                 <Input
-                  label="Date of birth"
+                  label={t('admin.students.dateOfBirth')}
                   type="date"
                   value={form.dateOfBirth}
                   onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
@@ -785,27 +794,27 @@ export default function AdminStudents() {
 
             {/* GUARDIAN SECTION - SIMPLIFIED */}
             <fieldset>
-              <legend className="text-sm font-medium text-ink dark:text-white mb-3">Guardian (Optional)</legend>
-              <p className="text-xs text-graphite mb-3">You can add a guardian now or skip and add them later.</p>
+              <legend className="text-sm font-medium text-ink dark:text-white mb-3">{t('admin.students.guardianOptional')}</legend>
+              <p className="text-xs text-graphite mb-3">{t('admin.students.guardianHint')}</p>
 
               <Select
-                label="Guardian action"
+                label={t('admin.students.guardianAction')}
                 value={guardianMode}
                 onChange={(e) => {
                   setGuardianMode(e.target.value as 'existing' | 'new' | 'none')
                   setErrors({ ...errors, guardianId: undefined, guardianRelationship: undefined })
                 }}
               >
-                <option value="none">Skip for now</option>
-                <option value="existing">Link existing guardian</option>
-                <option value="new">Add new guardian</option>
+                <option value="none">{t('admin.students.skip')}</option>
+                <option value="existing">{t('admin.students.linkExistingGuardian')}</option>
+                <option value="new">{t('admin.students.addNewGuardian')}</option>
               </Select>
 
               {/* EXISTING GUARDIAN PATH */}
               {guardianMode === 'existing' && (
                 <div className="mt-4 space-y-3">
                   <Select
-                    label="Select guardian"
+                    label={t('admin.students.selectGuardian')}
                     value={form.guardianId}
                     onChange={(e) => {
                       const guardianId = e.target.value
@@ -815,7 +824,7 @@ export default function AdminStudents() {
                     }}
                     error={errors.guardianId}
                   >
-                    <option value="">Select a guardian…</option>
+                    <option value="">{t('admin.students.selectGuardianOption')}</option>
                     {guardians.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.full_name} ({g.phone})
@@ -825,15 +834,15 @@ export default function AdminStudents() {
 
                   {form.guardianId && (
                     <Select
-                      label="Relationship to student"
+                      label={t('admin.students.relationship')}
                       value={form.guardianRelationship}
                       onChange={(e) => setForm({ ...form, guardianRelationship: e.target.value as GuardianRelationship | '' })}
                       error={errors.guardianRelationship}
                     >
-                      <option value="">Select relationship…</option>
+                      <option value="">{t('admin.students.selectRelationship')}</option>
                       {GUARDIAN_RELATIONSHIPS.map((r) => (
                         <option key={r} value={r}>
-                          {r}
+                          {t(`admin.students.relationship.${r.toLowerCase()}`)}
                         </option>
                       ))}
                     </Select>
@@ -848,13 +857,13 @@ export default function AdminStudents() {
                         onChange={(e) => setForm({ ...form, guardianIsPrimary: e.target.checked })}
                       />
                       <span className="text-sm text-ink dark:text-white">
-                        Primary contact
+                        {t('admin.students.primaryContact')}
                         <span className="block text-xs text-graphite mt-0.5">
                           {currentPrimaryName
                             ? form.guardianIsPrimary
-                              ? `${currentPrimaryName} will stop being the primary contact.`
-                              : `${currentPrimaryName} stays the primary contact.`
-                            : 'This guardian will be the first contact for emergencies.'}
+                              ? t('admin.students.primaryWillChange', { name: currentPrimaryName })
+                              : t('admin.students.primaryWillStay', { name: currentPrimaryName })
+                            : t('admin.students.primaryEmergency')}
                         </span>
                       </span>
                     </label>
@@ -870,7 +879,7 @@ export default function AdminStudents() {
 
                   {editing && editing.guardians.length > 0 && (
                     <p className="text-xs text-graphite bg-ink/5 dark:bg-white/5 p-3 rounded">
-                      <strong>Already linked:</strong> {editing.guardians.map((g) => `${guardianLabel(g)}${g.isPrimary ? ' (primary)' : ''}`).join(', ')}
+                      <strong>{t('admin.students.alreadyLinked')}</strong> {editing.guardians.map((g) => `${guardianLabel(g, t)}${g.isPrimary ? ` (${t('admin.students.primaryShort')})` : ''}`).join(', ')}
                     </p>
                   )}
                 </div>
@@ -880,39 +889,39 @@ export default function AdminStudents() {
               {guardianMode === 'new' && (
                 <div className="mt-4 space-y-3">
                   <Input
-                    label="Guardian full name"
-                    placeholder="E.g., Amina Yusuf"
+                    label={t('admin.students.guardianFullName')}
+                    placeholder={t('admin.students.exampleName')}
                     value={form.newGuardianName}
                     onChange={(e) => setForm({ ...form, newGuardianName: e.target.value })}
                     error={errors.newGuardianName}
                   />
 
                   <Input
-                    label="Phone number"
-                    placeholder="E.g., +252 61 123 4567"
+                    label={t('admin.students.phoneNumber')}
+                    placeholder={t('admin.students.examplePhone')}
                     value={form.newGuardianPhone}
                     onChange={(e) => setForm({ ...form, newGuardianPhone: e.target.value })}
                     error={errors.newGuardianPhone}
                   />
 
                   <Input
-                    label="Email (optional)"
+                    label={t('admin.students.emailOptional')}
                     type="email"
-                    placeholder="E.g., amina@email.com"
+                    placeholder={t('admin.students.exampleEmail')}
                     value={form.newGuardianEmail}
                     onChange={(e) => setForm({ ...form, newGuardianEmail: e.target.value })}
                   />
 
                   <Select
-                    label="Relationship to student"
+                    label={t('admin.students.relationship')}
                     value={form.guardianRelationship}
                     onChange={(e) => setForm({ ...form, guardianRelationship: e.target.value as GuardianRelationship | '' })}
                     error={errors.guardianRelationship}
                   >
-                    <option value="">Select relationship…</option>
+                    <option value="">{t('admin.students.selectRelationship')}</option>
                     {GUARDIAN_RELATIONSHIPS.map((r) => (
                       <option key={r} value={r}>
-                        {r}
+                        {t(`admin.students.relationship.${r.toLowerCase()}`)}
                       </option>
                     ))}
                   </Select>
@@ -925,9 +934,9 @@ export default function AdminStudents() {
                       onChange={(e) => setForm({ ...form, guardianIsPrimary: e.target.checked })}
                     />
                     <span className="text-sm text-ink dark:text-white">
-                      Primary contact
+                      {t('admin.students.primaryContact')}
                       <span className="block text-xs text-graphite mt-0.5">
-                        This guardian will be the first contact for emergencies.
+                        {t('admin.students.primaryEmergency')}
                       </span>
                     </span>
                   </label>
@@ -949,9 +958,9 @@ export default function AdminStudents() {
       {/* DELETE CONFIRMATION */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title={`Remove ${deleteTarget?.name}?`}
-        description="A student with fee payments on record cannot be removed: payment history must be kept for the school's financial records. Set their status to Inactive or Transferred instead."
-        confirmLabel="Remove Student"
+        title={t('admin.students.deleteTitle', { name: deleteTarget?.name ?? '' })}
+        description={t('admin.students.deleteDescription')}
+        confirmLabel={t('admin.students.confirmRemove')}
         danger
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
@@ -971,6 +980,7 @@ function GuardianInviteOption({
   inviteGuardian: boolean
   onInviteChange: (invited: boolean) => void
 }) {
+  const { t } = useLanguage()
   const email = guardian?.email ?? ''
   const canInvite = email.length > 0 && isValidEmail(email)
 
@@ -985,12 +995,12 @@ function GuardianInviteOption({
       />
       <span className="text-sm">
         <span className={canInvite ? 'font-medium text-ink dark:text-white' : 'text-graphite'}>
-          Invite guardian to Nom Cloud
+          {t('admin.students.inviteGuardian')}
         </span>
         <span className="block text-xs text-graphite mt-0.5">
           {canInvite
-            ? `They'll receive a sign-up link at ${email}`
-            : 'No email address on file. Update the guardian profile to enable invites.'}
+            ? t('admin.students.inviteSent', { email })
+            : t('admin.students.inviteNoEmail')}
         </span>
       </span>
     </label>
@@ -1006,6 +1016,7 @@ function GuardianInviteOptionNew({
   inviteGuardian: boolean
   onInviteChange: (invited: boolean) => void
 }) {
+  const { t } = useLanguage()
   const canInvite = isValidEmail(email)
 
   return (
@@ -1019,12 +1030,12 @@ function GuardianInviteOptionNew({
       />
       <span className="text-sm">
         <span className={canInvite ? 'font-medium text-ink dark:text-white' : 'text-graphite'}>
-          Invite guardian to Nom Cloud
+          {t('admin.students.inviteGuardian')}
         </span>
         <span className="block text-xs text-graphite mt-0.5">
           {canInvite
             ? `They'll receive a sign-up link at ${email}`
-            : 'Add a valid email address to enable invites.'}
+            : t('admin.students.inviteAddEmail')}
         </span>
       </span>
     </label>

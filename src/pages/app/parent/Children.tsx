@@ -4,6 +4,7 @@ import { Users, CalendarCheck, BookOpen, Wallet } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import Avatar from '@/components/ui/Avatar'
 import Badge from '@/components/ui/Badge'
@@ -41,6 +42,7 @@ interface ChildSummaryStats {
 }
 
 export default function ParentChildren() {
+  const { t } = useLanguage()
   const { school } = useAuth()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
   const navigate = useNavigate()
@@ -89,7 +91,7 @@ export default function ParentChildren() {
   if (children.length === 0) {
     return (
       <div>
-        <PageHeader title="My Children" description="Children linked to your account." />
+        <PageHeader title={t('parent.children.title')} description={t('parent.children.description')} />
         <ResourceGate
           state={state}
           empty={{
@@ -108,7 +110,7 @@ export default function ParentChildren() {
   return (
     <div>
       <PageHeader
-        title="My Children"
+        title={t('parent.children.title')}
         description={`${children.length} child${children.length === 1 ? '' : 'ren'} linked to your account`}
       />
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -126,7 +128,7 @@ export default function ParentChildren() {
                     </p>
                   </div>
                 </div>
-                {selectedChild?.id === child.id && <Badge tone="brand">Selected</Badge>}
+                {selectedChild?.id === child.id && <Badge tone="brand">{t('parent.children.selected')}</Badge>}
               </div>
               <div className="mt-4 grid grid-cols-3 gap-1.5 text-center sm:gap-2">
                 <div className="rounded-xl bg-mist p-2.5 dark:bg-white/5">

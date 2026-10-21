@@ -5,7 +5,7 @@ interface LanguageContextValue {
   lang: Lang
   setLang: (lang: Lang) => void
   dir: 'ltr' | 'rtl'
-  t: (key: string) => string
+  t: (key: string, values?: Record<string, string | number>) => string
 }
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined)
@@ -30,7 +30,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const setLang = (l: Lang) => setLangState(l)
 
-  const t = (key: string): string => translations[lang][key] ?? translations.en[key] ?? key
+  const t = (key: string, values?: Record<string, string | number>): string => {
+    const message = translations[lang][key] ?? translations.en[key] ?? key
+    return values
+      ? message.replace(/\{(\w+)\}/g, (placeholder, name: string) => String(values[name] ?? placeholder))
+      : message
+  }
 
   return <LanguageContext.Provider value={{ lang, setLang, dir, t }}>{children}</LanguageContext.Provider>
 }

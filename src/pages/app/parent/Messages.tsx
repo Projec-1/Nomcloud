@@ -1,5 +1,6 @@
 import { ChatText as MessageSquare } from '@phosphor-icons/react'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import MessagesPanel from '@/components/dashboard/MessagesPanel'
 import { useMessageThreads } from '@/hooks/useCommunications'
@@ -16,11 +17,12 @@ import { useMessageThreads } from '@/hooks/useCommunications'
 // consistently, not a parent-specific restriction.
 
 export default function ParentMessages() {
+  const { t } = useLanguage()
   const { state, schoolId, userId, canStartThread, reload } = useMessageThreads()
 
   return (
     <div>
-      <PageHeader title="Messages" description="Conversations with your school." />
+      <PageHeader title={t('parent.messages.title')} description={t('parent.messages.description')} />
       <ResourceGate
         state={state}
         empty={{ icon: MessageSquare, title: 'No conversations yet' }}

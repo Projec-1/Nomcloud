@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarCheck, BookOpen, Wallet, ClipboardText as ClipboardCheck, ArrowRight, Users } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
+import { useLanguage } from '@/context/LanguageContext'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useAnnouncements } from '@/hooks/useCommunications'
 import PageHeader from '@/components/ui/PageHeader'
@@ -29,6 +30,7 @@ import { fetchChildFeeRecords } from '@/services/financeService'
 
 export default function ParentDashboard() {
   const { profile, school } = useAuth()
+  const { t } = useLanguage()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
   const { announcements } = useAnnouncements()
 
@@ -81,17 +83,17 @@ export default function ParentDashboard() {
     return (
       <div>
         <PageHeader
-          title={`Welcome, ${profile?.full_name.split(' ')[0] ?? ''}`}
-          description="Your children's information will appear here."
+          title={t('parent.dashboard.welcome', { name: profile?.full_name.split(' ')[0] ?? '' })}
+          description={t('parent.dashboard.emptyDescription')}
         />
         <ResourceGate
           state={state}
           empty={{
             icon: Users,
-            title: 'No children linked to your account yet',
-            description: "Contact your school administrator to have your child's record linked to this account.",
+            title: t('parent.dashboard.noChildren'),
+            description: t('parent.dashboard.contactSchool'),
           }}
-          deniedHint="Child records are available to a linked parent or guardian."
+          deniedHint={t('parent.dashboard.access')}
         >
           {() => null}
         </ResourceGate>
@@ -104,8 +106,11 @@ export default function ParentDashboard() {
   return (
     <div>
       <PageHeader
-        title={`Welcome, ${profile?.full_name.split(' ')[0] ?? ''}`}
-        description={`Here's how ${selectedChild.name.split(' ')[0]} is doing at ${selectedChild.className ?? 'school'}.`}
+        title={t('parent.dashboard.welcome', { name: profile?.full_name.split(' ')[0] ?? '' })}
+        description={t('parent.dashboard.childSummary', {
+          name: selectedChild.name.split(' ')[0],
+          school: selectedChild.className ?? t('common.school'),
+        })}
         actions={
           <ChildSwitcher
             children={children}
@@ -118,46 +123,48 @@ export default function ParentDashboard() {
 
       <div className="parent-dashboard__stats grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Attendance"
+          label={t('parent.dashboard.attendance')}
           value={summary.attendanceRate === null ? '—' : `${summary.attendanceRate}%`}
           icon={CalendarCheck}
           tint="#34A853"
         />
         <StatCard
-          label="Average Grade"
+          label={t('parent.dashboard.averageGrade')}
           value={summary.averageGrade === null ? '—' : `${summary.averageGrade}%`}
           icon={BookOpen}
           tint="#0071E3"
         />
         <StatCard
-          label="Fee Balance"
+          label={t('parent.dashboard.feeBalance')}
           value={formatMoney(summary.balance, currency)}
           icon={Wallet}
           tint={summary.balance > 0 ? '#F59E0B' : '#34A853'}
         />
-        <StatCard label="Pending Homework" value={summary.pending.length} icon={ClipboardCheck} tint="#FF5A1F" />
+        <StatCard label={t('parent.dashboard.pendingHomework')} value={summary.pending.length} icon={ClipboardCheck} tint="#FF5A1F" />
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <div className="card p-6 lg:col-span-2">
           <div className="mb-5 flex items-center justify-between">
-            <h3 className="font-semibold text-ink dark:text-white">Recent Announcements</h3>
+            <h3 className="font-semibold text-ink dark:text-white">{t('parent.dashboard.recentAnnouncements')}</h3>
             <Link
               to="/app/parent/announcements"
               className="link-underline flex items-center gap-1 text-xs font-medium text-accent"
             >
-              View all <ArrowRight className="h-3 w-3" />
+              {t('parent.dashboard.viewAll')} <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
           <div className="space-y-4">
             {recent.length === 0 ? (
-              <p className="text-sm text-graphite">No announcements yet.</p>
+              <p className="text-sm text-graphite">{t('parent.dashboard.noAnnouncements')}</p>
             ) : (
               recent.map((a) => (
                 <div key={a.id} className="border-b border-ink/5 pb-4 last:border-b-0 last:pb-0 dark:border-white/10">
                   <div className="mb-1.5 flex items-center justify-between">
                     <Badge tone={a.priority === 'urgent' ? 'danger' : a.priority === 'important' ? 'warning' : 'neutral'}>
-                      {a.priority}
+                      {['urgent', 'important', 'normal'].includes(a.priority)
+                        ? t(`common.priority.${a.priority}`)
+                        : a.priority}
                     </Badge>
                     <span className="text-[11px] text-graphite">{formatDate(a.publishedAt ?? a.createdAt)}</span>
                   </div>
@@ -169,16 +176,16 @@ export default function ParentDashboard() {
           </div>
         </div>
         <div className="card p-6">
-          <h3 className="mb-5 font-semibold text-ink dark:text-white">Upcoming Homework</h3>
+          <h3 className="mb-5 font-semibold text-ink dark:text-white">{t('parent.dashboard.upcomingHomework')}</h3>
           <div className="space-y-4">
             {summary.pending.slice(0, 4).map((h) => (
               <div key={h.id} className="border-b border-ink/5 pb-4 last:border-b-0 last:pb-0 dark:border-white/10">
                 <p className="text-sm font-medium text-ink dark:text-white">{h.title}</p>
-                <p className="text-xs text-graphite">Due {formatDate(h.dueDate)}</p>
+                <p className="text-xs text-graphite">{t('parent.dashboard.due', { date: formatDate(h.dueDate) })}</p>
               </div>
             ))}
             {summary.pending.length === 0 && (
-              <p className="text-sm text-graphite">All caught up — no pending homework.</p>
+              <p className="text-sm text-graphite">{t('parent.dashboard.caughtUp')}</p>
             )}
           </div>
         </div>

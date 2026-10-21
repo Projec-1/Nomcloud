@@ -54,7 +54,7 @@ export default function ChildSwitcher({ children, selectedId, onSelect, classLab
         <ChevronDown className="h-4 w-4 text-graphite" />
       </button>
       {open && (
-        <div className="absolute right-0 top-14 z-40 w-64 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
+        <div className="interaction-menu absolute right-0 top-14 z-40 w-64 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
           {children.map((child) => (
             <button
               key={child.id}
@@ -62,6 +62,7 @@ export default function ChildSwitcher({ children, selectedId, onSelect, classLab
                 onSelect(child.id)
                 setOpen(false)
               }}
+              aria-pressed={child.id === selected.id}
               className={cn(
                 'flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-ink/[0.03] dark:hover:bg-white/5',
                 child.id === selected.id && 'bg-accent/5',

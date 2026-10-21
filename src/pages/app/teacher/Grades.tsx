@@ -1,6 +1,7 @@
 import { ClipboardText as ClipboardList } from '@phosphor-icons/react'
 import ResourceGate from '@/components/ui/ResourceGate'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import GradeBook from '@/components/dashboard/GradeBook'
 import { useRecordableClasses } from '@/hooks/useRecordableClasses'
 
@@ -12,11 +13,12 @@ import { useRecordableClasses } from '@/hooks/useRecordableClasses'
 // teacher does not teach is never offered rather than being refused on save.
 
 export default function TeacherGrades() {
+  const { t } = useLanguage()
   const { state, schoolId } = useRecordableClasses()
 
   return (
     <div>
-      <PageHeader title="Grades" description="Record assessment scores for the subjects you teach." />
+      <PageHeader title={t('teacher.grades.title')} description={t('teacher.grades.description')} />
       <ResourceGate
         state={state}
         empty={{

@@ -1,5 +1,6 @@
 import { Megaphone } from '@phosphor-icons/react'
 import PageHeader from '@/components/ui/PageHeader'
+import { useLanguage } from '@/context/LanguageContext'
 import ResourceGate from '@/components/ui/ResourceGate'
 import AnnouncementBoard from '@/components/dashboard/AnnouncementBoard'
 import { useAnnouncements } from '@/hooks/useCommunications'
@@ -21,6 +22,7 @@ import { useSelectedChild } from '@/hooks/useSelectedChild'
 // arrives.
 
 export default function ParentAnnouncements() {
+  const { t } = useLanguage()
   const { state, schoolId, reload } = useAnnouncements()
   const { selectedChild } = useSelectedChild()
 
@@ -33,7 +35,7 @@ export default function ParentAnnouncements() {
 
   return (
     <div>
-      <PageHeader title="Announcements" description="News and updates from your school." />
+      <PageHeader title={t('parent.announcements.title')} description={t('parent.announcements.description')} />
       <ResourceGate
         state={state}
         empty={{

@@ -38,6 +38,7 @@ export interface PlatformOperatorRecord {
   email: string
   grantedAt: string
   revokedAt: string | null
+  team: string | null
 }
 
 export interface PlatformContactMessage {
@@ -263,7 +264,7 @@ export async function updatePlatformSchoolStatus(
 export async function fetchPlatformOperators(): Promise<PlatformOperatorRecord[]> {
   const { data, error } = await supabase
     .from('platform_admins')
-    .select('id, user_id, granted_at, revoked_at, profiles!platform_admins_user_id_fkey(full_name, email)')
+    .select('id, user_id, granted_at, revoked_at, team, profiles!platform_admins_user_id_fkey(full_name, email)')
     .order('granted_at', { ascending: false })
   if (error) throw error
   return ((data ?? []) as {
@@ -271,6 +272,7 @@ export async function fetchPlatformOperators(): Promise<PlatformOperatorRecord[]
     user_id: string
     granted_at: string
     revoked_at: string | null
+    team: string | null
     profiles: { full_name: string; email: string }[] | { full_name: string; email: string } | null
   }[]).map((row) => ({
     id: row.id,
@@ -279,5 +281,6 @@ export async function fetchPlatformOperators(): Promise<PlatformOperatorRecord[]
     email: (Array.isArray(row.profiles) ? row.profiles[0]?.email : row.profiles?.email) ?? '',
     grantedAt: row.granted_at,
     revokedAt: row.revoked_at,
+    team: row.team,
   }))
 }
