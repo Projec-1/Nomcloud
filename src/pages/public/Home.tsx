@@ -222,7 +222,7 @@ export default function Home() {
               ))}
             </ul>
             <div className="mt-8 overflow-hidden rounded-2xl shadow-soft">
-              <img src="/teacher-students.png" alt="Students celebrating together with a trophy" className="h-40 w-full object-cover" loading="lazy" />
+              <img src="/teacher-students.png" alt="Students celebrating together with a trophy" className="aspect-[2/1] w-full scale-[1.04] object-cover object-[center_42%]" loading="lazy" />
             </div>
           </Reveal>
           <Reveal delay={150}>

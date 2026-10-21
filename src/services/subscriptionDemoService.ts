@@ -54,7 +54,17 @@ function fixedPlanPrice(planCode: FixedPlanCode) {
 }
 
 function amountFor(planCode: FixedPlanCode, billingInterval: DemoBillingInterval) {
-  return fixedPlanPrice(planCode) * (billingInterval === 'annual' ? 12 : 1)
+  const plan = subscriptionPlans.find((candidate) => candidate.code === planCode)
+  if (!plan || plan.monthlyPrice === null || plan.annualPrice === null) {
+    throw new Error('The selected demo plan is unavailable.')
+  }
+  return billingInterval === 'annual' ? plan.annualPrice : plan.monthlyPrice
+}
+
+function isValidTransactionAmount(amount: number, planCode: FixedPlanCode, billingInterval: DemoBillingInterval) {
+  if (amount === amountFor(planCode, billingInterval)) return true
+  // Keep demo histories created before annual discounts were introduced readable.
+  return billingInterval === 'annual' && amount === fixedPlanPrice(planCode) * 12
 }
 
 function isFixedPlanCode(value: unknown): value is FixedPlanCode {
@@ -91,7 +101,7 @@ function isValidV2State(value: unknown, schoolId: string): value is DemoBillingS
       typeof transaction.id !== 'string' || typeof transaction.attemptId !== 'string' ||
       typeof transaction.reference !== 'string' || !transaction.reference.startsWith('DEMO-') ||
       !isFixedPlanCode(transaction.planCode) || !isBillingInterval(transaction.billingInterval) ||
-      transaction.amount !== amountFor(transaction.planCode, transaction.billingInterval) ||
+      !isValidTransactionAmount(transaction.amount, transaction.planCode, transaction.billingInterval) ||
       !isDemoPaymentOutcome(transaction.outcome) ||
       (transaction.paymentMethod !== undefined && !isDemoPaymentMethod(transaction.paymentMethod)) ||
       (transaction.transferReference !== undefined && typeof transaction.transferReference !== 'string') ||

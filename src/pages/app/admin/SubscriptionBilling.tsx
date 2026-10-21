@@ -76,8 +76,17 @@ function formatUSD(amount: number) {
   }).format(amount)
 }
 
-function intervalAmount(monthlyPrice: number, interval: DemoBillingInterval) {
-  return monthlyPrice * (interval === 'annual' ? 12 : 1)
+function formatUSDCompact(amount: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+function intervalAmount(plan: (typeof subscriptionPlans)[number], interval: DemoBillingInterval) {
+  if (plan.monthlyPrice === null) return 0
+  return interval === 'annual' ? plan.annualPrice : plan.monthlyPrice
 }
 
 function intervalExpiry(start: string, interval: DemoBillingInterval) {
@@ -136,6 +145,12 @@ export default function SubscriptionBilling() {
   const [submissionUnavailable, setSubmissionUnavailable] = useState(false)
   const selectedPlan = selectedPlanCode
     ? subscriptionPlans.find((plan) => plan.code === selectedPlanCode)
+    : undefined
+  const demoSubscriptionPlan = demoState?.subscription
+    ? subscriptionPlans.find((plan) => plan.code === demoState.subscription?.planCode)
+    : undefined
+  const demoSubscriptionTransaction = demoState?.subscription
+    ? demoState.transactions.find((transaction) => transaction.id === demoState.subscription?.transactionId)
     : undefined
 
   useEffect(() => {
@@ -437,8 +452,8 @@ export default function SubscriptionBilling() {
                     />
                     <ReceiptDetail
                       label={t('billing.order.amountDueToday')}
-                      value={formatUSD(intervalAmount(
-                        subscriptionPlans.find((plan) => plan.code === demoState.subscription?.planCode)?.monthlyPrice ?? 0,
+                      value={formatUSD(demoSubscriptionTransaction?.amount ?? intervalAmount(
+                        demoSubscriptionPlan ?? subscriptionPlans[0],
                         demoState.subscription.billingInterval,
                       ))}
                     />
@@ -490,7 +505,7 @@ export default function SubscriptionBilling() {
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-ink dark:text-white">{t('billing.plans.subtitle')}</h2>
-              <p className="mt-1 text-sm text-graphite">{t('billing.interval.noDiscount')}</p>
+              <p className="mt-1 text-sm text-graphite">{t('billing.interval.annualSavings')}</p>
             </div>
             <div role="group" aria-label={t('billing.interval.label')} className="inline-flex w-fit rounded-lg border border-ink/10 bg-white p-1 dark:border-white/10 dark:bg-[#202328]">
               {(['monthly', 'annual'] as const).map((interval) => (
@@ -541,9 +556,19 @@ export default function SubscriptionBilling() {
                 ) : (
                   <>
                     <span className="text-3xl font-semibold tracking-tight text-ink dark:text-white">
-                      {formatUSD(intervalAmount(plan.monthlyPrice, billingInterval))}
+                      {formatUSDCompact(intervalAmount(plan, billingInterval))}
                     </span>
                     <span className="ms-1 text-sm text-graphite">{t(`billing.interval.priceSuffix.${billingInterval}`)}</span>
+                    {billingInterval === 'annual' && plan.annualPrice !== null && (
+                      <div className="mt-2 space-y-1 text-xs text-graphite">
+                        <p>
+                          {formatUSDCompact(plan.annualPrice / 12)} {t('pricing.billing.monthlyEquivalent')} · {t('pricing.billing.billedAnnually')}
+                        </p>
+                        <p className="font-medium text-brand">
+                          {t('pricing.billing.saveTwoMonths')} · {t('pricing.billing.save')} {formatUSDCompact(plan.monthlyPrice * 12 - plan.annualPrice)} {t('pricing.billing.perYear')}
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -727,7 +752,8 @@ export default function SubscriptionBilling() {
                     transferReference={transferReference}
                     proofFile={proofFile}
                     amount={selectedPlan?.monthlyPrice === null || selectedPlan?.monthlyPrice === undefined
-                      ? 0 : intervalAmount(selectedPlan.monthlyPrice, billingInterval)}
+                      ? 0 : intervalAmount(selectedPlan, billingInterval)}
+                    interval={billingInterval}
                     attemptId={attemptId ?? ''}
                     error={mobileMoneyError}
                     demoError={demoError}
@@ -923,6 +949,7 @@ function OrderSummary({
   t: (key: string) => string
 }) {
   if (plan.monthlyPrice === null) return null
+  const annualDiscount = plan.monthlyPrice * 12 - plan.annualPrice
   return (
     <aside aria-label={t('billing.order.summary')} className="h-fit rounded-xl border border-ink/10 bg-white p-5 shadow-soft dark:border-white/10 dark:bg-[#202328] sm:p-6">
       <h2 className="text-base font-semibold text-ink dark:text-white">{t('billing.order.summary')}</h2>
@@ -931,9 +958,15 @@ function OrderSummary({
         <SummaryRow label={t('billing.order.administrator')} value={administratorName} />
         <SummaryRow label={t('billing.order.plan')} value={plan.name} />
         <SummaryRow label={t('billing.order.frequency')} value={t(`billing.interval.${interval}`)} />
-        <SummaryRow label={t('billing.order.subtotal')} value={formatUSD(intervalAmount(plan.monthlyPrice, interval))} />
-        <SummaryRow label={t('billing.order.discount')} value={formatUSD(0)} />
-        <SummaryRow label={t('billing.order.amountDueToday')} value={formatUSD(intervalAmount(plan.monthlyPrice, interval))} prominent />
+        <SummaryRow
+          label={t('billing.order.subtotal')}
+          value={formatUSD(interval === 'annual' ? plan.monthlyPrice * 12 : plan.monthlyPrice)}
+        />
+        <SummaryRow
+          label={t('billing.order.discount')}
+          value={interval === 'annual' ? `−${formatUSD(annualDiscount)}` : formatUSD(0)}
+        />
+        <SummaryRow label={t('billing.order.amountDueToday')} value={formatUSD(intervalAmount(plan, interval))} prominent />
       </dl>
     </aside>
   )
@@ -945,6 +978,7 @@ function CheckoutMethodPanel({
   transferReference,
   proofFile,
   amount,
+  interval,
   attemptId,
   error,
   demoError,
@@ -964,6 +998,7 @@ function CheckoutMethodPanel({
   transferReference: string
   proofFile: File | null
   amount: number
+  interval: DemoBillingInterval
   attemptId: string
   error: string
   demoError: string | null
@@ -1033,6 +1068,7 @@ function CheckoutMethodPanel({
         <div className="min-w-0">
           <p className="text-xs text-graphite">{t('billing.order.amountDueToday')}</p>
           <p className="mt-1 break-words text-xl font-semibold text-ink dark:text-white">{formatUSD(amount)}</p>
+          <p className="mt-1 text-xs leading-relaxed text-graphite">{t(`billing.checkout.billingNotice.${interval}`)}</p>
         </div>
         <Badge tone="brand">{t('billing.demo.badge')}</Badge>
       </div>
