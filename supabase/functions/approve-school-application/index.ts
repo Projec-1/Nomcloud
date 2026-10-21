@@ -124,9 +124,9 @@ const tidy = (reason: string | undefined) => (reason ?? '').replace(/\s+/g, ' ')
 // account already attached to a school or to the platform — is refused with 409,
 // never reused, because reusing it would move a real person into a new school.
 //
-// The reused account gets a fresh temporary password, a confirmed email and
-// must_change_password, exactly like a newly created one, so the applicant's
-// first sign-in is identical either way.
+// The reused account's password is not changed. Approval sends an activation
+// invitation or recovery link, and the account remains unusable until its owner
+// follows that link and chooses a password.
 // ---------------------------------------------------------------------------
 
 /** Finds an auth user by email through the Admin API. Pages through the list. */
@@ -191,6 +191,15 @@ Deno.serve(async (request) => {
 
   if (platformAdminError) return json({ error: platformAdminError.message }, 500)
   if (!platformAdmin) return json({ error: 'Platform-admin authority is required' }, 403)
+
+  const { data: reviewFlagEnabled, error: reviewFlagError } = await adminClient.rpc(
+    'is_platform_feature_enabled',
+    { p_flag_key: 'school_application_review' },
+  )
+  if (reviewFlagError) return json({ error: 'Could not verify school-application review availability' }, 500)
+  if (reviewFlagEnabled !== true) {
+    return json({ error: 'School-application review is disabled by a platform feature flag.' }, 503)
+  }
 
   let input: ApprovalRequest
   try {

@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:operator-workspace": "node --experimental-strip-types --test --test-concurrency=1 tests/operator-workspace.browser.test.mjs tests/operator-workspace-migrations.test.mjs tests/school-application-contract.test.mjs tests/school-application-email.test.mjs tests/platform-provider-contracts.test.mjs tests/approval-feature-flag-contract.test.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -20,6 +21,7 @@
     "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@types/node": "^20.14.15",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^18.3.5",

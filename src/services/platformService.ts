@@ -88,7 +88,12 @@ export async function fetchPlatformSchools(): Promise<PlatformSchoolRecord[]> {
       .select('school_id, user_id, role')
       .in('school_id', schoolIds)
       .eq('status', 'active'),
-    supabase.from('school_subscriptions').select('school_id, plan_id, status').in('school_id', schoolIds).is('cancelled_at', null),
+    supabase
+      .from('school_subscriptions')
+      .select('school_id, plan_id, status, created_at')
+      .in('school_id', schoolIds)
+      .is('cancelled_at', null)
+      .order('created_at', { ascending: false }),
     supabase
       .from('audit_logs')
       .select('school_id, created_at')
@@ -101,9 +106,10 @@ export async function fetchPlatformSchools(): Promise<PlatformSchoolRecord[]> {
   if (auditResult.error) throw auditResult.error
 
   const memberships = (membershipsResult.data ?? []) as { school_id: string; user_id: string; role: string }[]
-  const adminMemberships = memberships.filter((row) =>
-    ['owner', 'director', 'administrator', 'principal', 'admin'].includes(row.role),
-  )
+  const adminRolePriority = ['owner', 'director', 'administrator', 'principal', 'admin']
+  const adminMemberships = memberships
+    .filter((row) => adminRolePriority.includes(row.role))
+    .sort((left, right) => adminRolePriority.indexOf(left.role) - adminRolePriority.indexOf(right.role))
   const profileIds = Array.from(new Set(adminMemberships.map((row) => row.user_id)))
   const planIds = Array.from(new Set(
     ((subscriptionsResult.data ?? []) as { school_id: string; plan_id: string | null; status: string }[])
@@ -135,10 +141,10 @@ export async function fetchPlatformSchools(): Promise<PlatformSchoolRecord[]> {
   const planNames = new Map(
     ((plansResult.data ?? []) as { id: string; name: string }[]).map((plan) => [plan.id, plan.name]),
   )
-  const subscriptions = new Map(
-    ((subscriptionsResult.data ?? []) as { school_id: string; plan_id: string | null; status: string }[])
-      .map((subscription) => [subscription.school_id, subscription]),
-  )
+  const subscriptions = new Map<string, { school_id: string; plan_id: string | null; status: string }>()
+  for (const subscription of (subscriptionsResult.data ?? []) as { school_id: string; plan_id: string | null; status: string; created_at: string }[]) {
+    if (!subscriptions.has(subscription.school_id)) subscriptions.set(subscription.school_id, subscription)
+  }
   const latestActivity = new Map<string, string>()
   for (const event of (auditResult.data ?? []) as { school_id: string | null; created_at: string }[]) {
     if (event.school_id && !latestActivity.has(event.school_id)) latestActivity.set(event.school_id, event.created_at)
@@ -242,6 +248,8 @@ export async function markPlatformContactMessageHandled(messageId: string, opera
     .from('contact_messages')
     .update({ status: 'handled', handled_by: operatorId, handled_at: new Date().toISOString() })
     .eq('id', messageId)
+    .select('id')
+    .single()
   if (error) throw error
 }
 
@@ -258,13 +266,15 @@ export async function updatePlatformSchoolStatus(
       suspension_reason: status === 'suspended' ? suspensionReason : null,
     })
     .eq('id', schoolId)
+    .select('id')
+    .single()
   if (error) throw error
 }
 
 export async function fetchPlatformOperators(): Promise<PlatformOperatorRecord[]> {
   const { data, error } = await supabase
     .from('platform_admins')
-    .select('id, user_id, granted_at, revoked_at, team, profiles!platform_admins_user_id_fkey(full_name, email)')
+    .select('id, user_id, granted_at, revoked_at, profiles!platform_admins_user_id_fkey(full_name, email)')
     .order('granted_at', { ascending: false })
   if (error) throw error
   return ((data ?? []) as {
@@ -272,7 +282,6 @@ export async function fetchPlatformOperators(): Promise<PlatformOperatorRecord[]
     user_id: string
     granted_at: string
     revoked_at: string | null
-    team: string | null
     profiles: { full_name: string; email: string }[] | { full_name: string; email: string } | null
   }[]).map((row) => ({
     id: row.id,
@@ -281,6 +290,6 @@ export async function fetchPlatformOperators(): Promise<PlatformOperatorRecord[]
     email: (Array.isArray(row.profiles) ? row.profiles[0]?.email : row.profiles?.email) ?? '',
     grantedAt: row.granted_at,
     revokedAt: row.revoked_at,
-    team: row.team,
+    team: null,
   }))
 }

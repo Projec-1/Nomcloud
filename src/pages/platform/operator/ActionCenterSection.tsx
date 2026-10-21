@@ -69,17 +69,17 @@ export default function ActionCenterSection({ schools, requests, pendingApplicat
   const count = (target: Exclude<InboxKind, 'All'>) => items.filter((item) => item.kind === target).length
 
   return <>
-    <SectionHeader eyebrow="Operations queue" title="Action center" description="A read-through of real pending applications, contact requests, and suspended schools. Opening an item takes you to its actual record; no local assignment or resolution is simulated here." />
+    <SectionHeader eyebrow="Operations queue" title="Action center" description="A read-through of real pending applications, the newest 500 contact messages, and suspended schools. Opening an item takes you to its actual record; no local assignment or resolution is simulated here." />
     <div className="grid gap-4 sm:grid-cols-3">
       <Panel title="Applications" description="Awaiting an approval workflow"><p className="text-2xl font-semibold">{loading ? '…' : count('Applications')}</p></Panel>
-      <Panel title="Contact requests" description="Not yet marked handled"><p className="text-2xl font-semibold">{loading ? '…' : count('Requests')}</p></Panel>
+      <Panel title="Contact requests" description="Open in newest 500 loaded"><p className="text-2xl font-semibold">{loading ? '…' : count('Requests')}</p></Panel>
       <Panel title="Suspended schools" description="Review in the school record"><p className="text-2xl font-semibold">{loading ? '…' : count('Schools')}</p></Panel>
     </div>
     <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <FilterChips options={kinds} value={kind} onChange={setKind} label="Filter action center" />
       <div className="w-full lg:max-w-sm"><SearchBox value={query} onChange={setQuery} placeholder="Search items…" label="Search action center" /></div>
     </div>
-    <Panel title="Items needing attention" description="These are derived only from records loaded for this operator." className="mt-5">
+    <Panel title="Items needing attention" description="Contact requests are limited to the newest 500 returned messages; other items reflect the records loaded for this operator." className="mt-5">
       {loading ? <p className="py-6 text-sm text-graphite">Loading platform records…</p> : visible.length === 0 ? <p className="py-6 text-sm text-graphite">No items match this view. New items appear when the underlying records are available.</p> : <ul className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">{visible.map((item) => {
         const Icon = item.kind === 'Applications' ? FileText : item.kind === 'Requests' ? ClipboardText : Buildings
         const tone = item.kind === 'Schools' ? 'danger' : item.kind === 'Applications' ? 'warning' : 'info'

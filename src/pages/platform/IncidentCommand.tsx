@@ -4,6 +4,7 @@ import { ArrowUpRight, Plus, WarningCircle } from '@phosphor-icons/react'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
 import type { PlatformOperatorRecord } from '@/services/platformService'
+import { errorMessage } from '@/utils/errorMessage'
 import {
   addPlatformIncidentUpdate,
   createPlatformIncident,
@@ -52,7 +53,10 @@ export default function IncidentCommand({
         if (!cancelled) setIncidents(rows)
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
+        if (!cancelled) {
+          setIncidents([])
+          setError(errorMessage(cause, 'Could not load incident records.'))
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -72,7 +76,7 @@ export default function IncidentCommand({
           <h2 className="text-2xl font-semibold tracking-tight">Incident command</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite">Coordinate responders, recovery steps and post-incident reviews. Incidents here do not represent an automated service-health monitor.</p>
         </div>
-        <Button variant="accent" size="sm" onClick={() => setShowForm((value) => !value)} icon={<Plus className="h-4 w-4" />}>{showForm ? 'Close form' : 'Open incident'}</Button>
+        <Button variant="accent" size="sm" disabled={loading || Boolean(error)} onClick={() => setShowForm((value) => !value)} icon={<Plus className="h-4 w-4" />}>{showForm ? 'Close form' : 'Open incident'}</Button>
       </div>
 
       <div className="mt-5 flex flex-wrap items-start justify-between gap-3 border-y border-amber-500/20 bg-amber-500/[0.04] px-4 py-3">
@@ -80,7 +84,7 @@ export default function IncidentCommand({
         <button type="button" onClick={() => navigate('/platform/maintenance')} className="text-sm font-semibold text-brand underline underline-offset-2">Maintenance center <ArrowUpRight className="ml-1 inline h-4 w-4" /></button>
       </div>
 
-      {showForm && <NewIncidentForm
+      {showForm && !loading && !error && <NewIncidentForm
         authUserId={authUserId}
         operators={activeOperators}
         cases={cases}
@@ -89,7 +93,7 @@ export default function IncidentCommand({
         onError={notify}
       />}
       {error && <div role="alert" className="mt-5 flex flex-wrap items-center justify-between gap-3 border-y border-red-500/30 p-4 text-sm text-red-800 dark:text-red-300"><span>Could not load incidents: {error}</span><Button size="sm" variant="outline" onClick={reload}>Retry</Button></div>}
-      {loading ? <p role="status" className="py-8 text-sm text-graphite">Loading incident records…</p> : incidents.length ? (
+      {loading ? <p role="status" className="py-8 text-sm text-graphite">Loading incident records…</p> : error ? null : incidents.length ? (
         <div className="mt-5 space-y-5">
           {incidents.map((incident) => <IncidentCard key={incident.id} incident={incident} operators={activeOperators} cases={cases} notify={notify} onChanged={reload} />)}
         </div>
@@ -131,14 +135,14 @@ function NewIncidentForm({ authUserId, operators, cases, onCancel, onCreated, on
         try {
           await setPlatformIncidentResponders(incidentId, [commanderId])
         } catch (cause: unknown) {
-          onError(`Incident was opened, but commander assignment failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+          onError(`Incident was opened, but commander assignment failed: ${errorMessage(cause)}`)
           onCreated()
           return
         }
       }
       onCreated('Incident command opened.')
     } catch (cause: unknown) {
-      onError(`Incident was not opened: ${cause instanceof Error ? cause.message : String(cause)}`)
+      onError(`Incident was not opened: ${errorMessage(cause)}`)
     } finally {
       setSaving(false)
     }
@@ -187,7 +191,7 @@ function IncidentCard({ incident, operators, cases, notify, onChanged }: {
     setLoadingUpdates(true)
     fetchPlatformIncidentUpdates(incident.id)
       .then((rows) => { if (!cancelled) setUpdates(rows) })
-      .catch((cause: unknown) => { if (!cancelled) notify(`Could not load incident updates: ${cause instanceof Error ? cause.message : String(cause)}`) })
+      .catch((cause: unknown) => { if (!cancelled) notify(`Could not load incident updates: ${errorMessage(cause)}`) })
       .finally(() => { if (!cancelled) setLoadingUpdates(false) })
     return () => { cancelled = true }
   }, [incident.id, refresh, notify])
@@ -204,7 +208,7 @@ function IncidentCard({ incident, operators, cases, notify, onChanged }: {
       onChanged()
       notify(message)
     } catch (cause: unknown) {
-      notify(`Incident was not updated: ${cause instanceof Error ? cause.message : String(cause)}`)
+      notify(`Incident was not updated: ${errorMessage(cause)}`)
     } finally {
       setBusy(false)
     }
@@ -217,7 +221,7 @@ function IncidentCard({ incident, operators, cases, notify, onChanged }: {
       onChanged()
       notify('Incident responders updated.')
     } catch (cause: unknown) {
-      notify(`Responders were not updated: ${cause instanceof Error ? cause.message : String(cause)}`)
+      notify(`Responders were not updated: ${errorMessage(cause)}`)
     } finally {
       setBusy(false)
     }
@@ -233,7 +237,7 @@ function IncidentCard({ incident, operators, cases, notify, onChanged }: {
       setRefresh((value) => value + 1)
       notify(updateType === 'recovery_step' ? 'Recovery step recorded.' : 'Incident update recorded.')
     } catch (cause: unknown) {
-      notify(`Incident update was not saved: ${cause instanceof Error ? cause.message : String(cause)}`)
+      notify(`Incident update was not saved: ${errorMessage(cause)}`)
     } finally {
       setBusy(false)
     }
@@ -248,7 +252,7 @@ function IncidentCard({ incident, operators, cases, notify, onChanged }: {
             <span className="rounded-md bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-800 dark:text-red-300">{incidentSeverity[incident.severity]}</span>
           </div>
           <p className="mt-2 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-graphite">{incident.description}</p>
-          <p className="mt-2 text-xs text-graphite">Opened {stamp(incident.startedAt)} · Commander {commander?.fullName ?? 'unassigned'} · {incident.affectedServices.length ? incident.affectedServices.join(', ') : 'Affected services not listed'}</p>
+          <p className="mt-2 text-xs text-graphite">{incident.detectionSource === 'automated_monitor' ? `Detected by on-demand monitor${incident.monitorService ? ` (${incident.monitorService})` : ''}` : 'Operator-recorded'} · Opened {stamp(incident.startedAt)} · Commander {commander?.fullName ?? 'unassigned'} · {incident.affectedServices.length ? incident.affectedServices.join(', ') : 'Affected services not listed'}</p>
           {linkedCase && <button className="mt-2 text-xs font-semibold text-brand underline underline-offset-2" onClick={() => navigate(`/platform/operations/${linkedCase.id}`, { state: { from: location.pathname } })}>Linked case: {linkedCase.title}</button>}
         </div>
         <button type="button" className="min-h-11 border border-ink/10 px-3 text-sm font-semibold dark:border-white/10" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? 'Hide command' : 'Manage incident'}</button>
@@ -266,7 +270,7 @@ function IncidentCard({ incident, operators, cases, notify, onChanged }: {
           <fieldset className="mt-4">
             <legend className="text-xs font-semibold text-graphite">Responders</legend>
             <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
-              {operators.length ? operators.map((operator) => <label key={operator.id} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={selectedResponders.includes(operator.id)} onChange={(event) => setSelectedResponders((current) => event.target.checked ? [...current, operator.id] : current.filter((id) => id !== operator.id))} />{operator.fullName}<span className="text-xs text-graphite">{operator.team ?? 'No team'}</span></label>) : <p className="text-sm text-graphite">No active operators available.</p>}
+              {operators.length ? operators.map((operator) => <label key={operator.id} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={selectedResponders.includes(operator.id)} onChange={(event) => setSelectedResponders((current) => event.target.checked ? [...current, operator.id] : current.filter((id) => id !== operator.id))} />{operator.fullName}<span className="text-xs text-graphite">{operator.team ?? 'Team metadata unavailable'}</span></label>) : <p className="text-sm text-graphite">No active operators available.</p>}
             </div>
             <Button className="mt-3" size="sm" variant="outline" disabled={busy || selectedResponders.length === incident.responders.length && selectedResponders.every((id) => incident.responders.includes(id))} onClick={() => void saveResponders()}>Save responders</Button>
           </fieldset>

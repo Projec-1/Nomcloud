@@ -79,11 +79,10 @@ import OperationsView from './OperationsView'
 import IncidentCommand from './IncidentCommand'
 import { fetchPlatformCaseWorkload, type PlatformCase } from '@/services/platformOperationsService'
 
-// Alert counts the sidebar shows next to the sections that own them. Since none
-// of those sections is connected to a live source yet, no alert badge is shown.
+// Alert counts the sidebar shows next to the sections that own them.
 const navBadges: Record<string, number | undefined> = {
   'System Health': undefined,
-  Activity: 0,
+  Activity: undefined,
   Security: undefined,
   'Action Center': undefined,
   Billing: undefined,
@@ -251,10 +250,13 @@ export default function PlatformWorkspace() {
         if (cancelled) return
         setPlatformRecordsError(errorMessage(cause, 'Could not load platform records.'))
         setSchoolRecords([])
+        setRequestRecords([])
         setAuditRecords([])
         setAuditEntries([])
         setOperatorRecords([])
         setPendingApplicationCount(0)
+        setSchool(null)
+        setRequest(null)
       })
       .finally(() => {
         if (!cancelled) setPlatformRecordsLoading(false)
@@ -294,9 +296,7 @@ export default function PlatformWorkspace() {
   const totalStudents = schoolRecords.reduce((sum, school) => sum + school.students, 0)
   const totalTeachers = schoolRecords.reduce((sum, school) => sum + school.teachers, 0)
 
-  // Overview alerts. Schools, requests and applications come from the
-  // database; the health, security, integration and billing signals come from
-  // the prototypes and are labelled as sample data wherever they are shown.
+  // Overview alerts are derived only from platform records loaded above.
   const overviewAlerts = useMemo<OverviewAlert[]>(() => {
     const alerts: OverviewAlert[] = []
     if (pendingApplicationCount > 0) {
@@ -311,7 +311,7 @@ export default function PlatformWorkspace() {
     if (openRequests > 0) {
       alerts.push({
         id: 'alerts-requests',
-        title: `${openRequests} request${openRequests === 1 ? '' : 's'} need a decision`,
+        title: `${openRequests} open request${openRequests === 1 ? '' : 's'} among the newest 500 loaded messages`,
         detail: 'Contact messages from schools and the public form.',
         path: '/platform/requests',
       })
@@ -464,31 +464,31 @@ export default function PlatformWorkspace() {
           <div className="relative order-3 basis-full min-w-0 xl:order-none xl:basis-auto xl:flex-1 xl:max-w-sm">
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" />
             <input aria-label="Search schools and platform operators" value={globalQuery} onFocus={() => setGlobalSearchOpen(true)} onChange={(event) => { setGlobalQuery(event.target.value); setGlobalSearchOpen(true) }} placeholder="Search schools and platform operators…" className="input h-11 w-full bg-[var(--nc-surface)] pl-10 pr-12" />
-            {globalSearchOpen && globalQuery && <div className="interaction-menu absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-2 shadow-card">{searchResults.length ? searchResults.map((result) => <button key={result.type + '-' + result.title} onClick={() => { navigate(result.path); setGlobalSearchOpen(false); setGlobalQuery('') }} className="flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand"><Search className="h-3.5 w-3.5" /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-brand">{result.type}</span><span className="block text-sm font-semibold">{result.title}</span><span className="block text-xs text-graphite">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-graphite">No matching platform records.</p>}</div>}
+            {globalSearchOpen && globalQuery && <div className="interaction-menu absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-2 shadow-card">{platformRecordsError ? <p className="p-3 text-sm text-graphite">Platform records are unavailable. Retry the load before searching.</p> : searchResults.length ? searchResults.map((result) => <button key={result.type + '-' + result.title} onClick={() => { navigate(result.path); setGlobalSearchOpen(false); setGlobalQuery('') }} className="flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand"><Search className="h-3.5 w-3.5" /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-brand">{result.type}</span><span className="block text-sm font-semibold">{result.title}</span><span className="block text-xs text-graphite">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-graphite">No matching platform records.</p>}</div>}
           </div>
         </header>
         <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8">
           {platformRecordsError && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-sm text-red-700 dark:text-red-300"><span>Could not load platform records: {platformRecordsError}</span><Button variant="outline" size="sm" onClick={() => setPlatformRecordsNonce((value) => value + 1)}>Retry</Button></div>}
-          {section === 'Overview' && <OverviewSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} notify={notify} schools={schoolRecords} requests={requestRecords} auditRows={auditRecords} pendingApplicationCount={pendingApplicationCount} operatorCount={activeOperators} alerts={overviewAlerts} loading={platformRecordsLoading} />}
-          {section === 'Action Center' && <ActionCenterSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} schools={schoolRecords} requests={requestRecords} pendingApplicationCount={pendingApplicationCount} loading={platformRecordsLoading} />}
-          {section === 'Schools' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading schools…</p> : <SchoolsView schools={filteredSchools} query={query} setQuery={setQuery} filter={schoolFilter} setFilter={setSchoolFilter} onSchool={setSchool} onNotify={() => navigate('/platform/applications')} />)}
+          {section === 'Overview' && !platformRecordsError && <OverviewSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} notify={notify} schools={schoolRecords} requests={requestRecords} auditRows={auditRecords} pendingApplicationCount={pendingApplicationCount} operatorCount={activeOperators} alerts={overviewAlerts} loading={platformRecordsLoading} />}
+          {section === 'Action Center' && !platformRecordsError && <ActionCenterSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} schools={schoolRecords} requests={requestRecords} pendingApplicationCount={pendingApplicationCount} loading={platformRecordsLoading} />}
+          {section === 'Schools' && !platformRecordsError && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading schools…</p> : <SchoolsView schools={filteredSchools} query={query} setQuery={setQuery} filter={schoolFilter} setFilter={setSchoolFilter} onSchool={setSchool} onNotify={() => navigate('/platform/applications')} />)}
           {section === 'School Applications' && <PlatformApprovalPanel />}
-          {section === 'People' && <PeopleSection />}
+          {section === 'People' && !platformRecordsError && <PeopleSection schools={schoolRecords} loading={platformRecordsLoading} onSchool={setSchool} />}
           {section === 'Communications' && <CommunicationsSection />}
-          {section === 'Requests & Reviews' && <RequestsSection requests={requestRecords} loading={platformRecordsLoading} onOpenRequest={setRequest} />}
-          {section === 'Operations Queue' && authUser && <OperationsView currentPath={currentPath} authUserId={authUser.id} schools={schoolRecords} operators={operatorRecords} navigate={navigate} notify={notify} />}
-          {section === 'Operators' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading operators…</p> : <OperatorsSection operators={operatorRecords} onNotify={notify} />)}
-          {section === 'Permissions' && <PermissionsSection />}
-          {section === 'Audit Logs' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditSection rows={auditEntries} notify={notify} />)}
+          {section === 'Requests & Reviews' && !platformRecordsError && <RequestsSection requests={requestRecords} loading={platformRecordsLoading} onOpenRequest={setRequest} />}
+          {section === 'Operations Queue' && authUser && !platformRecordsError && <OperationsView currentPath={currentPath} authUserId={authUser.id} schools={schoolRecords} operators={operatorRecords} navigate={navigate} notify={notify} />}
+          {section === 'Operators' && !platformRecordsError && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading operators…</p> : <OperatorsSection operators={operatorRecords} onNotify={notify} />)}
+          {section === 'Permissions' && !platformRecordsError && <PermissionsSection operators={operatorRecords} loading={platformRecordsLoading} />}
+          {section === 'Audit Logs' && !platformRecordsError && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditSection rows={auditEntries} notify={notify} />)}
           {section === 'Security' && <SecuritySection />}
           {section === 'Maintenance' && <MaintenanceSection />}
           {section === 'Backups & Recovery' && <BackupsSection />}
-          {section === 'Analytics' && <AnalyticsSection />}
-          {section === 'Activity' && <ActivitySection />}
-          {section === 'System Health' && authUser && <SystemHealthWithIncidents operators={operatorRecords} authUserId={authUser.id} onNotify={notify} />}
+          {section === 'Analytics' && !platformRecordsError && <AnalyticsSection schools={schoolRecords} requests={requestRecords} pendingApplicationCount={pendingApplicationCount} operatorCount={activeOperators} loading={platformRecordsLoading} />}
+          {section === 'Activity' && !platformRecordsError && <ActivitySection rows={auditEntries} loading={platformRecordsLoading} />}
+          {section === 'System Health' && authUser && !platformRecordsError && <SystemHealthWithIncidents operators={operatorRecords} authUserId={authUser.id} onNotify={notify} />}
           {section === 'Features' && <FeaturesSection />}
           {section === 'Integrations' && <IntegrationsSection />}
-          {section === 'Billing' && <BillingSection />}
+          {section === 'Billing' && !platformRecordsError && <BillingSection schools={schoolRecords} loading={platformRecordsLoading} />}
           {section === 'Data' && <DataSection />}
           {section === 'Settings' && <SettingsSection onEmergency={() => setEmergencyOpen(true)} onSignOut={() => setSignOutOpen(true)} notify={notify} fullName={displayName} email={displayEmail} role={operatorRole} provider={(authUser?.app_metadata?.provider as string | undefined) ?? null} accountCreatedAt={authUser?.created_at ?? null} lastSignInAt={(authUser as { last_sign_in_at?: string } | null)?.last_sign_in_at ?? null} platform={{ schoolCount: schoolRecords.length, studentCount: totalStudents, teacherCount: totalTeachers, pendingApplications: pendingApplicationCount, operatorCount: activeOperators, requestCount: requestRecords.length, connected: !platformRecordsLoading && !platformRecordsError, error: platformRecordsError }} />}
         </div>
@@ -559,7 +559,10 @@ function SystemHealthWithIncidents({
         if (!cancelled) setCases(rows)
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(errorMessage(cause, 'Could not load incident case context.'))
+        if (!cancelled) {
+          setCases([])
+          setError(errorMessage(cause, 'Could not load incident case context.'))
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -580,7 +583,7 @@ function SystemHealthWithIncidents({
       )}
       {loading
         ? <p role="status" className="py-6 text-sm text-graphite">Loading incident context…</p>
-        : <IncidentCommand operators={operators} cases={cases} authUserId={authUserId} notify={onNotify} />}
+        : !error && <IncidentCommand operators={operators} cases={cases} authUserId={authUserId} notify={onNotify} />}
     </>
   )
 }

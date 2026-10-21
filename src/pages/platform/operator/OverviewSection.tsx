@@ -90,7 +90,7 @@ export default function OverviewSection({
       ? [{
           id: 'requests',
           label: `${openRequests.length} contact request${openRequests.length === 1 ? '' : 's'} unanswered`,
-          detail: 'Assigned reviewers can reply, escalate or close each one.',
+          detail: 'Open the request to review its details; the supported action is marking it handled. This count covers the newest 500 loaded messages.',
           path: '/platform/requests',
           icon: ClipboardCheck,
           tone: 'info' as const,
@@ -128,7 +128,7 @@ export default function OverviewSection({
       ['KPI', 'Registered schools', schools.length, `${activeSchools} active`],
       ['KPI', 'Active students', totalStudents, 'Across registered schools'],
       ['KPI', 'Teachers', totalTeachers, 'Across registered schools'],
-      ['KPI', 'Open requests', openRequests.length, `${pendingApplicationCount} school applications pending`],
+      ['KPI', 'Open requests', openRequests.length, `Among ${requests.length} newest messages loaded; ${pendingApplicationCount} school applications pending`],
       ['KPI', 'Operators with platform access', operatorCount, 'From platform_admins'],
       ...schools.map((school) => ['School', school.name, school.status, `${school.code ?? school.id} · ${school.plan} · ${school.students} students`]),
       ...requests.map((request) => ['Request', request.id, request.status, `${request.type} · ${request.school}`]),
@@ -138,7 +138,7 @@ export default function OverviewSection({
 
   const quickActions: Array<{ label: string; detail: string; path: string; icon: typeof Activity }> = [
     { label: 'Review applications', detail: `${pendingApplicationCount} pending`, path: '/platform/applications', icon: FileText },
-    { label: 'Open request queue', detail: `${openRequests.length} open`, path: '/platform/requests', icon: ClipboardCheck },
+    { label: 'Open request queue', detail: `${openRequests.length} open in newest 500`, path: '/platform/requests', icon: ClipboardCheck },
     { label: 'Find a school', detail: `${schools.length} registered`, path: '/platform/schools', icon: Building2 },
     { label: 'Review operator access', detail: `${operatorCount} with access`, path: '/platform/operators', icon: UserCircle },
     { label: 'Communications status', detail: 'Platform scope unavailable', path: '/platform/communications', icon: Megaphone },
@@ -150,14 +150,14 @@ export default function OverviewSection({
       <SectionHeader
         eyebrow="Platform overview"
         title="Platform overview"
-        description="Platform-wide numbers, what needs operator attention, and the fastest route into every task."
+        description="Current records and routes into operator tasks. Contact-request counts cover only the newest 500 messages loaded by this view."
         action={<Button variant="outline" size="sm" onClick={exportReport}><ArrowUpRight className="h-4 w-4" /> Export report</Button>}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiTile label="Registered schools" value={loading ? '…' : schools.length.toLocaleString()} detail={`${activeSchools} active${suspendedSchools.length ? ` · ${suspendedSchools.length} suspended` : ''}`} icon={Building2} />
         <KpiTile label="Active students" value={loading ? '…' : totalStudents.toLocaleString()} detail={`${totalTeachers.toLocaleString()} teachers across registered schools`} icon={Users} />
-        <KpiTile label="Open requests" value={loading ? '…' : openRequests.length.toLocaleString()} detail={`${pendingApplicationCount} school applications pending`} icon={ClipboardCheck} tone={openRequests.length > 0 ? 'warning' : 'success'} />
+        <KpiTile label="Open requests" value={loading ? '…' : openRequests.length.toLocaleString()} detail={`Among newest ${requests.length.toLocaleString()} loaded messages`} icon={ClipboardCheck} tone={openRequests.length > 0 ? 'warning' : 'success'} />
         <KpiTile label="Platform operators" value={loading ? '…' : operatorCount.toLocaleString()} detail="Holding active platform access" icon={ShieldWarning} />
       </div>
 
@@ -272,7 +272,7 @@ export default function OverviewSection({
 
           <Panel
             title="Requests waiting on an operator"
-            description="Newest contact messages from the database."
+            description={`Newest ${requests.length} contact messages from the database.`}
             action={<span className="text-xs font-semibold text-brand">{openRequests.length} open</span>}
           >
             {openRequests.length ? (
@@ -289,14 +289,14 @@ export default function OverviewSection({
                 ))}
               </div>
             ) : (
-              <p className="py-6 text-sm text-graphite">Every request has been answered.</p>
+              <p className="py-6 text-sm text-graphite">No open requests among the newest {requests.length} loaded messages.</p>
             )}
             <button onClick={() => navigate('/platform/requests')} className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-brand">
               Open request centre <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
           </Panel>
 
-          <Panel title="Action queue" description="Live counts of everything awaiting a decision.">
+          <Panel title="Action queue" description="Open contact requests are counted within the newest 500 loaded messages.">
             <ul className="space-y-2 text-sm">
               {[
                 { label: 'School applications', value: pendingApplicationCount, path: '/platform/applications' },
