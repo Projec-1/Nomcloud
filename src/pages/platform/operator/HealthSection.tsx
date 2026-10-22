@@ -32,10 +32,14 @@ export default function HealthSection() {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setChecks([])
     fetchPlatformHealthChecks()
       .then((rows) => { if (!cancelled) setChecks(rows) })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(errorMessage(cause, 'Health-check history could not be loaded.'))
+        if (!cancelled) {
+          setChecks([])
+          setError(errorMessage(cause, 'Health-check history could not be loaded.'))
+        }
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -63,7 +67,7 @@ export default function HealthSection() {
     }
   }
 
-  const healthValue = loading ? '…' : latest.length === 0 ? 'Not checked'
+  const healthValue = loading ? '…' : error ? 'Unavailable' : latest.length === 0 ? 'Not checked'
     : latest.length < 2 ? 'Partial'
       : latest.every((check) => check.status === 'healthy') ? 'Healthy'
       : latest.some((check) => check.status === 'unavailable') ? 'Unavailable' : 'Degraded'
@@ -71,9 +75,9 @@ export default function HealthSection() {
   return <>
     <SectionHeader eyebrow="Reliability monitoring" title="System health" description="On-demand service probes and incident history. Automated probes are distinct from operator-authored incident records." action={<Button size="sm" onClick={() => void runChecks()} disabled={running}>{running ? 'Checking…' : 'Run health checks'}</Button>} />
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <KpiTile label="Service health" value={healthValue} detail={latest.length ? 'Latest on-demand probe' : 'No recorded probe'} icon={Heartbeat} tone={healthValue === 'Unavailable' || healthValue === 'Degraded' ? 'warning' : undefined} />
+      <KpiTile label="Service health" value={healthValue} detail={error ? 'Health history could not be loaded' : latest.length ? 'Latest on-demand probe' : 'No recorded probe'} icon={Heartbeat} tone={healthValue === 'Unavailable' || healthValue === 'Degraded' ? 'warning' : undefined} />
       <KpiTile label="Incident command" value="Manual + detected" detail="Automated incidents require repeated failures" icon={Warning} tone="warning" />
-      <KpiTile label="Probe coverage" value={`${latest.length}/2`} detail="Database and operations tables" icon={Heartbeat} />
+      <KpiTile label="Probe coverage" value={error ? 'Unavailable' : `${latest.length}/2`} detail="Database and operations tables" icon={Heartbeat} />
       <KpiTile label="Integrations" value="Not probed" detail="No provider health checks are configured" icon={PlugsConnected} tone="warning" />
     </div>
 
@@ -83,7 +87,8 @@ export default function HealthSection() {
 
     <Panel title="On-demand health probes" description="These checks run only when an operator requests them; there is no scheduled monitor or background alerting." className="mt-6">
       {loading ? <p role="status" className="text-sm text-graphite">Loading health history…</p>
-        : latest.length ? <ul className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
+        : error ? <p className="text-sm text-graphite">Health history could not be loaded. Use Retry history above before treating this result as empty.</p>
+          : latest.length ? <ul className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
           {latest.map((check) => <li key={check.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
             <span>
               <span className="block text-sm font-semibold">{serviceLabels[check.service_name]}</span>

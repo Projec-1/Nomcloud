@@ -28,10 +28,14 @@ export default function FeaturesSection() {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setFlags([])
     fetchPlatformFeatureFlags()
       .then((rows) => { if (!cancelled) setFlags(rows) })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(errorMessage(cause, 'Feature flags could not be loaded.'))
+        if (!cancelled) {
+          setFlags([])
+          setError(errorMessage(cause, 'Feature flags could not be loaded.'))
+        }
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -67,7 +71,8 @@ export default function FeaturesSection() {
 
     <Panel title="Platform feature flags" description="Changes are audited and enforced on protected database reads and writes." className="mt-6">
       {loading ? <p role="status" className="text-sm text-graphite">Loading feature flags…</p>
-        : flags.length ? <ul className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
+        : error ? <p className="text-sm text-graphite">Feature-flag records could not be loaded. Retry before treating this result as empty.</p>
+          : flags.length ? <ul className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
           {flags.map((flag) => <li key={flag.flag_key} className="flex flex-wrap items-center justify-between gap-4 py-4">
             <span className="min-w-0">
               <span className="block text-sm font-semibold">{FLAG_LABELS[flag.flag_key]}</span>
@@ -79,7 +84,7 @@ export default function FeaturesSection() {
                 aria-label={`Enable ${FLAG_LABELS[flag.flag_key]}`}
                 type="checkbox"
                 checked={flag.enabled}
-                disabled={saving !== null}
+                disabled={saving !== null || loading || error !== null}
                 onChange={() => void toggleFlag(flag)}
                 className="h-5 w-5 accent-brand"
               />

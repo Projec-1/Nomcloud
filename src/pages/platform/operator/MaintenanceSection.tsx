@@ -39,6 +39,7 @@ export default function MaintenanceSection() {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setSettings(null)
     fetchPlatformMaintenanceSettings()
       .then((row) => {
         if (cancelled) return
@@ -49,7 +50,10 @@ export default function MaintenanceSection() {
         setEndsAt(toLocalInput(row.ends_at))
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(errorMessage(cause, 'Maintenance settings could not be loaded.'))
+        if (!cancelled) {
+          setSettings(null)
+          setError(errorMessage(cause, 'Maintenance settings could not be loaded.'))
+        }
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -63,7 +67,7 @@ export default function MaintenanceSection() {
   const scheduled = Boolean(settings?.enabled && settings.starts_at && new Date(settings.starts_at).getTime() > Date.now())
 
   const save = async () => {
-    if (saving) return
+    if (saving || loading || !settings) return
     const startsAtIso = toIsoOrNull(startsAt)
     const endsAtIso = toIsoOrNull(endsAt)
     if (!message.trim() || message.trim().length > 500) {
@@ -100,8 +104,8 @@ export default function MaintenanceSection() {
   return <>
     <SectionHeader eyebrow="Platform operations" title="Maintenance" description="Server-enforced maintenance mode, schedule, and operator audit history." />
     <div className="grid gap-4 md:grid-cols-3">
-      <KpiTile label="Maintenance mode" value={loading ? '…' : activeNow ? 'Active' : scheduled ? 'Scheduled' : 'Off'} detail="Enforced by database access policies" icon={Power} tone={activeNow ? 'warning' : undefined} />
-      <KpiTile label="Scheduled work" value={settings?.starts_at ? new Date(settings.starts_at).toLocaleString() : 'None'} detail="Automatic start and end window" icon={CalendarPlus} />
+      <KpiTile label="Maintenance mode" value={loading ? '…' : error ? 'Unavailable' : activeNow ? 'Active' : scheduled ? 'Scheduled' : 'Off'} detail="Enforced by database access policies" icon={Power} tone={activeNow || Boolean(error) ? 'warning' : undefined} />
+      <KpiTile label="Scheduled work" value={loading ? '…' : error ? 'Not available' : settings?.starts_at ? new Date(settings.starts_at).toLocaleString() : 'None'} detail="Automatic start and end window" icon={CalendarPlus} />
       <KpiTile label="Operational jobs" value="Not available" detail="No job scheduler is connected" icon={Wrench} tone="warning" />
     </div>
 
@@ -110,7 +114,7 @@ export default function MaintenanceSection() {
 
     <Panel title="Maintenance controls" description="School members lose tenant-data access while enabled; platform administrators retain emergency access. Public application submissions remain available." className="mt-6">
       {loading ? <p role="status" className="text-sm text-graphite">Loading server settings…</p>
-        : !settings ? <Button size="sm" variant="outline" onClick={() => setReload((value) => value + 1)}>Retry</Button>
+        : !settings ? <div className="space-y-3"><p className="text-sm text-graphite">Maintenance settings are unavailable until the server record loads successfully.</p><Button size="sm" variant="outline" onClick={() => setReload((value) => value + 1)}>Retry</Button></div>
           : <div className="space-y-5">
             <label className="flex items-center gap-3 text-sm font-semibold">
               <input type="checkbox" checked={enabled} onChange={(event) => { setEnabled(event.target.checked); setSaved(false) }} className="h-5 w-5 accent-brand" />

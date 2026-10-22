@@ -98,6 +98,7 @@ async function createOperatorPage({
   failControlUpdates = false,
   failHealthCheck = false,
   failBackupCheck = false,
+  failReads = new Set(),
   contactMessages = [],
   memberships = [],
   applications = [],
@@ -145,7 +146,7 @@ async function createOperatorPage({
     }
   }, operatorSession)
 
-  const observed = { writes: [], functionInvocations: [], unexpectedExternalRequests: [] }
+  const observed = { reads: [], writes: [], functionInvocations: [], unexpectedExternalRequests: [] }
   const recordedHealthChecks = [...healthChecks]
   const recordedBackupChecks = [...backupChecks]
   await context.route('**/*', async (route) => {
@@ -274,6 +275,12 @@ async function createOperatorPage({
       const method = request.method()
 
       if (method === 'GET' || method === 'HEAD') {
+        observed.reads.push({ method, table })
+        if (method === 'GET' && failReads.has(table)) {
+          await json(503, { message: `Mocked ${table} read unavailable` })
+          return
+        }
+
         if (table === 'platform_cases' && failCaseReads) {
           await json(403, { code: '42501', message: 'Mocked case read denied' })
           return
@@ -512,7 +519,7 @@ async function createOperatorPage({
 
   const page = await context.newPage()
   page.setDefaultTimeout(8000)
-  page.setDefaultNavigationTimeout(15000)
+  page.setDefaultNavigationTimeout(30000)
   return { context, page, observed }
 }
 
@@ -1048,6 +1055,25 @@ test('billing shows joined subscription-plan labels and honest empty ledger stat
   }
 })
 
+test('billing ledger read failures remain distinct from an empty ledger', async () => {
+  const { context, page, observed } = await createOperatorPage({
+    failReads: new Set(['platform_invoices']),
+  })
+  try {
+    await page.goto(`${baseUrl}/platform/billing`, { waitUntil: 'commit' })
+    await page.getByRole('heading', { name: 'Billing', exact: true }).waitFor({ timeout: 20000 })
+    await page.getByRole('alert').waitFor({ timeout: 12000 })
+    assert.match(await page.getByRole('alert').innerText(), /Mocked platform_invoices read unavailable/)
+    await page.getByText('Invoice records could not be loaded.', { exact: false }).waitFor()
+    await page.getByText('Payment history could not be loaded.', { exact: false }).waitFor()
+    assert.equal(await page.getByText('No invoice records are present.', { exact: false }).count(), 0)
+    assert.equal(await page.getByText('No payment records are present.', { exact: false }).count(), 0)
+    assert.deepEqual(observed.unexpectedExternalRequests, [])
+  } finally {
+    await context.close()
+  }
+})
+
 test('feature flag changes persist through the protected platform table', async () => {
   const { context, page, observed } = await createOperatorPage()
   try {
@@ -1059,6 +1085,24 @@ test('feature flag changes persist through the protected platform table', async 
     assert.ok(observed.writes.some((write) =>
       write.table === 'platform_feature_flags' && write.body?.enabled === false,
     ))
+  } finally {
+    await context.close()
+  }
+})
+
+test('feature flag read failures do not expose controls or claim an empty result', async () => {
+  const { context, page, observed } = await createOperatorPage({
+    failReads: new Set(['platform_feature_flags']),
+  })
+  try {
+    await page.goto(`${baseUrl}/platform/features`, { waitUntil: 'commit' })
+    await page.getByRole('heading', { name: 'Features', exact: true }).waitFor({ timeout: 20000 })
+    await page.getByRole('alert').waitFor({ timeout: 12000 })
+    assert.match(await page.getByRole('alert').innerText(), /Mocked platform_feature_flags read unavailable/)
+    await page.getByText('Feature-flag records could not be loaded.', { exact: false }).waitFor()
+    assert.equal(await page.getByLabel('Enable Operations Queue').count(), 0)
+    assert.equal(await page.getByText('No feature-flag records are available.', { exact: false }).count(), 0)
+    assert.deepEqual(observed.unexpectedExternalRequests, [])
   } finally {
     await context.close()
   }
@@ -1080,6 +1124,25 @@ test('maintenance changes persist the server setting and audit-relevant message'
   }
 })
 
+test('maintenance read failures do not show an off state or allow saving', async () => {
+  const { context, page, observed } = await createOperatorPage({
+    failReads: new Set(['platform_maintenance_settings']),
+  })
+  try {
+    await page.goto(`${baseUrl}/platform/maintenance`, { waitUntil: 'domcontentloaded' })
+    await page.getByRole('alert').waitFor()
+    assert.match(await page.getByRole('alert').innerText(), /Mocked platform_maintenance_settings read unavailable/)
+    await page.getByText('Maintenance settings are unavailable until the server record loads successfully.').waitFor()
+    await page.getByText('Unavailable', { exact: true }).waitFor()
+    assert.equal(await page.getByLabel('Enable maintenance mode').count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Save maintenance settings' }).count(), 0)
+    assert.equal(observed.writes.length, 0)
+    assert.deepEqual(observed.unexpectedExternalRequests, [])
+  } finally {
+    await context.close()
+  }
+})
+
 test('on-demand health checks invoke the protected monitor and report persisted status', async () => {
   const { context, page, observed } = await createOperatorPage()
   try {
@@ -1087,6 +1150,23 @@ test('on-demand health checks invoke the protected monitor and report persisted 
     await page.getByRole('button', { name: 'Run health checks' }).click()
     await page.getByText('Healthy', { exact: true }).first().waitFor()
     assert.ok(observed.functionInvocations.some((call) => call.functionName === 'platform-health-check'))
+  } finally {
+    await context.close()
+  }
+})
+
+test('health history read failures do not appear as an unchecked or empty probe result', async () => {
+  const { context, page, observed } = await createOperatorPage({
+    failReads: new Set(['platform_health_checks']),
+  })
+  try {
+    await page.goto(`${baseUrl}/platform/health`, { waitUntil: 'domcontentloaded' })
+    await page.getByRole('alert').waitFor()
+    assert.match(await page.getByRole('alert').innerText(), /Mocked platform_health_checks read unavailable/)
+    await page.getByText('Health history could not be loaded. Use Retry history above before treating this result as empty.').waitFor()
+    assert.equal(await page.getByText('No health checks have been recorded.', { exact: false }).count(), 0)
+    assert.ok(await page.getByText('Unavailable', { exact: true }).count() > 0)
+    assert.deepEqual(observed.unexpectedExternalRequests, [])
   } finally {
     await context.close()
   }
@@ -1101,6 +1181,23 @@ test('backup status failure remains explicit and never claims a successful backu
     await page.getByText('Not verified', { exact: true }).first().waitFor()
     assert.ok(observed.functionInvocations.some((call) => call.functionName === 'platform-backup-status'))
     assert.equal(await page.getByText(/Backup successful/i).count(), 0)
+  } finally {
+    await context.close()
+  }
+})
+
+test('backup history read failures do not appear as an empty provider inventory', async () => {
+  const { context, page, observed } = await createOperatorPage({
+    failReads: new Set(['platform_backup_checks']),
+  })
+  try {
+    await page.goto(`${baseUrl}/platform/backups`, { waitUntil: 'domcontentloaded' })
+    await page.getByRole('alert').waitFor()
+    assert.match(await page.getByRole('alert').innerText(), /Mocked platform_backup_checks read unavailable/)
+    await page.getByText('Provider-check history could not be loaded. Retry history above before treating this result as empty.').waitFor()
+    assert.equal(await page.getByText('No confirmed backup inventory is available.', { exact: false }).count(), 0)
+    assert.ok(await page.getByText('Unavailable', { exact: true }).count() > 0)
+    assert.deepEqual(observed.unexpectedExternalRequests, [])
   } finally {
     await context.close()
   }

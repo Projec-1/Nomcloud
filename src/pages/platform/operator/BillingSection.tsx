@@ -39,6 +39,8 @@ export default function BillingSection({ schools, loading }: { schools: School[]
     let cancelled = false
     setLedgerLoading(true)
     setLedgerError(null)
+    setLedger({ invoices: [], payments: [], events: [] })
+    setLedgerEnabled(null)
     Promise.all([fetchPlatformBillingLedger(), fetchPlatformFeatureFlags()])
       .then(([records, flags]) => {
         if (cancelled) return
@@ -46,7 +48,11 @@ export default function BillingSection({ schools, loading }: { schools: School[]
         setLedgerEnabled(flags.find((flag) => flag.flag_key === 'billing_ledger')?.enabled ?? false)
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setLedgerError(errorMessage(cause, 'Billing ledger records could not be loaded.'))
+        if (!cancelled) {
+          setLedger({ invoices: [], payments: [], events: [] })
+          setLedgerEnabled(null)
+          setLedgerError(errorMessage(cause, 'Billing ledger records could not be loaded.'))
+        }
       })
       .finally(() => { if (!cancelled) setLedgerLoading(false) })
     return () => { cancelled = true }
@@ -58,8 +64,8 @@ export default function BillingSection({ schools, loading }: { schools: School[]
     <SectionHeader eyebrow="Commercial operations" title="Billing" description="Actual school subscription labels and the auditable invoice/payment ledger. No payment gateway is connected." />
     <div className="grid gap-4 md:grid-cols-3">
       <KpiTile label="Schools with a plan label" value={loading ? '…' : assignedPlanCount.toLocaleString()} detail="From joined school subscription records" icon={CreditCard} />
-      <KpiTile label="Invoices in ledger" value={ledgerLoading ? '…' : ledgerEnabled === false ? 'Disabled' : ledger.invoices.length.toLocaleString()} detail="Latest 100 rows visible to this operator" icon={FileText} />
-      <KpiTile label="Payments in ledger" value={ledgerLoading ? '…' : ledgerEnabled === false ? 'Disabled' : ledger.payments.length.toLocaleString()} detail="Only provider-backed server records" icon={Receipt} />
+      <KpiTile label="Invoices in ledger" value={ledgerLoading ? '…' : ledgerError ? 'Unavailable' : ledgerEnabled === false ? 'Disabled' : ledger.invoices.length.toLocaleString()} detail="Latest 100 rows visible to this operator" icon={FileText} />
+      <KpiTile label="Payments in ledger" value={ledgerLoading ? '…' : ledgerError ? 'Unavailable' : ledgerEnabled === false ? 'Disabled' : ledger.payments.length.toLocaleString()} detail="Only provider-backed server records" icon={Receipt} />
     </div>
 
     {ledgerError && <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 p-4 text-sm text-red-700 dark:text-red-300">
@@ -77,7 +83,8 @@ export default function BillingSection({ schools, loading }: { schools: School[]
 
     <Panel title="Invoices" description="Statuses and history come from the durable billing ledger; no historical records are synthesized." className="mt-6">
       {ledgerLoading ? <p role="status" className="text-sm text-graphite">Loading invoice records…</p>
-        : ledgerEnabled === false ? <p className="text-sm text-graphite">Billing Ledger is disabled by its platform feature flag. No ledger records are exposed.</p>
+        : ledgerError ? <p className="text-sm text-graphite">Invoice records could not be loaded. Retry the ledger above before treating this result as empty.</p>
+          : ledgerEnabled === false ? <p className="text-sm text-graphite">Billing Ledger is disabled by its platform feature flag. No ledger records are exposed.</p>
           : ledger.invoices.length ? <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
           <thead><tr className="border-b border-ink/[0.08] text-xs uppercase tracking-wide text-graphite"><th className="py-3 pr-4">Invoice</th><th className="py-3 pr-4">School</th><th className="py-3 pr-4">Amount</th><th className="py-3 pr-4">Status</th><th className="py-3">Due</th></tr></thead>
           <tbody>{ledger.invoices.map((invoice) => <tr key={invoice.id} className="border-b border-ink/[0.05] dark:border-white/[0.06]">
@@ -92,7 +99,8 @@ export default function BillingSection({ schools, loading }: { schools: School[]
 
     <Panel title="Payments and audit history" description="A payment is recorded only by a trusted server integration; this screen cannot mark a payment complete." className="mt-6">
       {ledgerLoading ? <p role="status" className="text-sm text-graphite">Loading payment history…</p>
-        : ledgerEnabled === false ? <p className="text-sm text-graphite">Billing Ledger is disabled by its platform feature flag.</p>
+        : ledgerError ? <p className="text-sm text-graphite">Payment history could not be loaded. Retry the ledger above before treating this result as empty.</p>
+          : ledgerEnabled === false ? <p className="text-sm text-graphite">Billing Ledger is disabled by its platform feature flag.</p>
           : ledger.payments.length ? <ul className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
           {ledger.payments.map((payment) => <li key={payment.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
             <span>{invoiceById.get(payment.invoice_id)?.invoice_number ?? 'Invoice reference unavailable'} · {payment.provider}</span>
