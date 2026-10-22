@@ -76,7 +76,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_case_response_times() from public, anon, authenticated;
+revoke all on function public.set_platform_case_response_times() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_set_response_times
   before insert or update on public.platform_cases
@@ -113,7 +113,7 @@ begin
 end;
 $$;
 
-revoke all on function public.validate_platform_operations_assignment() from public, anon, authenticated;
+revoke all on function public.validate_platform_operations_assignment() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_validate_assignment
   before insert or update of assigned_operator_id on public.platform_cases
@@ -135,7 +135,7 @@ begin
 end;
 $$;
 
-revoke all on function public.validate_platform_case_completion() from public, anon, authenticated;
+revoke all on function public.validate_platform_case_completion() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_validate_completion
   before insert or update of status, resolution, approval_status on public.platform_cases
@@ -167,7 +167,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_operations_actor() from public, anon, authenticated;
+revoke all on function public.set_platform_operations_actor() from public, anon, authenticated, service_role;
 
 create trigger platform_case_events_set_actor
   before insert on public.platform_case_events
@@ -219,7 +219,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_incident_resolved_at() from public, anon, authenticated;
+revoke all on function public.set_platform_incident_resolved_at() from public, anon, authenticated, service_role;
 
 create trigger platform_incidents_set_resolved_at
   before insert or update on public.platform_incidents
@@ -260,7 +260,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_operations_creator() from public, anon, authenticated;
+revoke all on function public.set_platform_operations_creator() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_set_creator
   before insert on public.platform_cases
@@ -388,7 +388,7 @@ begin
 end;
 $$;
 
-revoke all on function public.record_platform_operations_audit() from public, anon, authenticated;
+revoke all on function public.record_platform_operations_audit() from public, anon, authenticated, service_role;
 
 create trigger platform_case_events_audit
   after insert on public.platform_case_events
@@ -451,7 +451,7 @@ begin
 end;
 $$;
 
-revoke all on function public.log_platform_case_change() from public, anon, authenticated;
+revoke all on function public.log_platform_case_change() from public, anon, authenticated, service_role;
 create trigger platform_cases_log_changes
   after insert or update on public.platform_cases
   for each row execute function public.log_platform_case_change();
@@ -480,7 +480,7 @@ begin
 end;
 $$;
 
-revoke all on function public.log_platform_incident_change() from public, anon, authenticated;
+revoke all on function public.log_platform_incident_change() from public, anon, authenticated, service_role;
 create trigger platform_incidents_log_changes
   after insert or update on public.platform_incidents
   for each row execute function public.log_platform_incident_change();
@@ -526,7 +526,7 @@ begin
 end;
 $$;
 
-revoke all on function public.sync_contact_message_case() from public, anon, authenticated;
+revoke all on function public.sync_contact_message_case() from public, anon, authenticated, service_role;
 
 create trigger contact_messages_sync_platform_case
   after insert or update of status on public.contact_messages
@@ -578,7 +578,7 @@ begin
 end;
 $$;
 
-revoke all on function public.log_platform_responder_change() from public, anon, authenticated;
+revoke all on function public.log_platform_responder_change() from public, anon, authenticated, service_role;
 
 create trigger platform_incident_responders_audit
   after insert or delete on public.platform_incident_responders
@@ -622,5 +622,5 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_incident_responders(uuid, uuid[]) from public, anon;
+revoke all on function public.set_platform_incident_responders(uuid, uuid[]) from public, anon, service_role;
 grant execute on function public.set_platform_incident_responders(uuid, uuid[]) to authenticated;

@@ -14,6 +14,7 @@ const migrations = [
   '20261014000003_approve_school_application_awaiting_information.sql',
   '20261019000001_operator_workspace_table_privileges.sql',
   '20261019200000_platform_controls_health_backup_billing.sql',
+  '20261022100000_restrict_api_function_execution.sql',
 ]
 
 const ids = {
@@ -46,6 +47,8 @@ create schema auth;
 create schema extensions;
 create domain extensions.citext as text;
 grant usage on schema public, auth, extensions to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant execute on functions to anon, authenticated, service_role;
 
 create function auth.uid()
 returns uuid language sql stable
@@ -210,6 +213,18 @@ $$;
 create function public.current_school_id()
 returns uuid language sql stable security definer set search_path = ''
 as $$ select school_id from public.profiles where id = auth.uid() $$;
+create function public.school_login_branding(p_shortcode text)
+returns table (name text, primary_color text, logo_path text)
+language sql stable security definer set search_path = ''
+as $$ select null::text, null::text, null::text where false $$;
+create function public.teaches_class_subject(
+  p_school_id uuid, p_class_id uuid, p_subject_id uuid
+)
+returns boolean language sql stable security definer set search_path = ''
+as $$ select false $$;
+create function public.assert_attendance_within_year()
+returns trigger language plpgsql security definer set search_path = ''
+as $$ begin return new; end $$;
 create function public.set_updated_at()
 returns trigger language plpgsql set search_path = ''
 as $$ begin new.updated_at := now(); return new; end $$;
@@ -476,6 +491,44 @@ test('Operator Workspace migrations apply and enforce their local contracts in d
         subscriptions: true,
         admins: true,
         applications: true,
+      })
+    })
+
+    await t.test('limits direct function execution to the intended API roles', async () => {
+      const privileges = await db.query(`
+        select
+          has_function_privilege('anon', 'public.is_platform_admin()', 'execute') as anon_platform_admin,
+          has_function_privilege('authenticated', 'public.is_platform_admin()', 'execute') as authenticated_platform_admin,
+          has_function_privilege('service_role', 'public.is_platform_admin()', 'execute') as service_platform_admin,
+          has_function_privilege('anon', 'public.has_school_billing_role(uuid)', 'execute') as anon_billing_role,
+          has_function_privilege('authenticated', 'public.has_school_billing_role(uuid)', 'execute') as authenticated_billing_role,
+          has_function_privilege('anon', 'public.teaches_class_subject(uuid, uuid, uuid)', 'execute') as anon_teaches_class_subject,
+          has_function_privilege('authenticated', 'public.teaches_class_subject(uuid, uuid, uuid)', 'execute') as authenticated_teaches_class_subject,
+          has_function_privilege('service_role', 'public.teaches_class_subject(uuid, uuid, uuid)', 'execute') as service_teaches_class_subject,
+          has_function_privilege('anon', 'public.school_login_branding(text)', 'execute') as anon_login_branding,
+          has_function_privilege('anon', 'public.assert_attendance_within_year()', 'execute') as anon_legacy_trigger,
+          has_function_privilege('authenticated', 'public.assert_attendance_within_year()', 'execute') as authenticated_legacy_trigger,
+          has_function_privilege('service_role', 'public.assert_attendance_within_year()', 'execute') as service_legacy_trigger,
+          has_function_privilege('anon', 'public.record_platform_operations_audit()', 'execute') as anon_operations_trigger,
+          has_function_privilege('authenticated', 'public.record_platform_operations_audit()', 'execute') as authenticated_operations_trigger,
+          has_function_privilege('service_role', 'public.record_platform_operations_audit()', 'execute') as service_operations_trigger
+      `)
+      assert.deepEqual(privileges.rows[0], {
+        anon_platform_admin: false,
+        authenticated_platform_admin: true,
+        service_platform_admin: true,
+        anon_billing_role: false,
+        authenticated_billing_role: true,
+        anon_teaches_class_subject: false,
+        authenticated_teaches_class_subject: true,
+        service_teaches_class_subject: true,
+        anon_login_branding: true,
+        anon_legacy_trigger: false,
+        authenticated_legacy_trigger: false,
+        service_legacy_trigger: false,
+        anon_operations_trigger: false,
+        authenticated_operations_trigger: false,
+        service_operations_trigger: false,
       })
     })
 
