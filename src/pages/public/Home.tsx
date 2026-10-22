@@ -10,8 +10,8 @@ import { img } from '@/data/images'
 
 const pillars = [
   { icon: Users, titleKey: 'home.pillar1.title', bodyKey: 'home.pillar1.body', image: img('studentsRaisingHands', 900) },
-  { icon: ShieldCheck, titleKey: 'home.pillar2.title', bodyKey: 'home.pillar2.body', image: '/ARDO%20GBDHIO.png' },
-  { icon: Zap, titleKey: 'home.pillar3.title', bodyKey: 'home.pillar3.body', image: '/ardayaschoolphoto.png' },
+  { icon: ShieldCheck, titleKey: 'home.pillar2.title', bodyKey: 'home.pillar2.body', image: '/private-by-design.png' },
+  { icon: Zap, titleKey: 'home.pillar3.title', bodyKey: 'home.pillar3.body', image: '/built-for-daily-use.png' },
 ]
 
 const capabilities = [
@@ -222,7 +222,7 @@ export default function Home() {
               ))}
             </ul>
             <div className="mt-8 overflow-hidden rounded-2xl shadow-soft">
-              <img src={img('teacherTutoring', 700)} alt="A teacher helping a student one-on-one" className="h-40 w-full object-cover" loading="lazy" />
+              <img src="/teacher-students.png" alt="Students celebrating together with a trophy" className="h-40 w-full object-cover" loading="lazy" />
             </div>
           </Reveal>
           <Reveal delay={150}>

@@ -387,7 +387,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
 
       {showCreate && !loading && !error && <NewCaseForm authUserId={authUserId} schools={schools} operators={operators} onCancel={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); refreshCases(); navigate(`/platform/operations/${id}`); notify('Case created.') }} onError={(message) => notify(message)} />}
       {error && <QueueError error={error} retry={refreshCases} />}
-      <div className="mb-4 grid gap-3 md:grid-cols-[minmax(220px,1fr)_150px_130px_150px_150px_170px]">
+      <div className="mb-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_repeat(5,minmax(0,1fr))]">
         <div className="relative min-w-0"><MagnifyingGlass className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" /><input aria-label="Search cases" className={`${fieldClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cases…" /></div>
         <Select aria-label="Filter by status" className="min-h-11" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="active">Active cases</option><option value="all">All statuses</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
         <Select aria-label="Filter by priority" className="min-h-11" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value="all">All priorities</option>{Object.entries(priorityLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
@@ -402,8 +402,8 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
             const school = schools.find((record) => record.id === item.schoolId)
             const owner = operators.find((record) => record.id === item.assignedOperatorId)
             return (
-              <button key={item.id} type="button" onClick={() => navigate(`/platform/operations/${item.id}`)} className="grid w-full gap-3 py-4 text-left transition-colors hover:bg-ink/[0.025] dark:hover:bg-white/[0.025] md:grid-cols-[minmax(0,1.7fr)_120px_100px_minmax(150px,1fr)_auto] md:items-center md:gap-4">
-                <span className="min-w-0"><span className="block truncate text-sm font-semibold">{item.title}</span><span className="mt-1 block truncate text-xs text-graphite">{caseTypeLabel[item.caseType]} · {school?.name ?? (item.sourceContactMessageId ? 'Platform enquiry' : 'No school linked')} · {item.team ?? 'No team'}</span></span>
+              <button key={item.id} type="button" onClick={() => navigate(`/platform/operations/${item.id}`)} className="grid w-full min-w-0 gap-3 py-4 text-left transition-colors hover:bg-ink/[0.025] dark:hover:bg-white/[0.025] xl:grid-cols-[minmax(0,1.7fr)_120px_100px_minmax(150px,1fr)_auto] xl:items-center xl:gap-4">
+                <span className="min-w-0"><span className="block break-words text-sm font-semibold">{item.title}</span><span className="mt-1 block break-words text-xs text-graphite">{caseTypeLabel[item.caseType]} · {school?.name ?? (item.sourceContactMessageId ? 'Platform enquiry' : 'No school linked')} · {item.team ?? 'No team'}</span></span>
                 <span className={`w-fit rounded-md px-2.5 py-1 text-xs font-semibold ${badgeClass(item.priority)}`}>{priorityLabel[item.priority]}</span>
                 <span className={`w-fit rounded-md px-2.5 py-1 text-xs font-semibold ${badgeClass(item.status)}`}>{statusLabel[item.status]}</span>
                 <span className="min-w-0 text-xs text-graphite">{owner?.fullName ?? 'Unassigned'}<span className={`mt-1 block ${isOverdue(item) ? 'font-semibold text-red-700 dark:text-red-300' : ''}`}>{isOverdue(item) ? 'Overdue · ' : ''}{dateTime(item.dueAt)}</span></span>

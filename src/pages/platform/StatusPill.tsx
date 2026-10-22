@@ -20,8 +20,8 @@ export const statusStyle: Record<string, string> = {
 
 export default function Status({ value }: { value: string }) {
   return (
-    <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusStyle[value] ?? 'bg-slate-500/10 text-slate-600 dark:text-slate-300'}`}>
-      <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />
+    <span className={`inline-flex max-w-full min-w-0 flex-wrap items-center gap-1.5 whitespace-normal break-words rounded-full px-2.5 py-1 text-left text-xs font-semibold leading-4 ${statusStyle[value] ?? 'bg-slate-500/10 text-slate-600 dark:text-slate-300'}`}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
       {value}
     </span>
   )
