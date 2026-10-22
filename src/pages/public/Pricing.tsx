@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Minus, Users, Wallet, Buildings as Building2 } from '@phosphor-icons/react'
 import SEO from '@/components/layout/SEO'
@@ -55,8 +56,15 @@ function formatUSD(amount: number) {
 
 export default function Pricing() {
   const { t } = useLanguage()
+  const [billingInterval, setBillingInterval] = useState<'monthly' | 'annual'>('monthly')
   const faqs = faqNums.map((n) => ({ q: t(`pricing.faq.q${n}`), a: t(`pricing.faq.a${n}`) }))
   const supportLabels = { starter: t('pricing.support.email'), growth: t('pricing.support.priority'), enterprise: t('pricing.support.sla') }
+  const formatUSDWithCents = (amount: number) => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
 
   return (
     <div>
@@ -75,7 +83,29 @@ export default function Pricing() {
       </section>
 
       <section className="pb-24">
-        <div className="container grid gap-6 lg:grid-cols-3">
+        <div className="container">
+          <div className="mb-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <span className="text-sm font-medium text-ink dark:text-white">{t('pricing.billing.label')}</span>
+            <div role="group" aria-label={t('pricing.billing.label')} className="inline-flex rounded-xl border border-ink/10 bg-white p-1 dark:border-white/10 dark:bg-[#202328]">
+              {(['monthly', 'annual'] as const).map((interval) => (
+                <button
+                  key={interval}
+                  type="button"
+                  aria-pressed={billingInterval === interval}
+                  onClick={() => setBillingInterval(interval)}
+                  className={cn(
+                    'min-h-11 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                    billingInterval === interval ? 'bg-brand text-white' : 'text-graphite hover:text-ink dark:hover:text-white',
+                  )}
+                >
+                  {t(`billing.interval.${interval}`)}
+                  {interval === 'annual' && <span className="ms-2 text-xs"> {t('pricing.billing.saveTwoMonths')}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-3">
           {subscriptionPlans.map((plan, i) => (
             <Reveal key={plan.name} delay={i * 100}>
               <div
@@ -95,9 +125,24 @@ export default function Pricing() {
                   {plan.monthlyPrice !== null ? (
                     <>
                       <span className="text-4xl font-semibold tracking-tight text-ink dark:text-white">
-                        {formatUSD(plan.monthlyPrice)}
+                        {formatUSD(billingInterval === 'annual' ? plan.annualPrice : plan.monthlyPrice)}
                       </span>
-                      <span className="ms-1 text-sm text-graphite">{t('pricing.perMonth')}</span>
+                      <span className="ms-1 text-sm text-graphite">
+                        {' '}{billingInterval === 'annual' ? t('billing.interval.priceSuffix.annual') : t('pricing.perMonth')}
+                      </span>
+                      {billingInterval === 'annual' && plan.annualPrice !== null && (
+                        <div className="mt-3 space-y-1.5 text-sm">
+                          <p className="font-medium text-brand">
+                            {t('pricing.billing.saveTwoMonths')} · {t('pricing.billing.save')} {formatUSD(plan.monthlyPrice * 12 - plan.annualPrice)} {t('pricing.billing.perYear')}
+                          </p>
+                          <p className="text-graphite">
+                            {formatUSDWithCents(plan.annualPrice / 12)} {t('pricing.billing.monthlyEquivalent')} · {t('pricing.billing.billedAnnually')}
+                          </p>
+                          <p className="text-xs text-graphite">
+                            {t('pricing.billing.regularPrice')} {formatUSD(plan.monthlyPrice * 12)} {t('pricing.billing.perYear')}
+                          </p>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <span className="text-4xl font-semibold tracking-tight text-ink dark:text-white">{t('pricing.custom')}</span>
@@ -120,6 +165,7 @@ export default function Pricing() {
               </div>
             </Reveal>
           ))}
+          </div>
         </div>
       </section>
 
