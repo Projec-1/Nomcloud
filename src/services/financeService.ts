@@ -107,14 +107,23 @@ export interface FeePaymentView {
   method: PaymentMethod
   reference: string
   paidOn: string
+  createdAt: string
+  /** Present only when the payment was linked to a verified provider event. */
+  provider?: string
+  providerReference?: string
+  paidAt?: string
+  evidencePath?: string | null
 }
 
 export interface FeeRecordView {
   id: string
   studentId: string
   studentName: string
+  studentAdmissionNo: string
+  className: string
   termId: string
   termName: string
+  academicYear: string
   category: string
   amount: number
   /** Trigger-maintained. Read-only everywhere in the interface. */
@@ -126,6 +135,18 @@ export interface FeeRecordView {
   /** amount - amountPaid, floored at zero. */
   balance: number
   payments: FeePaymentView[]
+}
+
+export function balanceAfterPayment(fee: FeeRecordView, paymentId: string): number {
+  const chronologicalPayments = [...fee.payments].sort(
+    (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+  )
+  let amountPaid = 0
+  for (const payment of chronologicalPayments) {
+    amountPaid += payment.amount
+    if (payment.id === paymentId) return Math.max(0, fee.amount - amountPaid)
+  }
+  return fee.balance
 }
 
 /** The editable shape of a fee record. Note what is absent: amount_paid. */
@@ -145,6 +166,7 @@ export interface PaymentInput {
   method: PaymentMethod
   reference: string
   paidOn: string
+  evidencePath?: string | null
 }
 
 /** Raised when the UNIQUE (school_id, reference) constraint rejects a payment. */
@@ -197,6 +219,7 @@ async function assembleFeeRecords(
   schoolId: string,
   rows: FeeRecordRow[],
   timeZone: string,
+  includeEvidence = false,
 ): Promise<FeeRecordView[]> {
   if (rows.length === 0) return []
 
@@ -204,26 +227,143 @@ async function assembleFeeRecords(
   const studentIds = Array.from(new Set(rows.map((r) => r.student_id)))
   const termIds = Array.from(new Set(rows.map((r) => r.term_id)))
   const feeIds = rows.map((r) => r.id)
+  const paymentColumns = 'id, fee_record_id, amount, currency, method, reference, paid_on, created_at'
 
   const [students, terms, payments] = await Promise.all([
-    supabase.from('students').select('id, full_name').eq('school_id', schoolId).in('id', studentIds),
-    supabase.from('terms').select('id, name').eq('school_id', schoolId).in('id', termIds),
+    supabase.from('students').select('id, full_name, admission_no').eq('school_id', schoolId).in('id', studentIds),
+    supabase
+      .from('terms')
+      .select('id, name, academic_year_id, start_date, end_date')
+      .eq('school_id', schoolId)
+      .in('id', termIds),
     supabase
       .from('fee_payments')
-      .select('id, fee_record_id, amount, currency, method, reference, paid_on')
+      .select(paymentColumns)
       .eq('school_id', schoolId)
       .in('fee_record_id', feeIds)
-      .order('paid_on', { ascending: false }),
+      .order('paid_on', { ascending: false })
+      .order('created_at', { ascending: false }),
   ])
 
   if (students.error) throw students.error
   if (terms.error) throw terms.error
   if (payments.error) throw payments.error
 
+  const academicYearIds = Array.from(
+    new Set(((terms.data ?? []) as { academic_year_id: string }[]).map((term) => term.academic_year_id)),
+  )
+  const years =
+    academicYearIds.length > 0
+      ? await supabase.from('academic_years').select('id, label').eq('school_id', schoolId).in('id', academicYearIds)
+      : { data: [], error: null }
+  if (years.error) throw years.error
+
+  const yearIds = Array.from(new Set(academicYearIds))
+  const enrollments =
+    yearIds.length > 0
+      ? await supabase
+          .from('class_enrollments')
+          .select('student_id, class_id, academic_year_id, enrolled_on, left_on')
+          .eq('school_id', schoolId)
+          .in('student_id', studentIds)
+          .in('academic_year_id', yearIds)
+      : { data: [], error: null }
+  if (enrollments.error) throw enrollments.error
+  const classIds = Array.from(
+    new Set(((enrollments.data ?? []) as { class_id: string }[]).map((enrollment) => enrollment.class_id)),
+  )
+  const classes =
+    classIds.length > 0
+      ? await supabase.from('classes').select('id, name').eq('school_id', schoolId).in('id', classIds)
+      : { data: [], error: null }
+  if (classes.error) throw classes.error
+
+  const paymentIds = ((payments.data ?? []) as { id: string }[]).map((payment) => payment.id)
+  const evidenceRows =
+    includeEvidence && paymentIds.length > 0
+      ? await supabase
+          .from('fee_payments')
+          .select('id, evidence_path')
+          .eq('school_id', schoolId)
+          .in('id', paymentIds)
+      : { data: [], error: null }
+  if (evidenceRows.error) throw evidenceRows.error
+  const evidenceByPayment = new Map<string, string | null>()
+  for (const row of (evidenceRows.data ?? []) as { id: string; evidence_path: string | null }[]) {
+    evidenceByPayment.set(row.id, row.evidence_path)
+  }
+
+  const paymentEvents =
+    paymentIds.length > 0
+      ? await supabase.rpc('fee_payment_receipt_details', { p_fee_payment_ids: paymentIds })
+      : { data: [], error: null }
+  if (paymentEvents.error) throw paymentEvents.error
+
   const studentNames = new Map<string, string>()
-  for (const s of (students.data ?? []) as { id: string; full_name: string }[]) studentNames.set(s.id, s.full_name)
-  const termNames = new Map<string, string>()
-  for (const t of (terms.data ?? []) as { id: string; name: string }[]) termNames.set(t.id, t.name)
+  const studentAdmissionNos = new Map<string, string>()
+  for (const s of (students.data ?? []) as { id: string; full_name: string; admission_no: string }[]) {
+    studentNames.set(s.id, s.full_name)
+    studentAdmissionNos.set(s.id, s.admission_no)
+  }
+  const yearsById = new Map<string, string>()
+  for (const year of (years.data ?? []) as { id: string; label: string }[]) yearsById.set(year.id, year.label)
+  const termsById = new Map<
+    string,
+    { name: string; academicYear: string; academicYearId: string; startDate: string; endDate: string }
+  >()
+  for (const term of (terms.data ?? []) as {
+    id: string
+    name: string
+    academic_year_id: string
+    start_date: string
+    end_date: string
+  }[]) {
+    termsById.set(term.id, {
+      name: term.name,
+      academicYear: yearsById.get(term.academic_year_id) ?? '',
+      academicYearId: term.academic_year_id,
+      startDate: term.start_date,
+      endDate: term.end_date,
+    })
+  }
+  const classNames = new Map<string, string>()
+  for (const classroom of (classes.data ?? []) as { id: string; name: string }[]) {
+    classNames.set(classroom.id, classroom.name)
+  }
+  const enrollmentsForStudent = new Map<
+    string,
+    { classId: string; academicYearId: string; enrolledOn: string; leftOn: string | null }[]
+  >()
+  for (const enrollment of (enrollments.data ?? []) as {
+    student_id: string
+    class_id: string
+    academic_year_id: string
+    enrolled_on: string
+    left_on: string | null
+  }[]) {
+    enrollmentsForStudent.set(enrollment.student_id, [
+      ...(enrollmentsForStudent.get(enrollment.student_id) ?? []),
+      {
+        classId: enrollment.class_id,
+        academicYearId: enrollment.academic_year_id,
+        enrolledOn: enrollment.enrolled_on,
+        leftOn: enrollment.left_on,
+      },
+    ])
+  }
+  const eventsByPayment = new Map<string, { provider: string; providerEventId: string; receivedAt: string }>()
+  for (const event of (paymentEvents.data ?? []) as {
+    fee_payment_id: string
+    provider: string
+    provider_event_id: string
+    received_at: string
+  }[]) {
+    eventsByPayment.set(event.fee_payment_id, {
+      provider: event.provider,
+      providerEventId: event.provider_event_id,
+      receivedAt: event.received_at,
+    })
+  }
 
   const paymentsByFee = new Map<string, FeePaymentView[]>()
   for (const p of (payments.data ?? []) as {
@@ -234,6 +374,7 @@ async function assembleFeeRecords(
     method: PaymentMethod
     reference: string
     paid_on: string
+    created_at: string
   }[]) {
     paymentsByFee.set(p.fee_record_id, [
       ...(paymentsByFee.get(p.fee_record_id) ?? []),
@@ -245,6 +386,11 @@ async function assembleFeeRecords(
         method: p.method,
         reference: p.reference,
         paidOn: p.paid_on,
+        createdAt: p.created_at,
+        evidencePath: includeEvidence ? evidenceByPayment.get(p.id) ?? null : undefined,
+        provider: eventsByPayment.get(p.id)?.provider,
+        providerReference: eventsByPayment.get(p.id)?.providerEventId,
+        paidAt: eventsByPayment.get(p.id)?.receivedAt,
       },
     ])
   }
@@ -252,12 +398,24 @@ async function assembleFeeRecords(
   return rows.map((r) => {
     const amount = Number(r.amount)
     const amountPaid = Number(r.amount_paid)
+    const term = termsById.get(r.term_id)
+    const enrollment = term
+      ? enrollmentsForStudent.get(r.student_id)?.find(
+          (row) =>
+            row.academicYearId === term.academicYearId &&
+            row.enrolledOn <= term.endDate &&
+            (row.leftOn === null || row.leftOn >= term.startDate),
+        )
+      : undefined
     return {
       id: r.id,
       studentId: r.student_id,
       studentName: studentNames.get(r.student_id) ?? '',
+      studentAdmissionNo: studentAdmissionNos.get(r.student_id) ?? '',
+      className: enrollment ? classNames.get(enrollment.classId) ?? '' : '',
       termId: r.term_id,
-      termName: termNames.get(r.term_id) ?? '',
+      termName: term?.name ?? '',
+      academicYear: term?.academicYear ?? '',
       category: r.category,
       amount,
       amountPaid,
@@ -291,7 +449,7 @@ export async function fetchFeeRecords(schoolId: string, timeZone: string): Promi
     .order('due_date', { ascending: false })
 
   if (error) throw error
-  return assembleFeeRecords(schoolId, (data ?? []) as FeeRecordRow[], timeZone)
+  return assembleFeeRecords(schoolId, (data ?? []) as FeeRecordRow[], timeZone, true)
 }
 
 /**
@@ -418,6 +576,7 @@ export async function recordPayment(schoolId: string, input: PaymentInput): Prom
     method: input.method,
     reference: input.reference,
     paid_on: input.paidOn,
+    evidence_path: input.evidencePath ?? null,
     // The policy accepts NULL or auth.uid() and nothing else.
     recorded_by: recordedBy,
   })
@@ -442,9 +601,23 @@ export async function recordPayment(schoolId: string, input: PaymentInput): Prom
  * remains open. Migration 13 measured the downward recalculation working.
  */
 export async function deletePayment(schoolId: string, paymentId: string): Promise<void> {
+  const { data, error: readError } = await supabase
+    .from('fee_payments')
+    .select('evidence_path')
+    .eq('school_id', schoolId)
+    .eq('id', paymentId)
+    .maybeSingle()
+  if (readError) throw readError
+
   const { error } = await supabase.from('fee_payments').delete().eq('school_id', schoolId).eq('id', paymentId)
 
   if (error) throw error
+  if (data?.evidence_path) {
+    const { error: evidenceError } = await supabase.storage.from('payment-evidence').remove([data.evidence_path])
+    if (evidenceError) {
+      throw new Error(`Payment removed, but its evidence file could not be deleted: ${evidenceError.message}`)
+    }
+  }
 }
 
 // ===========================================================================

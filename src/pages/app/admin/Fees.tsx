@@ -19,6 +19,7 @@ import { useAcademicStructure } from '@/hooks/useAcademicStructure'
 import { fetchSchoolStudents, type RosterStudent } from '@/services/studentService'
 import {
   createFeeRecord,
+  balanceAfterPayment,
   deleteFeeRecord,
   deletePayment,
   paymentMethodLabel,
@@ -42,13 +43,21 @@ import { todayInTimeZone, DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 import { errorMessage } from '@/utils/errorMessage'
 import FeeAnalysisCard from '@/components/dashboard/FeeAnalysisCard'
 import PrintButton from '@/components/ui/PrintButton'
+import FeePaymentCheckout from '@/components/finance/FeePaymentCheckout'
+import PaymentReceiptDocument, { type PaymentReceiptDetails } from '@/components/finance/PaymentReceiptDocument'
+import {
+  createSignedPaymentEvidenceUrl,
+  removePaymentEvidence,
+  schoolLogoUrl,
+  uploadPaymentEvidence,
+} from '@/services/storageService'
 
 // ---------------------------------------------------------------------------
 // Phase 8 batch 6. Real fee_records and fee_payments.
 //
 // amount_paid IS NOWHERE EDITABLE ON THIS PAGE. It appears in the table and in
 // the statement as a READ-ONLY figure, and the only control that changes it is
-// "Record Payment", which writes a fee_payments row and lets the trigger
+// "Record Manual Payment", which writes a fee_payments row and lets the trigger
 // recalculate. The fee record form has six fields — student, term, category,
 // amount, currency, due date — and no seventh. Migration 13 made this
 // structural: the column-level UPDATE grant on fee_records omits amount_paid, so
@@ -113,6 +122,7 @@ export default function AdminFees() {
   const [payMethod, setPayMethod] = useState<PaymentMethod>('cash')
   const [payReference, setPayReference] = useState('')
   const [payDate, setPayDate] = useState('')
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
   const [payErrors, setPayErrors] = useState<FieldErrors>({})
 
   const [reminderOpen, setReminderOpen] = useState(false)
@@ -123,8 +133,21 @@ export default function AdminFees() {
   const [reminderLoading, setReminderLoading] = useState(false)
 
   const [statementTarget, setStatementTarget] = useState<FeeRecordView | null>(null)
+  const [receiptForPrint, setReceiptForPrint] = useState<PaymentReceiptDetails | null>(null)
+  const [evidenceLink, setEvidenceLink] = useState<{ paymentId: string; url: string } | null>(null)
   const [deleteFeeTarget, setDeleteFeeTarget] = useState<FeeRecordView | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (!receiptForPrint) return
+    const clear = () => setReceiptForPrint(null)
+    window.addEventListener('afterprint', clear, { once: true })
+    const timer = window.setTimeout(() => window.print(), 0)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('afterprint', clear)
+    }
+  }, [receiptForPrint])
 
   useEffect(() => {
     if (!schoolId || !canManageFinance) return
@@ -284,7 +307,42 @@ export default function AdminFees() {
     setPayMethod('cash')
     setPayReference('')
     setPayDate(todayInTimeZone(timeZone))
+    setEvidenceFile(null)
+    setEvidenceLink(null)
     setPayErrors({})
+  }
+
+  const openPaymentEvidence = async (paymentId: string, path: string) => {
+    try {
+      setEvidenceLink({ paymentId, url: await createSignedPaymentEvidenceUrl(path) })
+    } catch (err: unknown) {
+      showToast({ type: 'error', title: 'Evidence unavailable', description: errorMessage(err) })
+    }
+  }
+
+  const openPaymentReceipt = (fee: FeeRecordView, payment: FeeRecordView['payments'][number]) => {
+    setReceiptForPrint({
+      schoolName: school?.name ?? '',
+      schoolLogoUrl: schoolLogoUrl(school?.logo_path ?? null),
+      schoolAddress: school?.address,
+      schoolPhone: school?.phone,
+      schoolEmail: school?.email,
+      reference: payment.reference,
+      studentName: fee.studentName,
+      studentAdmissionNo: fee.studentAdmissionNo,
+      className: fee.className,
+      academicYear: fee.academicYear,
+      category: fee.category,
+      originalAmount: fee.amount,
+      amountPaid: payment.amount,
+      remainingBalance: balanceAfterPayment(fee, payment.id),
+      currency: payment.currency,
+      method: paymentMethodLabel(payment.method),
+      paidOn: payment.paidOn,
+      paidAt: payment.paidAt,
+      providerReference: payment.providerReference,
+      status: payment.provider ? 'verified' : 'recorded',
+    })
   }
 
   const validatePayment = () => {
@@ -306,7 +364,9 @@ export default function AdminFees() {
   const submitPayment = async () => {
     if (!payTarget || !schoolId || !validatePayment()) return
     setIsSaving(true)
+    let evidencePath: string | undefined
     try {
+      if (evidenceFile) evidencePath = await uploadPaymentEvidence(schoolId, evidenceFile)
       await recordPayment(schoolId, {
         feeRecordId: payTarget.id,
         amount: Number(payAmount),
@@ -314,23 +374,33 @@ export default function AdminFees() {
         method: payMethod,
         reference: payReference.trim(),
         paidOn: payDate,
+        evidencePath,
       })
       showToast({
         type: 'success',
         title: 'Payment recorded',
         description: `${formatMoney(Number(payAmount), payTarget.currency, true)} recorded for ${payTarget.category}.`,
       })
+      setEvidenceFile(null)
       setPayTarget(null)
       reload()
     } catch (err: unknown) {
+      let failure = errorMessage(err)
+      if (evidencePath) {
+        try {
+          await removePaymentEvidence(evidencePath)
+        } catch (cleanupError: unknown) {
+          failure = `${failure} Evidence upload cleanup also failed: ${errorMessage(cleanupError)}`
+        }
+      }
       // A duplicate reference lands here with a specific message rather than a
       // raw constraint name.
       showToast({
         type: 'error',
         title: 'Payment not recorded',
-        description: errorMessage(err),
+        description: failure,
       })
-      setPayErrors({ reference: errorMessage(err) })
+      setPayErrors({ reference: failure })
     } finally {
       setIsSaving(false)
     }
@@ -361,10 +431,11 @@ export default function AdminFees() {
       setStatementTarget(null)
       reload()
     } catch (err: unknown) {
+      const message = errorMessage(err)
       showToast({
         type: 'error',
-        title: 'Payment not removed',
-        description: errorMessage(err),
+        title: message.startsWith('Payment removed,') ? 'Payment removed with a cleanup issue' : 'Payment not removed',
+        description: message,
       })
     }
   }
@@ -593,9 +664,25 @@ export default function AdminFees() {
                               <Trash2 className="h-4 w-4" />
                             </button>
                             {f.status !== 'paid' && (
-                              <Button size="sm" variant="outline" onClick={() => openPay(f)}>
-                                Record Payment
-                              </Button>
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => openPay(f)}>
+                                  Record Manual Payment
+                                </Button>
+                                {school?.is_demo && (
+                                  <FeePaymentCheckout
+                                    fee={f}
+                                    school={school}
+                                    payerName=""
+                                    onPaid={reload}
+                                  >
+                                    {(openCheckout, pending) => (
+                                      <Button size="sm" onClick={openCheckout}>
+                                        {pending ? 'Check payment' : 'Test online payment'}
+                                      </Button>
+                                    )}
+                                  </FeePaymentCheckout>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -715,11 +802,11 @@ export default function AdminFees() {
       <Modal
         open={!!payTarget}
         onClose={() => setPayTarget(null)}
-        title="Record Payment"
+        title="Record Manual Payment"
         description={
           payTarget
-            ? `${payTarget.studentName} · ${payTarget.category} · balance ${formatMoney(payTarget.balance, payTarget.currency, true)}`
-            : undefined
+            ? `${payTarget.studentName} · ${payTarget.category} · balance ${formatMoney(payTarget.balance, payTarget.currency, true)}. Enter a payment received outside Nom Cloud’s online checkout; never use manual entry to confirm an unverified gateway transaction.`
+            : 'Enter a payment received outside Nom Cloud’s online checkout; never use manual entry to confirm an unverified gateway transaction.'
         }
         footer={
           <>
@@ -727,7 +814,7 @@ export default function AdminFees() {
               Cancel
             </Button>
             <Button onClick={submitPayment} disabled={isSaving}>
-              {isSaving ? 'Recording…' : 'Record Payment'}
+              {isSaving ? 'Recording…' : 'Record Manual Payment'}
             </Button>
           </>
         }
@@ -768,8 +855,15 @@ export default function AdminFees() {
             error={payErrors.paidOn}
           />
           <p className="text-xs text-graphite">
-            Each reference must be unique within the school, so the same receipt cannot be entered twice.
+            Each reference must be unique within the school. Online checkout transactions are verified and posted automatically.
           </p>
+          <Input
+            label="Evidence file (optional)"
+            type="file"
+            accept="application/pdf,image/png,image/jpeg,image/webp"
+            onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)}
+            hint="PDF, PNG, JPEG, or WebP · up to 5 MB. Only authorized school finance staff can view it."
+          />
         </div>
       </Modal>
 
@@ -823,27 +917,50 @@ export default function AdminFees() {
                       <p className="truncate text-xs text-graphite">
                         {paymentMethodLabel(p.method)} · {p.reference} · {formatDate(p.paidOn)}
                       </p>
+                      <p className="mt-1 text-xs font-medium text-graphite">
+                        {p.provider ? `Online · ${p.provider}` : 'Manual payment'}
+                        {p.paidAt ? ` · ${new Date(p.paidAt).toLocaleString()}` : ''}
+                      </p>
+                      {p.evidencePath && (
+                        <div className="mt-1 flex items-center gap-2 text-xs">
+                          <button type="button" onClick={() => void openPaymentEvidence(p.id, p.evidencePath!)} className="font-medium text-brand underline">
+                            View evidence
+                          </button>
+                          {evidenceLink?.paymentId === p.id && <a href={evidenceLink.url} target="_blank" rel="noreferrer" className="text-brand underline">Open file</a>}
+                        </div>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removePayment(p.id)}
-                      className="shrink-0 rounded-lg p-2 text-graphite hover:bg-red-500/10 hover:text-red-500"
-                      aria-label={`Remove payment ${p.reference}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openPaymentReceipt(statementTarget, p)}
+                        className="min-h-11 rounded-lg px-3 text-xs font-medium text-graphite hover:bg-ink/5 hover:text-ink dark:hover:bg-white/10 dark:hover:text-white"
+                      >
+                        Save / print receipt
+                      </button>
+                      {!p.provider && (
+                        <button
+                          type="button"
+                          onClick={() => removePayment(p.id)}
+                          className="min-h-11 min-w-11 rounded-lg p-2 text-graphite hover:bg-red-500/10 hover:text-red-500"
+                          aria-label={`Remove manual payment ${p.reference}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
             </div>
             <p className="mt-4 text-xs text-graphite">
-              Removing a payment recalculates the balance automatically. There is no way to set a paid amount directly.
+              Removing a manual payment recalculates the balance. Verified online payments are retained and cannot be removed from this screen.
             </p>
           </div>
         )}
       </Modal>
 
-      {statementTarget && (
+      {statementTarget && !receiptForPrint && (
         <article className="print-only print-document" aria-label="Fee statement">
           <header className="mb-6 border-b border-gray-300 pb-4">
             <p className="text-lg font-semibold">{school?.name ?? 'School'}</p>
@@ -892,6 +1009,7 @@ export default function AdminFees() {
               </tbody>
             </table>
           )}
+          {receiptForPrint && <PaymentReceiptDocument details={receiptForPrint} />}
         </article>
       )}
 
