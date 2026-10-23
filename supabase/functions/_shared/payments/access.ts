@@ -23,23 +23,9 @@
 // ---------------------------------------------------------------------------
 
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { HttpError } from './http.ts'
 
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-export const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-
-export class HttpError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message)
-  }
-}
+export { corsHeaders, errorResponse, HttpError, json } from './http.ts'
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -98,15 +84,24 @@ export async function loadPayableFee(clients: Clients, feeRecordId: string): Pro
     .eq('id', feeRecordId)
     .maybeSingle()
 
-  if (error) throw new HttpError(500, error.message)
+  if (error) {
+    console.error('Fee lookup failed', error.code ?? 'unknown_database_error')
+    throw new HttpError(500, 'Unable to load fee details')
+  }
   if (!fee) throw new HttpError(404, 'Fee record not found')
 
   const [adminCheck, guardianCheck] = await Promise.all([
     clients.callerClient.rpc('has_school_admin_role', { p_school_id: fee.school_id }),
     clients.callerClient.rpc('is_guardian_of_student', { p_school_id: fee.school_id, p_student_id: fee.student_id }),
   ])
-  if (adminCheck.error) throw new HttpError(500, adminCheck.error.message)
-  if (guardianCheck.error) throw new HttpError(500, guardianCheck.error.message)
+  if (adminCheck.error) {
+    console.error('Fee administrator authorization check failed', adminCheck.error.code ?? 'unknown_database_error')
+    throw new HttpError(500, 'Unable to verify payment permissions')
+  }
+  if (guardianCheck.error) {
+    console.error('Fee guardian authorization check failed', guardianCheck.error.code ?? 'unknown_database_error')
+    throw new HttpError(500, 'Unable to verify payment permissions')
+  }
   if (adminCheck.data !== true && guardianCheck.data !== true) {
     throw new HttpError(403, 'You may not make a payment for this fee')
   }
@@ -116,7 +111,10 @@ export async function loadPayableFee(clients: Clients, feeRecordId: string): Pro
     .select('is_demo')
     .eq('id', fee.school_id)
     .single()
-  if (schoolError) throw new HttpError(500, schoolError.message)
+  if (schoolError) {
+    console.error('Fee school lookup failed', schoolError.code ?? 'unknown_database_error')
+    throw new HttpError(500, 'Unable to verify the fee school')
+  }
 
   const amount = Number(fee.amount)
   const amountPaid = Number(fee.amount_paid)
@@ -137,10 +135,4 @@ export function enforceMockSafety(isMock: boolean, fee: FeeContext): void {
   if (isMock && !fee.isDemoSchool) {
     throw new HttpError(403, 'Mock payments are only permitted for the demo school')
   }
-}
-
-export function errorResponse(error: unknown): Response {
-  if (error instanceof HttpError) return json({ error: error.message }, error.status)
-  const message = error instanceof Error ? error.message : String(error)
-  return json({ error: message }, 500)
 }

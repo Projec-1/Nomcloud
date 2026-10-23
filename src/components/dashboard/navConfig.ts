@@ -24,7 +24,6 @@ export const navByRole: Record<Role, NavItem[]> = {
     { to: '/app/admin/exams', labelKey: 'dash.nav.exams', icon: BarChart3 },
     { to: '/app/admin/fees', labelKey: 'dash.nav.fees', icon: Wallet },
     { to: '/app/admin/fee-insights', labelKey: 'dash.nav.feeInsights', icon: TrendingUp },
-    { to: '/app/billing', labelKey: 'dash.nav.subscriptionBilling', icon: CreditCard },
     { to: '/app/admin/announcements', labelKey: 'dash.nav.announcements', icon: Bell },
     { to: '/app/admin/messages', labelKey: 'dash.nav.messages', icon: MessageSquare },
     { to: '/app/admin/reports', labelKey: 'dash.nav.reports', icon: BarChart3 },

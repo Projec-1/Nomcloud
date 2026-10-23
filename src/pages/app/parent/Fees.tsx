@@ -1,50 +1,31 @@
 import { Wallet, CreditCard, CheckCircle as CheckCircle2, Download, Printer } from '@phosphor-icons/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useLanguage } from '@/context/LanguageContext'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useChildFees } from '@/hooks/useFinance'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
 import PageHeader from '@/components/ui/PageHeader'
 import ChildSwitcher from '@/components/dashboard/ChildSwitcher'
 import ResourceGate from '@/components/ui/ResourceGate'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
 import { paymentMethodLabel, type FeePaymentView, type FeeStatus } from '@/services/financeService'
+import { settleFeePayment, startFeePayment } from '@/services/feePaymentService'
 import { formatDate, formatMoney } from '@/utils/format'
 import { downloadReceiptImage } from '@/utils/receipt'
 import { schoolLogoUrl } from '@/services/storageService'
+import { errorMessage } from '@/utils/errorMessage'
 
-// ---------------------------------------------------------------------------
-// Phase 8 batch 6. Real fee_records and fee_payments for the selected child.
-//
-// READ ONLY, AND THE "PAY NOW" FLOW IS REMOVED. This is the most consequential
-// deletion in Phase 8 so far, so the reasoning is recorded here in full.
-//
-// The prototype offered a Pay Now button which:
-//   1. waited 1.1 seconds to simulate a gateway,
-//   2. generated a reference as `PAY<timestamp>`,
-//   3. called the mock recordPayment,
-//   4. showed "Payment successful" and offered a receipt to download.
-//
-// No money moved at any point, and none could. A guardian holds SELECT and
-// nothing else on fee_payments — there is no guardian INSERT policy, by design:
-// C.5 states a guardian-initiated payment belongs to a real payment flow, never
-// to a direct row insert. Against the real database that write is refused.
-//
-// Left in place, the button would have told a parent their fees were paid, and
-// handed them a receipt as evidence, while the school's books showed the money
-// still outstanding. That is the worst failure available on this screen, so the
-// control is deleted rather than disabled. This closes open decision 4.
-//
-// THE RECEIPT IS KEPT, AND NOW MEANS SOMETHING. It is attached to payments the
-// school has actually recorded, read from fee_payments, instead of to a
-// simulated one. A parent downloading proof of a real receipted payment is a
-// legitimate read.
-//
-// Status is derived at read from amount, amount_paid and due_date against the
-// school's today, exactly as the admin page derives it. There is no status
-// column and nothing here writes one.
-// ---------------------------------------------------------------------------
+interface FeePaymentOutcome {
+  status: 'succeeded' | 'failed' | 'unknown'
+  mock?: boolean
+  message: string
+}
+
+// Student-fee payments use the existing fee payment ledger and provider flow.
+// They remain separate from school subscription invoices and payments.
 
 const statusTone: Record<FeeStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
   paid: 'success',
@@ -57,8 +38,15 @@ export default function ParentFees() {
   const { profile, school } = useAuth()
   const { t } = useLanguage()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
-  const { state: feesState } = useChildFees(selectedChild?.id ?? null)
+  const { state: feesState, reload: reloadFees } = useChildFees(selectedChild?.id ?? null)
   const [receiptForPrint, setReceiptForPrint] = useState<{ payment: FeePaymentView; category: string } | null>(null)
+  const [paymentFeeId, setPaymentFeeId] = useState<string | null>(null)
+  const [paymentPhone, setPaymentPhone] = useState('')
+  const [paymentPhoneError, setPaymentPhoneError] = useState('')
+  const [paymentBusy, setPaymentBusy] = useState(false)
+  const [paymentOutcome, setPaymentOutcome] = useState<FeePaymentOutcome | null>(null)
+  const [paymentTransactionId, setPaymentTransactionId] = useState<string | null>(null)
+  const paymentInFlight = useRef(false)
 
   useEffect(() => {
     if (!receiptForPrint) return
@@ -99,6 +87,91 @@ export default function ParentFees() {
       payerName: profile?.full_name ?? 'Parent',
       date: payment.paidOn,
     })
+  }
+
+  const settleFeeTransaction = async (transactionId: string, mockHint?: boolean) => {
+    try {
+      const settled = await settleFeePayment(transactionId)
+      if (settled.fee_payment_id && settled.processing_status === 'applied') {
+        setPaymentOutcome({
+          status: 'succeeded',
+          mock: mockHint || settled.mock,
+          message: t('parent.fees.payment.succeeded'),
+        })
+        reloadFees()
+      } else if (settled.outcome === 'rejected' || settled.processing_status === 'rejected') {
+        setPaymentTransactionId(null)
+        setPaymentOutcome({
+          status: 'failed',
+          mock: mockHint || settled.mock,
+          message: t('parent.fees.payment.failed'),
+        })
+      } else {
+        setPaymentOutcome({
+          status: 'unknown',
+          mock: mockHint || settled.mock,
+          message: t('parent.fees.payment.unknown'),
+        })
+      }
+    } catch (error) {
+      setPaymentOutcome({
+        status: 'unknown',
+        mock: mockHint,
+        message: errorMessage(error, t('parent.fees.payment.unknown')),
+      })
+    }
+  }
+
+  const retryFeePaymentStatus = async () => {
+    if (!paymentTransactionId || paymentInFlight.current) return
+    paymentInFlight.current = true
+    setPaymentBusy(true)
+    try {
+      await settleFeeTransaction(paymentTransactionId, paymentOutcome?.mock)
+    } finally {
+      paymentInFlight.current = false
+      setPaymentBusy(false)
+    }
+  }
+
+  const submitFeePayment = async (feeRecordId: string, balance: number) => {
+    if (paymentInFlight.current) return
+    const accountNumber = paymentPhone.trim().replace(/[\s()-]/g, '')
+    if (!/^\+252\d{8,9}$/.test(accountNumber)) {
+      setPaymentPhoneError(t('parent.fees.payment.phoneError'))
+      return
+    }
+
+    paymentInFlight.current = true
+    setPaymentPhoneError('')
+    setPaymentBusy(true)
+    try {
+      const started = await startFeePayment({
+        feeRecordId,
+        amount: balance,
+        accountNumber: accountNumber.replace('+', ''),
+      })
+      if (started.event_type === 'declined' || started.event_type === 'cancelled') {
+        setPaymentTransactionId(null)
+        setPaymentOutcome({
+          status: 'failed',
+          mock: started.mock,
+          message: t('parent.fees.payment.failed'),
+        })
+        return
+      }
+
+      setPaymentTransactionId(started.transaction_id)
+      await settleFeeTransaction(started.transaction_id, started.mock)
+    } catch (error) {
+      setPaymentOutcome({
+        status: 'unknown',
+        message: errorMessage(error, t('parent.fees.payment.unknown')),
+      })
+    } finally {
+      paymentInFlight.current = false
+      setPaymentBusy(false)
+    }
   }
 
   return (
@@ -158,6 +231,139 @@ export default function ParentFees() {
                       </div>
                     </div>
 
+                    {f.balance > 0 && (
+                      <div className="mt-4 border-t border-ink/5 pt-4 dark:border-white/10">
+                        {paymentFeeId !== f.id ? (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setPaymentFeeId(f.id)
+                              setPaymentPhone('')
+                              setPaymentOutcome(null)
+                              setPaymentTransactionId(null)
+                              setPaymentPhoneError('')
+                            }}
+                          >
+                            <Wallet className="h-4 w-4" aria-hidden="true" />
+                            {t('parent.fees.payment.payNow')}
+                          </Button>
+                        ) : paymentOutcome ? (
+                          <div
+                            className={`rounded-xl border p-4 text-sm ${
+                              paymentOutcome.status === 'succeeded'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'
+                                : paymentOutcome.status === 'unknown'
+                                  ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100'
+                                  : 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-100'
+                            }`}
+                            role={paymentOutcome.status === 'unknown' ? 'alert' : 'status'}
+                          >
+                            <p className="font-semibold">{paymentOutcome.message}</p>
+                            {paymentOutcome.mock && (
+                              <p className="mt-2 text-xs font-semibold">{t('parent.fees.payment.mockNotice')}</p>
+                            )}
+                            {paymentOutcome.status === 'failed' ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-3"
+                                onClick={() => {
+                                  setPaymentOutcome(null)
+                                  setPaymentTransactionId(null)
+                                }}
+                              >
+                                {t('parent.fees.payment.newAttempt')}
+                              </Button>
+                            ) : paymentOutcome.status === 'unknown' && paymentTransactionId ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-3"
+                                disabled={paymentBusy}
+                                onClick={() => void retryFeePaymentStatus()}
+                              >
+                                {paymentBusy ? t('parent.fees.payment.processing') : t('parent.fees.payment.retry')}
+                              </Button>
+                            ) : paymentOutcome.status === 'unknown' ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-3"
+                                onClick={reloadFees}
+                              >
+                                {t('parent.fees.payment.refresh')}
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-3"
+                                onClick={() => {
+                                  reloadFees()
+                                  setPaymentFeeId(null)
+                                  setPaymentOutcome(null)
+                                  setPaymentTransactionId(null)
+                                }}
+                              >
+                                {t('parent.fees.payment.refresh')}
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <form
+                            className="max-w-xl rounded-xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-[#202328]"
+                            onSubmit={(event) => {
+                              event.preventDefault()
+                              void submitFeePayment(f.id, f.balance)
+                            }}
+                          >
+                            <p className="text-sm font-semibold text-ink dark:text-white">{t('parent.fees.payment.title')}</p>
+                            <p className="mt-1 text-sm text-graphite">
+                              {t('parent.fees.payment.amount')}: {formatMoney(f.balance, f.currency, true)}
+                            </p>
+                            <Input
+                              className="mt-4"
+                              label={t('parent.fees.payment.phone')}
+                              type="tel"
+                              autoComplete="tel"
+                              required
+                              value={paymentPhone}
+                              onChange={(event) => {
+                                setPaymentPhone(event.target.value)
+                                setPaymentPhoneError('')
+                              }}
+                              placeholder="+252 61 234 5678"
+                              error={paymentPhoneError}
+                            />
+                            <p className="mt-2 text-xs leading-relaxed text-graphite">{t('parent.fees.payment.phonePrivacy')}</p>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <Button type="submit" size="sm" disabled={paymentBusy}>
+                                {paymentBusy ? t('parent.fees.payment.processing') : t('parent.fees.payment.confirm')}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={paymentBusy}
+                                onClick={() => {
+                                  setPaymentFeeId(null)
+                                  setPaymentOutcome(null)
+                                }}
+                              >
+                                {t('parent.fees.payment.cancel')}
+                              </Button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
+                    )}
+
                     {f.payments.length > 0 && (
                       <div className="mt-4 space-y-2 border-t border-ink/5 pt-4 dark:border-white/10">
                         <p className="text-xs font-medium text-graphite">{t('parent.fees.paymentsReceived')}</p>
@@ -197,7 +403,7 @@ export default function ParentFees() {
 
               {balance > 0 && (
                 <p className="mt-5 rounded-2xl border border-ink/5 bg-white/60 px-4 py-3 text-xs text-graphite dark:border-white/10 dark:bg-white/[0.03]">
-                  {t('parent.fees.paymentOffice')}
+                  {t('parent.fees.payment.notice')}
                 </p>
               )}
             </>

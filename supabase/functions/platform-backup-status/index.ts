@@ -22,20 +22,6 @@ type BackupRecord = {
   error_code: string | null;
 };
 
-async function recordCheck(
-  service: ReturnType<typeof createClient>,
-  record: BackupRecord,
-): Promise<boolean> {
-  const { error } = await service.rpc("record_platform_backup_check", {
-    p_status: record.status,
-    p_backup_count: record.backup_count,
-    p_latest_backup_at: record.latest_backup_at,
-    p_latest_backup_status: record.latest_backup_status,
-    p_error_code: record.error_code,
-  });
-  return !error;
-}
-
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -56,6 +42,16 @@ Deno.serve(async (request) => {
     global: { headers: { Authorization: authorization } },
   });
   const service = createClient(supabaseUrl, serviceRoleKey);
+  const recordCheck = async (record: BackupRecord): Promise<boolean> => {
+    const { error } = await service.rpc("record_platform_backup_check", {
+      p_status: record.status,
+      p_backup_count: record.backup_count,
+      p_latest_backup_at: record.latest_backup_at,
+      p_latest_backup_status: record.latest_backup_status,
+      p_error_code: record.error_code,
+    });
+    return !error;
+  };
   const { data: userData, error: userError } = await caller.auth.getUser(
     authorization.slice("Bearer ".length),
   );
@@ -74,7 +70,7 @@ Deno.serve(async (request) => {
   const configuredRef = Deno.env.get("SUPABASE_PROJECT_REF");
   const projectRef = configuredRef ?? new URL(supabaseUrl).hostname.split(".")[0];
   if (!accessToken || !/^[a-z0-9]{20}$/.test(projectRef)) {
-    const recorded = await recordCheck(service, {
+    const recorded = await recordCheck({
       status: "unknown",
       backup_count: null,
       latest_backup_at: null,
@@ -107,7 +103,7 @@ Deno.serve(async (request) => {
     );
   } catch {
     clearTimeout(timeout);
-    const recorded = await recordCheck(service, {
+    const recorded = await recordCheck({
       status: "unknown",
       backup_count: null,
       latest_backup_at: null,
@@ -126,7 +122,7 @@ Deno.serve(async (request) => {
 
   if (!response.ok) {
     const errorCode = response.status >= 500 ? "provider_unavailable" : "provider_rejected";
-    const recorded = await recordCheck(service, {
+    const recorded = await recordCheck({
       status: "unknown",
       backup_count: null,
       latest_backup_at: null,
@@ -149,7 +145,7 @@ Deno.serve(async (request) => {
   }
   const inventory = parseSupabaseBackupInventory(payload);
   if (!inventory) {
-    const recorded = await recordCheck(service, {
+    const recorded = await recordCheck({
       status: "unknown",
       backup_count: null,
       latest_backup_at: null,
@@ -164,7 +160,7 @@ Deno.serve(async (request) => {
     }, 502);
   }
 
-  const recorded = await recordCheck(service, {
+  const recorded = await recordCheck({
     status: inventory.status,
     backup_count: inventory.backupCount,
     latest_backup_at: inventory.latestBackupAt,

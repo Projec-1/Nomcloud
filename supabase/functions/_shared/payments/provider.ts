@@ -1,38 +1,5 @@
-// ---------------------------------------------------------------------------
-// The payment provider adapter: the one swappable piece.
-//
-// Both Edge Functions (start-fee-payment, settle-fee-payment) talk to WaafiPay
-// only through the PaymentProvider interface below. Nothing outside the adapter
-// ever sees a WaafiPay-shaped request or response: every implementation
-// normalises the provider's answer into a ProviderResult.
-//
-// ===========================================================================
-// WHAT CHANGES WHEN A REAL WAAFIPAY ACCOUNT EXISTS
-// ===========================================================================
-// Exactly this, and nothing else:
-//
-//   FILE      supabase/functions/_shared/payments/waafiPayHttp.ts
-//   FUNCTIONS WaafiPayHttp.preAuthorize, WaafiPayHttp.commit, WaafiPayHttp.cancel
-//             — replace the "not implemented" bodies with the real HTTP calls,
-//               verified against WaafiPay's sandbox.
-//
-//   SECRETS   set with `supabase secrets set`, read here with Deno.env.get:
-//               WAAFIPAY_MODE=live
-//               WAAFIPAY_MERCHANT_UID, WAAFIPAY_API_USER_ID,
-//               WAAFIPAY_API_KEY, WAAFIPAY_BASE_URL
-//             Use the exact credential names WaafiPay issues; rename the four
-//             constants below if theirs differ. Never VITE_-prefixed, never in
-//             .env, never in the frontend.
-//
-// Not changed: start-fee-payment, settle-fee-payment, access.ts,
-// apply_payment_event, payment_events, its RLS, and the finance tables.
-//
-// Only if WaafiPay's documentation requires it:
-//   - status or method names outside the payment_events CHECK lists need a
-//     small additive migration (mapping itself lives in waafiPayHttp.ts);
-//   - if WaafiPay sends callbacks, settle-fee-payment also verifies their
-//     signature before acting.
-// ===========================================================================
+// Student-fee and subscription payments share this provider interface but
+// retain separate authorization, invoice ownership, and database ledgers.
 
 import { MockWaafiPay } from './mockWaafiPay.ts'
 import { WaafiPayHttp } from './waafiPayHttp.ts'
@@ -66,11 +33,24 @@ export interface ProviderResult {
   raw: unknown
 }
 
+export interface PurchaseResult {
+  transactionId: string | null
+  responseId: string | null
+  referenceId: string | null
+  eventType: 'pending' | 'approved' | 'declined' | 'cancelled' | 'unknown'
+  amount: number | null
+  currency: string
+  method: PaymentMethod
+  raw: unknown
+}
+
 export interface PaymentProvider {
   /** The value written to payment_events.provider. */
   readonly name: 'waafipay'
-  /** True for the mock. Passed to apply_payment_event, which then refuses non-demo schools. */
+  /** True for the mock; each billing flow independently restricts it to demo schools. */
   readonly isMock: boolean
+  /** Charge immediately for a platform invoice, without sharing the student-fee ledger. */
+  purchase(req: PreAuthorizeRequest & { invoiceId: string }): Promise<PurchaseResult>
   preAuthorize(req: PreAuthorizeRequest): Promise<ProviderResult>
   /** Ask for the final outcome and capture the money if approved. */
   commit(req: { transactionId: string; amount: number; currency: string; method: PaymentMethod }): Promise<ProviderResult>

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { edgeFunctionErrorMessage } from '@/utils/edgeFunctionError'
 
 export type PlatformFeatureKey =
   | 'operations_queue'
@@ -147,7 +148,7 @@ export async function runPlatformHealthChecks(): Promise<void> {
   const { error } = await supabase.functions.invoke('platform-health-check', {
     body: {},
   })
-  if (error) throw error
+  if (error) throw new Error(edgeFunctionErrorMessage(error, 'platform-health-check'))
 }
 
 export async function fetchPlatformBackupChecks(): Promise<PlatformBackupCheck[]> {
@@ -164,7 +165,7 @@ export async function checkPlatformBackupStatus(): Promise<void> {
   const { error } = await supabase.functions.invoke('platform-backup-status', {
     body: {},
   })
-  if (error) throw error
+  if (error) throw new Error(edgeFunctionErrorMessage(error, 'platform-backup-status'))
 }
 
 export async function fetchPlatformBillingLedger(): Promise<PlatformBillingLedger> {

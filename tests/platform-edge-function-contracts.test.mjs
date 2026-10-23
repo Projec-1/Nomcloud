@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
+import { edgeFunctionErrorMessage } from '../src/utils/edgeFunctionError.ts'
 
 const functionSources = new Map(
   await Promise.all(
@@ -64,4 +65,26 @@ test('health and backup checks use real provider evidence and never claim a rest
   assert.match(backup, /api\.supabase\.com\/v1\/projects\/.*\/database\/backups/)
   assert.match(backup, /parseSupabaseBackupInventory\(payload\)/)
   assert.match(backup, /restore_test:\s*["']not_verified["']/)
+})
+
+test('Edge Function errors distinguish unreachable, relay, and HTTP failures', () => {
+  const unreachable = edgeFunctionErrorMessage({
+    name: 'FunctionsFetchError',
+    message: 'Failed to send a request to the Edge Function',
+  }, 'subscription-checkout')
+  assert.match(unreachable, /subscription-checkout/)
+  assert.match(unreachable, /deployed to the configured Supabase project/)
+
+  const relay = edgeFunctionErrorMessage({
+    name: 'FunctionsRelayError',
+    context: new Response(null, { status: 502 }),
+  }, 'platform-health-check')
+  assert.match(relay, /could not relay/)
+  assert.match(relay, /HTTP 502/)
+
+  const forbidden = edgeFunctionErrorMessage({
+    name: 'FunctionsHttpError',
+    context: new Response(null, { status: 403 }),
+  }, 'send-invitation')
+  assert.equal(forbidden, 'You are not authorized to use the send-invitation Edge Function.')
 })

@@ -1,18 +1,21 @@
 # Nom Cloud — Payment Edge Function Plan (WaafiPay)
 
-**Status:** BUILT 2026-09-15, running in mock mode. Migration
-`20260915000003_apply_payment_event` is applied, and `start-fee-payment` and
-`settle-fee-payment` are deployed. No WaafiPay credential is set, and no external
-payment URL is called anywhere. See "As built" at the end.
+**Status:** The student-fee flow uses the existing `payment_events` and
+`fee_payments` ledgers. A shared WaafiPay adapter now implements the documented
+sandbox purchase and preauthorization APIs; the school-subscription checkout is
+being added separately in code and migration
+`20261023120000_subscription_checkout.sql`. That migration and the new
+`subscription-checkout` Edge Function have not been applied or deployed as part
+of this work. Sandbox credentials and a merchant transaction have not been
+verified. The adapter rejects the production endpoint.
 **Reads:** `docs/PAYMENT_INTEGRATION_PLAN.md`; migration
 `20260915000002_payment_events`; `supabase/functions/approve-school-application/index.ts`
 as the structural pattern.
 
-**Assumption stated up front.** No WaafiPay account or documentation is in hand.
-The flow used here is the one given: PreAuthorize, the customer approves with a PIN
-on their phone, then Commit. WaafiPay's exact request fields, response codes and
-whether it sends a callback are unverified, and the design is built so none of
-that matters until the handoff.
+**Verification boundary.** WaafiPay's API documentation has been reviewed for
+the sandbox endpoint and purchase/preauthorization services. No authenticated
+sandbox transaction has been run, so merchant-specific response behavior and
+settlement remain unverified.
 
 ---
 
@@ -116,15 +119,19 @@ batch 0 marker. In `live` mode the check is skipped.
 Step 3 needs a demo guardian account with a demo fee. The demo school currently
 has no memberships, which is the open seeding question H.11.
 
-## 3. The handoff point
+## 3. Sandbox verification and production handoff
 
-When a real account exists, the change is configuration plus one file:
+The adapter sends requests only to `https://sandbox.waafipay.com/asm` and
+supports mobile-wallet payments. Before sandbox use, configure the merchant
+credentials as Edge Function secrets (`WAAFIPAY_MERCHANT_UID`,
+`WAAFIPAY_API_USER_ID`, `WAAFIPAY_API_KEY`) and set
+`WAAFIPAY_BASE_URL` to the sandbox endpoint. Set `WAAFIPAY_MODE=live` only in a
+non-production sandbox deployment after the credentials are verified. Then test
+approved, declined, pending, and ambiguous outcomes for both billing ledgers.
 
-1. Set the credentials as Edge Function secrets with `supabase secrets set` and
-   read them with `Deno.env.get`: a merchant id, an API user id, an API key and a
-   base URL. Use the exact names WaafiPay issues. Set `WAAFIPAY_MODE=live`.
-2. Finish `HttpWaafiPay`, the real HTTP calls, against WaafiPay's sandbox. It is
-   written from the start but cannot be verified until then.
+Production is deliberately blocked in code. Enabling it requires a separate
+review of production credentials, endpoint allowlisting, migration, deployment,
+and payment operations. Do not point this release candidate at production.
 
 **On the secret precedent.** The only live example today is
 `approve-school-application` reading `SUPABASE_SERVICE_ROLE_KEY`. `RESEND_API_KEY`
@@ -190,7 +197,11 @@ database function.
 | `supabase/functions/settle-fee-payment/index.ts` | Settles a payment. The only money path, through `apply_payment_event`. |
 | `supabase/functions/_shared/payments/provider.ts` | The adapter interface, types and mode selection. |
 | `supabase/functions/_shared/payments/mockWaafiPay.ts` | The mock provider. |
-| `supabase/functions/_shared/payments/waafiPayHttp.ts` | The live provider. Deliberately not implemented. |
+| `supabase/functions/_shared/payments/waafiPayHttp.ts` | Sandbox-only WaafiPay purchase, preauthorization, commit, and cancel adapter. Not verified against merchant access. |
+| `supabase/functions/subscription-checkout/index.ts` | Authenticated school-subscription checkout and Enterprise enquiry boundary; not deployed. |
+| `supabase/migrations/20261023120000_subscription_checkout.sql` | Subscription invoice/payment ledger operations and activation RPCs; not applied. |
+| `src/pages/app/admin/SubscriptionBilling.tsx` | Server-backed school subscription catalog, checkout, and invoice history. |
+| `src/pages/app/parent/Fees.tsx` | Parent student-fee checkout through the existing fee-payment functions. |
 | `supabase/functions/_shared/payments/access.ts` | Shared caller verification, fee authorization and the mock safety rule. |
 | `supabase/functions/_shared/payments/mockWaafiPay.test.ts` | Offline tests, layer (a). Not deployed. |
 
@@ -215,13 +226,13 @@ database function.
   Widening `fee_payments` was out of scope and is a small follow-up if wanted.
 - **Currency is checked** against the fee before any row is written.
 
-### The handoff, exactly
+### The current verification boundary
 
-Only `supabase/functions/_shared/payments/waafiPayHttp.ts` changes: implement
-`WaafiPayHttp.preAuthorize`, `commit` and `cancel`. Then set, with
-`supabase secrets set`, `WAAFIPAY_MODE=live`, `WAAFIPAY_MERCHANT_UID`,
-`WAAFIPAY_API_USER_ID`, `WAAFIPAY_API_KEY` and `WAAFIPAY_BASE_URL`. Nothing else
-changes. The same list is in the header of `provider.ts`.
+The HTTP adapter is implemented against the documented sandbox API, but no
+real sandbox charge or preauthorization has been verified. Deno tests and the
+merchant-dependent runtime flow must be run when Deno and sandbox access are
+available. The subscription migration and function require a separate reviewed
+staging application before either journey can be tested end to end.
 
 ### The `amount_paid` grep check
 

@@ -1,9 +1,13 @@
 # Nom Cloud — Payment Integration Plan (WaafiPay)
 
-**Status:** Database prepared 2026-09-15. Migrations
-`20260915000001_fee_payments_school_id_id_unique` and
-`20260915000002_payment_events` are applied. The Edge Function and the parent
-payment UI are not built yet.
+**Status:** Student-fee payments use the existing `payment_events` and
+`fee_payments` ledgers and Edge Functions. The parent page now initiates payment
+through those functions. WaafiPay's shared adapter includes documented
+sandbox-only HTTP calls, but no merchant sandbox transaction has been verified.
+School subscription payments use a separate `platform_invoices` /
+`platform_payments` ledger and the new, not-yet-applied
+`20261023120000_subscription_checkout.sql` migration. Production configuration
+and deployment remain a separate approval stage.
 **Reads:** `SCHEMA_DESIGN.md` §11 (payment events, deferred) and §29 (`fee_payments`);
 migration `20260912000006_finance_rls`; corrective
 `20260914000001_restrict_fee_record_amount_paid_insert` (§H.13 of the Phase 8 plan).
@@ -20,7 +24,9 @@ the trigger, or the finance policies.
 
 1. **One shared WaafiPay merchant account** for the whole platform. One set of
    credentials, held as Edge Function secrets. No per-school credential storage.
-2. **The parent payment flow will be rebuilt** to work for real, in a later task.
+2. **The parent payment UI calls the server-side fee flow.** It never writes
+   `fee_payments` directly and reports success only after the server confirms
+   that the fee payment was applied.
 3. **Owner, director and administrator may read `payment_events`**, raw payloads
    and any contact details in them included, within their own school.
 4. **Four payment methods from the start** in one `payment_method` column:

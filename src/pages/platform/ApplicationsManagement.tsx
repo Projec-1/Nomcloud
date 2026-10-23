@@ -29,6 +29,7 @@ import Modal from '@/components/ui/Modal'
 import Select from '@/components/ui/Select'
 import Textarea from '@/components/ui/Textarea'
 import { errorMessage } from '@/utils/errorMessage'
+import { edgeFunctionErrorMessage } from '@/utils/edgeFunctionError'
 import { SectionHeader } from './operator/PrototypeKit'
 
 type ApplicationStatus = 'pending' | 'awaiting_information' | 'approved' | 'rejected' | 'onboarding' | 'withdrawn'
@@ -892,7 +893,7 @@ export default function ApplicationsManagement() {
     const { data, error } = await supabase.functions.invoke('manage-school-application', {
       body: { action, ...values },
     })
-    if (error) throw new Error(await getFunctionErrorMessage(error))
+    if (error) throw new Error(await getFunctionErrorMessage(error, 'manage-school-application'))
     return workflowResults(data)
   }
 
@@ -908,7 +909,7 @@ export default function ApplicationsManagement() {
       ? isApprovalOutcome(outcomeValue) ? outcomeValue : null
       : isApprovalOutcome(data) ? data : null
     if (!outcome) {
-      if (error) throw new Error(await getFunctionErrorMessage(error))
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'approve-school-application'))
       throw new Error('Approval returned an invalid result. Verify the application status before retrying.')
     }
 
@@ -1174,7 +1175,7 @@ export default function ApplicationsManagement() {
         body: { application_id: approvalResult.application_id, action: 'resend' },
       })
       if (error) {
-        setActionError(await getFunctionErrorMessage(error))
+        setActionError(await getFunctionErrorMessage(error, 'approve-school-application'))
       } else if (!isObject(data) || data.activation_email_sent !== true) {
         setActionError('The activation service returned an invalid resend result. Verify email history before retrying.')
       } else {
@@ -1202,7 +1203,7 @@ export default function ApplicationsManagement() {
     )
   }
 
-  async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  async function getFunctionErrorMessage(error: unknown, functionName: string): Promise<string> {
     const context = (error as { context?: unknown } | null)?.context
     if (context instanceof Response) {
       const status = `HTTP ${context.status}`
@@ -1215,7 +1216,7 @@ export default function ApplicationsManagement() {
       }
       return `The application workflow service returned ${status}.`
     }
-    return getErrorText(error)
+    return edgeFunctionErrorMessage(error, functionName)
   }
 
   function ErrorNotice({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss?: () => void }) {

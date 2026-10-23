@@ -43,11 +43,11 @@ create table public.platform_feature_flags (
   updated_at timestamptz not null default now()
 );
 
-insert into public.platform_feature_flags (flag_key, description) values
-  ('operations_queue', 'Enable the database-backed platform operations queue.'),
-  ('incident_command', 'Enable manually recorded and automatically detected incidents.'),
-  ('school_application_review', 'Enable platform-admin school application review actions.'),
-  ('billing_ledger', 'Enable read access to provider-backed platform invoices and payments.')
+insert into public.platform_feature_flags (flag_key, enabled, description) values
+  ('operations_queue', false, 'Enable the database-backed platform operations queue.'),
+  ('incident_command', false, 'Enable manually recorded and automatically detected incidents.'),
+  ('school_application_review', false, 'Enable platform-admin school application review actions.'),
+  ('billing_ledger', false, 'Enable read access to provider-backed platform invoices and payments.')
 on conflict (flag_key) do nothing;
 
 create or replace function public.is_platform_feature_enabled(p_flag_key text)
@@ -376,7 +376,7 @@ revoke update on public.platform_incidents from authenticated;
 grant update (status, severity, postmortem, postmortem_reviewed_at, commander_id)
   on public.platform_incidents to authenticated;
 
-drop policy school_applications_platform_admin_select on public.school_applications;
+drop policy school_applications_platform_admin_all on public.school_applications;
 create policy school_applications_platform_admin_select on public.school_applications
   for select to authenticated
   using (

@@ -45,6 +45,44 @@ interface StartRequest {
   account_no: string
 }
 
+async function rejectUnresolvedPayment(
+  clients: Awaited<ReturnType<typeof authenticate>>,
+  fee: Awaited<ReturnType<typeof loadPayableFee>>,
+  providerName: string,
+) {
+  const { data: pendingEvents, error: pendingError } = await clients.adminClient
+    .from('payment_events')
+    .select('provider_event_id')
+    .eq('school_id', fee.schoolId)
+    .eq('fee_record_id', fee.id)
+    .eq('provider', providerName)
+    .eq('event_type', 'pending')
+    .order('received_at', { ascending: false })
+    .limit(100)
+
+  if (pendingError) throw new HttpError(500, 'Unable to check earlier payment attempts')
+  if (!pendingEvents?.length) return
+
+  const pendingIds = pendingEvents.map((event) => event.provider_event_id)
+  const { data: terminalEvents, error: terminalError } = await clients.adminClient
+    .from('payment_events')
+    .select('provider_event_id')
+    .eq('school_id', fee.schoolId)
+    .eq('fee_record_id', fee.id)
+    .eq('provider', providerName)
+    .in('provider_event_id', pendingIds)
+    .in('event_type', ['approved', 'declined', 'cancelled'])
+
+  if (terminalError) throw new HttpError(500, 'Unable to check earlier payment attempts')
+  const terminalIds = new Set((terminalEvents ?? []).map((event) => event.provider_event_id))
+  if (pendingIds.some((id) => !terminalIds.has(id))) {
+    throw new HttpError(
+      409,
+      'A previous student-fee payment is still awaiting confirmation. Do not start another payment; contact the school billing team.',
+    )
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
@@ -82,6 +120,7 @@ Deno.serve(async (request) => {
 
     const provider = getPaymentProvider()
     enforceMockSafety(provider.isMock, fee)
+    await rejectUnresolvedPayment(clients, fee, provider.name)
 
     if (fee.balance <= 0) throw new HttpError(409, 'This fee is already fully paid')
     if (input.amount > fee.balance) {
@@ -108,7 +147,13 @@ Deno.serve(async (request) => {
       p_raw_payload: result.raw,
       p_is_mock: provider.isMock,
     })
-    if (applyError) throw new HttpError(applyError.code === '42501' ? 403 : 500, applyError.message)
+    if (applyError) {
+      console.error('Fee payment event could not be recorded', applyError.code ?? 'unknown_database_error')
+      throw new HttpError(
+        applyError.code === '42501' ? 403 : 500,
+        applyError.code === '42501' ? 'You are not authorized to record this payment' : 'Payment status could not be recorded',
+      )
+    }
 
     return json({
       transaction_id: result.transactionId,

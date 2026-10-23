@@ -74,7 +74,10 @@ Deno.serve(async (request) => {
       .eq('event_type', 'pending')
       .maybeSingle()
 
-    if (startedError) throw new HttpError(500, startedError.message)
+    if (startedError) {
+      console.error('Pending fee payment lookup failed', startedError.code ?? 'unknown_database_error')
+      throw new HttpError(500, 'Unable to verify the pending payment')
+    }
     if (!started) throw new HttpError(404, 'No pending payment with that transaction id')
 
     const fee = await loadPayableFee(clients, started.fee_record_id)
@@ -99,7 +102,13 @@ Deno.serve(async (request) => {
       p_raw_payload: result.raw,
       p_is_mock: provider.isMock,
     })
-    if (applyError) throw new HttpError(applyError.code === '42501' ? 403 : 500, applyError.message)
+    if (applyError) {
+      console.error('Fee payment outcome could not be recorded', applyError.code ?? 'unknown_database_error')
+      throw new HttpError(
+        applyError.code === '42501' ? 403 : 500,
+        applyError.code === '42501' ? 'You are not authorized to record this payment' : 'Payment status could not be recorded',
+      )
+    }
 
     return json({
       transaction_id: result.transactionId,

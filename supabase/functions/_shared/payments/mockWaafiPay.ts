@@ -25,7 +25,7 @@
 // realistic. ITS SHAPE IS ASSUMED, not taken from WaafiPay documentation.
 // ---------------------------------------------------------------------------
 
-import type { PaymentMethod, PaymentProvider, PreAuthorizeRequest, ProviderResult } from './provider.ts'
+import type { PaymentMethod, PaymentProvider, PreAuthorizeRequest, ProviderResult, PurchaseResult } from './provider.ts'
 
 export type MockScenario = 'APPROVE' | 'DECLINE' | 'TIMEOUT' | 'DUPLICATE'
 
@@ -59,6 +59,36 @@ function envelope(state: string, transactionId: string, extra: Record<string, un
 export class MockWaafiPay implements PaymentProvider {
   readonly name = 'waafipay' as const
   readonly isMock = true
+
+  purchase(req: PreAuthorizeRequest & { invoiceId: string }): Promise<PurchaseResult> {
+    const scenario = scenarioForAccount(req.accountNo)
+    const eventType = scenario === 'APPROVE' || scenario === 'DUPLICATE'
+      ? 'approved'
+      : scenario === 'TIMEOUT'
+        ? 'pending'
+        : 'declined'
+    const transactionId = `MOCK-${scenario}-${crypto.randomUUID()}`
+    const responseId = `MOCK-RESPONSE-${crypto.randomUUID()}`
+
+    return Promise.resolve({
+      transactionId: eventType === 'declined' ? null : transactionId,
+      responseId,
+      referenceId: req.referenceId,
+      eventType,
+      amount: req.amount,
+      currency: req.currency,
+      method: req.method,
+      raw: envelope(eventType === 'approved' ? 'APPROVED' : eventType.toUpperCase(), transactionId, {
+        referenceId: req.referenceId,
+        invoiceId: req.invoiceId,
+        accountNo: req.accountNo,
+        amount: req.amount,
+        currency: req.currency,
+        method: req.method,
+        service: 'API_PURCHASE',
+      }),
+    })
+  }
 
   preAuthorize(req: PreAuthorizeRequest): Promise<ProviderResult> {
     const scenario = scenarioForAccount(req.accountNo)

@@ -15,6 +15,7 @@ const migrations = [
   '20261019000001_operator_workspace_table_privileges.sql',
   '20261019200000_platform_controls_health_backup_billing.sql',
   '20261022100000_restrict_api_function_execution.sql',
+  '20261023120000_subscription_checkout.sql',
 ]
 
 const ids = {
@@ -91,16 +92,35 @@ create table public.memberships (
   unique (user_id, school_id, role)
 );
 create table public.subscription_plans (
-  id uuid primary key,
-  name text not null
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  description text,
+  price_monthly numeric(12,2) not null,
+  price_annual numeric(12,2),
+  currency char(3) not null default 'USD',
+  max_students integer,
+  features jsonb not null default '[]'::jsonb,
+  is_public boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 create table public.school_subscriptions (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   school_id uuid not null references public.schools(id),
   plan_id uuid not null references public.subscription_plans(id),
   status text not null,
-  created_at timestamptz not null default now()
+  current_period_start timestamptz not null default now(),
+  current_period_end timestamptz,
+  trial_ends_at timestamptz,
+  cancelled_at timestamptz,
+  external_ref text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+create unique index school_subscriptions_school_id_live_idx
+  on public.school_subscriptions (school_id) where cancelled_at is null;
 create table public.contact_messages (
   id uuid primary key,
   name text not null,
@@ -250,8 +270,9 @@ create policy school_subscriptions_billing_select on public.school_subscriptions
 alter table public.school_applications enable row level security;
 create policy school_applications_anon_insert on public.school_applications
   for insert to anon with check (status = 'pending'::public.application_status);
-create policy school_applications_platform_admin_select on public.school_applications
-  for select to authenticated using (public.is_platform_admin());
+create policy school_applications_platform_admin_all on public.school_applications
+  for all to authenticated using (public.is_platform_admin())
+  with check (public.is_platform_admin());
 
 grant all privileges on all tables in schema public to anon, authenticated, service_role;
 alter default privileges in schema public
@@ -273,8 +294,8 @@ insert into public.memberships (user_id, school_id, role, status) values
   ('${ids.director}', '${ids.directorSchool}', 'director', 'active'),
   ('${ids.administrator}', '${ids.adminSchool}', 'administrator', 'active'),
   ('${ids.revokedOwner}', '${ids.revokedSchool}', 'owner', 'revoked');
-insert into public.subscription_plans (id, name)
-values ('${ids.plan}', 'Fixture plan');
+insert into public.subscription_plans (id, code, name, price_monthly)
+values ('${ids.plan}', 'fixture', 'Fixture plan', 1);
 insert into public.school_subscriptions (id, school_id, plan_id, status) values
   ('${ids.ownerSubscription}', '${ids.ownerSchool}', '${ids.plan}', 'active'),
   ('${ids.directorSubscription}', '${ids.directorSchool}', '${ids.plan}', 'active'),
@@ -414,6 +435,38 @@ test('Operator Workspace migrations apply and enforce their local contracts in d
       }
     }
 
+    await t.test('seeds every platform feature flag disabled until an administrator enables it', async () => {
+      const flags = await db.query(`
+        select flag_key, enabled
+        from public.platform_feature_flags
+        order by flag_key
+      `)
+      assert.deepEqual(flags.rows, [
+        { flag_key: 'billing_ledger', enabled: false },
+        { flag_key: 'incident_command', enabled: false },
+        { flag_key: 'operations_queue', enabled: false },
+        { flag_key: 'school_application_review', enabled: false },
+      ])
+
+      const enabledChecks = await db.query(`
+        select
+          public.is_platform_feature_enabled('operations_queue') as operations_queue,
+          public.is_platform_feature_enabled('incident_command') as incident_command,
+          public.is_platform_feature_enabled('school_application_review') as school_application_review,
+          public.is_platform_feature_enabled('billing_ledger') as billing_ledger
+      `)
+      assert.deepEqual(enabledChecks.rows[0], {
+        operations_queue: false,
+        incident_command: false,
+        school_application_review: false,
+        billing_ledger: false,
+      })
+
+      await runAs(db, 'authenticated', ids.platformAdmin, async () => {
+        await db.query('update public.platform_feature_flags set enabled = true')
+      })
+    })
+
     await t.test('creates the expected relations, policies, triggers, and migration order', async () => {
       const relationRows = await db.query(`
         select to_regclass(name)::text as relation
@@ -544,7 +597,7 @@ test('Operator Workspace migrations apply and enforce their local contracts in d
           const subscriptions = await db.query('select id from public.school_subscriptions')
           assert.equal(subscriptions.rows.length, expectedCount, `subscription rows for ${userId}`)
           const plans = await db.query('select id from public.subscription_plans')
-          assert.equal(plans.rows.length, userId === ids.platformAdmin ? 1 : 0, `plan visibility for ${userId}`)
+          assert.equal(plans.rows.length, userId === ids.platformAdmin ? 4 : 0, `plan visibility for ${userId}`)
         })
       }
 
@@ -726,6 +779,28 @@ test('Operator Workspace migrations apply and enforce their local contracts in d
     })
 
     await t.test('authorizes application workflow and delivery RPCs by role', async () => {
+      const applicationPolicy = await db.query(`
+        select
+          exists (
+            select 1 from pg_policies
+            where schemaname = 'public'
+              and tablename = 'school_applications'
+              and policyname = 'school_applications_platform_admin_all'
+          ) as broad_policy_exists,
+          policyname,
+          cmd,
+          qual
+        from pg_policies
+        where schemaname = 'public'
+          and tablename = 'school_applications'
+          and policyname = 'school_applications_platform_admin_select'
+      `)
+      assert.equal(applicationPolicy.rows.length, 1)
+      assert.equal(applicationPolicy.rows[0].broad_policy_exists, false)
+      assert.equal(applicationPolicy.rows[0].cmd, 'SELECT')
+      assert.match(applicationPolicy.rows[0].qual, /is_platform_admin/)
+      assert.match(applicationPolicy.rows[0].qual, /school_application_review/)
+
       const application = await db.query(`
         insert into public.school_applications (
           school_name, administrator_name, email, phone, status
@@ -743,6 +818,13 @@ test('Operator Workspace migrations apply and enforce their local contracts in d
       })
 
       await runAs(db, 'authenticated', ids.platformAdmin, async () => {
+        await assert.rejects(
+          db.query(
+            "update public.school_applications set status = 'rejected' where id = $1",
+            [application.rows[0].id],
+          ),
+          /permission denied|row-level security/i,
+        )
         await db.query(`
           select public.manage_school_application($1, 'add_note', '{"body":"Reviewer-only note"}'::jsonb)
         `, [application.rows[0].id])
@@ -1136,6 +1218,138 @@ test('Operator Workspace migrations apply and enforce their local contracts in d
           db.query('delete from public.platform_invoices where id = $1', [invoiceId]),
           /immutable|permission denied/i,
         )
+      })
+    })
+
+    await t.test('subscription checkout is idempotent, price-authoritative, and activates only verified payments', async () => {
+      const paymentKey = '60000000-0000-4000-8000-000000000001'
+      let checkout
+      await runAs(db, 'service_role', '', async () => {
+        await db.query(`
+          update public.school_subscriptions
+             set status = 'cancelled', cancelled_at = now()
+           where school_id = $1
+        `, [ids.ownerSchool])
+
+        const created = await db.query(`
+          select public.create_subscription_checkout($1, 'starter', 'monthly', $2, $3) as checkout
+        `, [ids.ownerSchool, paymentKey, ids.owner])
+        checkout = created.rows[0].checkout
+        assert.equal(checkout.should_process, true)
+        assert.equal(checkout.amount_minor, 6000)
+        assert.equal(checkout.currency, 'USD')
+
+        const replay = await db.query(`
+          select public.create_subscription_checkout($1, 'starter', 'monthly', $2, $3) as checkout
+        `, [ids.ownerSchool, paymentKey, ids.owner])
+        assert.equal(replay.rows[0].checkout.replayed, true)
+        assert.equal(replay.rows[0].checkout.payment_id, checkout.payment_id)
+
+        await assert.rejects(
+          db.query(`
+            select public.create_subscription_checkout(
+              $1, 'growth', 'monthly', '60000000-0000-4000-8000-000000000002', $2
+            )
+          `, [ids.ownerSchool, ids.owner]),
+          /pending or requires verification/i,
+        )
+
+        const finalized = await db.query(`
+          select public.finalize_subscription_payment(
+            $1, 'succeeded', 'WAAFIPAY-SCHOOL-001', 'WAAFIPAY-RESPONSE-001', 6000, 'USD'
+          ) as result
+        `, [checkout.payment_id])
+        assert.equal(finalized.rows[0].result.status, 'succeeded')
+
+        const duplicateFinalization = await db.query(`
+          select public.finalize_subscription_payment(
+            $1, 'succeeded', 'WAAFIPAY-SCHOOL-001', 'WAAFIPAY-RESPONSE-001', 6000, 'USD'
+          ) as result
+        `, [checkout.payment_id])
+        assert.equal(duplicateFinalization.rows[0].result.replayed, true)
+        assert.equal(duplicateFinalization.rows[0].result.status, 'succeeded')
+
+        const ledger = await db.query(`
+          select p.status as payment_status, i.status as invoice_status,
+                 i.subscription_id, s.status as subscription_status
+            from public.platform_payments p
+            join public.platform_invoices i on i.id = p.invoice_id
+            join public.school_subscriptions s on s.id = i.subscription_id
+           where p.id = $1
+        `, [checkout.payment_id])
+        assert.deepEqual(ledger.rows, [{
+          payment_status: 'succeeded',
+          invoice_status: 'paid',
+          subscription_id: ledger.rows[0].subscription_id,
+          subscription_status: 'active',
+        }])
+        const audit = await db.query(`
+          select event_type, to_status
+            from public.platform_billing_events
+           where invoice_id = $1 or payment_id = $2
+        `, [checkout.invoice_id, checkout.payment_id])
+        assert.ok(audit.rows.some((row) => row.event_type === 'invoice_created' && row.to_status === 'open'))
+        assert.ok(audit.rows.some((row) => row.event_type === 'payment_status_changed' && row.to_status === 'succeeded'))
+        assert.ok(audit.rows.some((row) => row.event_type === 'invoice_status_changed' && row.to_status === 'paid'))
+
+        await db.query(`
+          update public.school_subscriptions
+             set status = 'cancelled', cancelled_at = now()
+           where school_id = $1
+        `, [ids.directorSchool])
+        const unverified = await db.query(`
+          select public.create_subscription_checkout(
+            $1, 'growth', 'monthly', '60000000-0000-4000-8000-000000000003', $2
+          ) as checkout
+        `, [ids.directorSchool, ids.director])
+        const unknownResult = await db.query(`
+          select public.finalize_subscription_payment(
+            $1, 'succeeded', 'WAAFIPAY-SCHOOL-002', 'WAAFIPAY-RESPONSE-002', 1, 'USD'
+          ) as result
+        `, [unverified.rows[0].checkout.payment_id])
+        assert.equal(unknownResult.rows[0].result.status, 'unknown')
+        assert.equal(unknownResult.rows[0].result.subscription_id, null)
+        const unverifiedLedger = await db.query(`
+          select p.status as payment_status, i.status as invoice_status
+            from public.platform_payments p
+            join public.platform_invoices i on i.id = p.invoice_id
+           where p.id = $1
+        `, [unverified.rows[0].checkout.payment_id])
+        assert.deepEqual(unverifiedLedger.rows, [{ payment_status: 'unknown', invoice_status: 'open' }])
+
+        await db.query(`
+          update public.school_subscriptions
+             set status = 'cancelled', cancelled_at = now()
+           where school_id = $1
+        `, [ids.adminSchool])
+        const starter = await db.query(`select id from public.subscription_plans where code = 'starter'`)
+        const staleInvoice = await db.query(`
+          insert into public.platform_invoices (
+            invoice_number, school_id, amount_minor, currency, status,
+            due_at, created_by, subscription_plan_id, billing_interval
+          ) values ('STALE-SUB-PRICE', $1, 5000, 'USD', 'open', now() + interval '1 day', $2, $3, 'monthly')
+          returning id
+        `, [ids.adminSchool, ids.administrator, starter.rows[0].id])
+        await db.query(`update public.subscription_plans set price_monthly = 70 where id = $1`, [starter.rows[0].id])
+        const repriced = await db.query(`
+          select public.create_subscription_checkout(
+            $1, 'starter', 'monthly', '60000000-0000-4000-8000-000000000004', $2
+          ) as checkout
+        `, [ids.adminSchool, ids.administrator])
+        const oldInvoice = await db.query(`select status from public.platform_invoices where id = $1`, [staleInvoice.rows[0].id])
+        assert.equal(oldInvoice.rows[0].status, 'void')
+        assert.equal(repriced.rows[0].checkout.amount_minor, 7000)
+      })
+
+      const privileges = await db.query(`
+        select has_function_privilege('anon', 'public.create_subscription_checkout(uuid, text, text, uuid, uuid)', 'execute') as anon_create,
+               has_function_privilege('authenticated', 'public.finalize_subscription_payment(uuid, text, text, text, bigint, text)', 'execute') as authenticated_finalize,
+               has_function_privilege('service_role', 'public.create_subscription_checkout(uuid, text, text, uuid, uuid)', 'execute') as service_create
+      `)
+      assert.deepEqual(privileges.rows[0], {
+        anon_create: false,
+        authenticated_finalize: false,
+        service_create: true,
       })
     })
   } finally {
