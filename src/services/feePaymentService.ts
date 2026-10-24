@@ -57,7 +57,6 @@ export async function startFeePayment(input: {
       amount: input.amount,
       payment_method: input.paymentMethod,
       account_no: input.accountNo,
-      require_mock: true,
     },
   })
   if (error) throw new Error(error.message || 'Could not start the payment.')
@@ -83,7 +82,7 @@ export async function startFeePayment(input: {
 
 export async function settleFeePayment(transactionId: string): Promise<SettledFeePayment> {
   const { data, error } = await supabase.functions.invoke('settle-fee-payment', {
-    body: { transaction_id: transactionId, require_mock: true },
+    body: { transaction_id: transactionId },
   })
   if (error) throw new Error(error.message || 'Could not verify the payment status.')
 

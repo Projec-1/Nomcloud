@@ -29,9 +29,13 @@ export const BUCKETS = {
   schoolBranding: 'school-branding',
   studentPhotos: 'student-photos',
   profileAvatars: 'profile-avatars',
+  paymentEvidence: 'payment-evidence',
 } as const
 
-export type PrivateBucket = typeof BUCKETS.studentPhotos | typeof BUCKETS.profileAvatars
+export type PrivateBucket =
+  | typeof BUCKETS.studentPhotos
+  | typeof BUCKETS.profileAvatars
+  | typeof BUCKETS.paymentEvidence
 
 /** One hour. A signed URL works for whoever holds it until it expires. */
 export const SIGNED_URL_SECONDS = 60 * 60
@@ -61,6 +65,40 @@ export function schoolLogoUrl(logoPath: string | null): string | null {
 export async function createSignedImageUrl(bucket: PrivateBucket, path: string): Promise<string | null> {
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, SIGNED_URL_SECONDS)
   if (error || !data) return null
+  return data.signedUrl
+}
+
+const PAYMENT_EVIDENCE_MAX_BYTES = 5 * 1024 * 1024
+const PAYMENT_EVIDENCE_EXTENSIONS: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+}
+
+export async function uploadPaymentEvidence(schoolId: string, file: File): Promise<string> {
+  const extension = PAYMENT_EVIDENCE_EXTENSIONS[file.type]
+  if (!extension) throw new Error('Choose a PDF, PNG, JPEG, or WebP evidence file.')
+  if (file.size > PAYMENT_EVIDENCE_MAX_BYTES) throw new Error('Payment evidence must be 5 MB or smaller.')
+
+  const path = `${schoolId}/fee-payments/${crypto.randomUUID()}.${extension}`
+  const { error } = await supabase.storage.from(BUCKETS.paymentEvidence).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+    cacheControl: '3600',
+  })
+  if (error) throw error
+  return path
+}
+
+export async function removePaymentEvidence(path: string): Promise<void> {
+  const { error } = await supabase.storage.from(BUCKETS.paymentEvidence).remove([path])
+  if (error) throw error
+}
+
+export async function createSignedPaymentEvidenceUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(BUCKETS.paymentEvidence).createSignedUrl(path, SIGNED_URL_SECONDS)
+  if (error) throw error
   return data.signedUrl
 }
 

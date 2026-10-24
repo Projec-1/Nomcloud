@@ -236,7 +236,7 @@ export default function ParentFees() {
   const { profile, school } = useAuth()
   const { t } = useLanguage()
   const { children, selectedChild, selectChild, state: childrenState } = useSelectedChild()
-  const { state: feesState } = useChildrenFees(children.map((child) => child.id))
+  const { state: feesState, reload: reloadFees } = useChildrenFees(children.map((child) => child.id))
   const feesDisplayState = feesState.status === 'empty'
     ? { status: 'ready' as const, data: [] as FeeRecordView[] }
     : feesState
@@ -478,13 +478,12 @@ export default function ParentFees() {
                     <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-white">{t('parent.fees.overview')}</h2>
                     <p className="mt-1 text-sm text-graphite">{t('parent.fees.overviewPeriod')}</p>
                   </div>
-                  {firstOutstanding && (
+                  {firstOutstanding && school?.is_demo && (
                     <FeePaymentCheckout
                       fee={firstOutstanding}
                       school={school}
                       payerName={profile?.full_name ?? ''}
-                      registrationNumber={studentsById.get(firstOutstanding.studentId)?.admissionNo}
-                      pendingDemo={firstOutstanding.pendingDemoTransactions[0]}
+                      onPaid={reloadFees}
                     >
                       {(openCheckout, pending) => (
                         <button
@@ -587,13 +586,12 @@ export default function ParentFees() {
                                 <p className="font-semibold tabular-nums text-ink dark:text-white">{formatMoney(fee.balance, fee.currency, true)}</p>
                                 <p className="mt-0.5 text-[11px] text-graphite">{t('parent.fees.remaining')}</p>
                               </div>
-                              {fee.balance > 0 && (
+                              {fee.balance > 0 && school?.is_demo && (
                                 <FeePaymentCheckout
                                   fee={fee}
                                   school={school}
                                   payerName={profile?.full_name ?? ''}
-                                  registrationNumber={student?.admissionNo}
-                                  pendingDemo={fee.pendingDemoTransactions[0]}
+                                  onPaid={reloadFees}
                                 >
                                   {(openCheckout, pending, paid) => (
                                     <button

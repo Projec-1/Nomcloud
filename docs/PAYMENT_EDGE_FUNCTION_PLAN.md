@@ -2,8 +2,10 @@
 
 **Status:** BUILT 2026-09-15, running in mock mode. Migration
 `20260915000003_apply_payment_event` is applied, and `start-fee-payment` and
-`settle-fee-payment` are deployed. No WaafiPay credential is set, and no external
-payment URL is called anywhere. See "As built" at the end.
+`settle-fee-payment` are deployed. The parent/admin fee checkout now calls these
+functions, but the frontend exposes only demo-school simulation. The live WaafiPay
+adapter is unimplemented, no credential is set, and no external payment URL is
+called anywhere. See "As built" at the end.
 **Reads:** `docs/PAYMENT_INTEGRATION_PLAN.md`; migration
 `20260915000002_payment_events`; `supabase/functions/approve-school-application/index.ts`
 as the structural pattern.
@@ -25,8 +27,8 @@ jobs, with different callers and different trust.
 
 | Function | Called by | Does | Writes money? |
 |---|---|---|---|
-| `start-fee-payment` | Signed-in parent (JWT required) | Verifies the caller may pay this fee, checks the amount against the real balance, calls PreAuthorize, records the provider's answer as a `pending` or `declined` event, returns a transaction reference. | **No** |
-| `settle-fee-payment` | The app polling after the parent approves, or a WaafiPay callback if one exists | Asks WaafiPay for the outcome and calls Commit, then records and applies the result. Re-running it is harmless. | **Yes, via the DB function** |
+| `start-fee-payment` | Signed-in guardian or authorized school finance admin (JWT required) | Verifies the caller may pay this fee, checks the amount against the real balance, calls PreAuthorize, records the provider's answer as a `pending` or `declined` event, returns a transaction reference. | **No** |
+| `settle-fee-payment` | The app checking status after payment starts, or a future verified WaafiPay callback | Asks WaafiPay for the outcome and calls Commit, then records and applies the result. Re-running it is harmless. | **Yes, via the DB function** |
 
 Keeping the money write out of the first function means a start request can never
 create a payment, however it is called.

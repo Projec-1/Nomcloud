@@ -11,6 +11,9 @@ export interface PaymentReceiptDetails {
   reference: string
   studentName: string
   registrationNumber?: string
+  studentAdmissionNo?: string
+  className?: string
+  academicYear?: string
   payerName?: string
   category: string
   originalAmount: number
@@ -20,6 +23,7 @@ export interface PaymentReceiptDetails {
   currency: string
   method: string
   paidOn: string
+  paidAt?: string
   providerReference?: string
   isTestPayment?: boolean
   isSubscription?: boolean
@@ -53,7 +57,7 @@ function ReceiptMarkup({ details, title }: { details: PaymentReceiptDetails; tit
     : details.status === 'verified'
       ? t('fees.receipt.verified')
       : t('fees.receipt.recorded')
-  const paymentDate = formatDate(details.paidOn, {
+  const paymentDate = formatDate(details.paidAt ?? details.paidOn, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -112,7 +116,10 @@ function ReceiptMarkup({ details, title }: { details: PaymentReceiptDetails; tit
             <>
               <ReceiptRow label={t('fees.receipt.payer')} value={details.payerName} />
               <ReceiptRow label={t('fees.receipt.student')} value={details.studentName} />
-              <ReceiptRow label={t('fees.receipt.registrationNumber')} value={details.registrationNumber} />
+              <ReceiptRow
+                label={t('fees.receipt.registrationNumber')}
+                value={details.registrationNumber ?? details.studentAdmissionNo}
+              />
             </>
           )}
           <ReceiptRow label={t('fees.receipt.method')} value={details.method} />
