@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import AccessDenied from '@/components/ui/AccessDenied'
 import EmptyState from '@/components/ui/EmptyState'
 import { SkeletonRows } from '@/components/ui/Loader'
+import { useLanguage } from '@/context/LanguageContext'
 import type { ResourceState } from '@/lib/resourceState'
 
 interface ResourceGateProps<T> {
@@ -41,9 +42,14 @@ export default function ResourceGate<T>({
   loading,
   children,
 }: ResourceGateProps<T>) {
+  const { t } = useLanguage()
   switch (state.status) {
     case 'loading':
-      return <>{loading ?? <SkeletonRows />}</>
+      return (
+        <div role="status" aria-live="polite" aria-busy="true" aria-label={t('app.loading.content')}>
+          {loading ?? <SkeletonRows />}
+        </div>
+      )
 
     case 'denied':
       return <AccessDenied hint={deniedHint} />

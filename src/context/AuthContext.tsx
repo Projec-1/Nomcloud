@@ -11,6 +11,7 @@ import {
 import type { AuthSessionUser, AuthState, MembershipRow, ProfileRow, SchoolRow } from '@/types/auth'
 
 const ACTIVE_ROLE_KEY = 'nomcloud_active_role'
+const AUTH_INITIALIZATION_TIMEOUT_MS = 15_000
 
 interface AuthContextValue {
   isLoading: boolean
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>('initialising')
   const [activeRole, setActiveRoleState] = useState<Role | null>(null)
   const supabaseUserRef = useRef<AuthSessionUser | null>(null)
+  const identityRequestRef = useRef(0)
   const [identityNonce, setIdentityNonce] = useState(0)
 
   useEffect(() => {
@@ -68,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const clearIdentity = () => {
       if (cancelled) return
+      identityRequestRef.current += 1
       supabaseUserRef.current = null
       setAuthUser(null)
       setPlatformAdmin(false)
@@ -81,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const loadIdentity = async (sessionUser: AuthSessionUser, showLoading: boolean) => {
       if (cancelled) return
+      const requestId = ++identityRequestRef.current
       if (showLoading) {
         setAuthState('loading_profile')
         setIsLoading(true)
@@ -95,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // An unrevoked platform_admins row is the sole determinant of platform
         // authority; a null school_id never grants it (AUTH_DESIGN.md section 1).
         const nextPlatformAdmin = await fetchPlatformAdminStatus(sessionUser.id)
-        if (cancelled) return
+        if (cancelled || requestId !== identityRequestRef.current) return
 
         setAuthUser(sessionUser)
         setPlatformAdmin(nextPlatformAdmin)
@@ -109,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthState('ready')
         setIsLoading(false)
       } catch {
-        if (cancelled) return
+        if (cancelled || requestId !== identityRequestRef.current) return
         supabaseUserRef.current = null
         setAuthUser(null)
         setPlatformAdmin(false)
@@ -123,27 +127,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const initialise = async () => {
+      let unsubscribeAuth: (() => void) | undefined
+      let authEventObserved = false
       try {
-        const { data: sessionData, error } = await supabase.auth.getSession()
-        if (error) throw error
-        if (cancelled) return
-
-        if (sessionData.session?.user) {
-          await loadIdentity(sessionData.session.user, true)
-        } else clearIdentity()
-        if (cancelled) return undefined
-
         const { data: authStateData } = supabase.auth.onAuthStateChange((event, session) => {
+          authEventObserved = true
           if (event === 'SIGNED_OUT' || !session?.user) {
             clearIdentity()
             return
           }
-          void loadIdentity(session.user, event !== 'TOKEN_REFRESHED')
+          if (event !== 'TOKEN_REFRESHED' || supabaseUserRef.current?.id !== session.user.id) {
+            void loadIdentity(session.user, event !== 'TOKEN_REFRESHED')
+          }
         })
+        unsubscribeAuth = authStateData.subscription.unsubscribe
 
-        return authStateData.subscription.unsubscribe
+        const { data: sessionData, error } = await supabase.auth.getSession()
+        if (error) throw error
+        if (cancelled) return unsubscribeAuth
+
+        if (!authEventObserved) {
+          if (sessionData.session?.user) await loadIdentity(sessionData.session.user, true)
+          else clearIdentity()
+        }
+        if (cancelled) return unsubscribeAuth
+        return unsubscribeAuth
       } catch {
+        unsubscribeAuth?.()
         if (!cancelled) {
+          identityRequestRef.current += 1
           setAuthState('error')
           setIsLoading(false)
         }
@@ -152,7 +164,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let unsubscribe: (() => void) | undefined
+    const initializationTimeout = window.setTimeout(() => {
+      if (cancelled) return
+      setAuthState('error')
+      setIsLoading(false)
+    }, AUTH_INITIALIZATION_TIMEOUT_MS)
+
     void initialise().then((cleanup) => {
+      window.clearTimeout(initializationTimeout)
       if (cancelled) {
         cleanup?.()
       } else {
@@ -162,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true
+      window.clearTimeout(initializationTimeout)
       unsubscribe?.()
     }
   }, [identityNonce])

@@ -273,7 +273,7 @@ export default function AdminAcademicYears() {
             <Button variant="ghost" onClick={() => setYearOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={submitYear} disabled={saving}>
+            <Button onClick={submitYear} loading={saving}>
               {saving ? 'Saving…' : isFirstYear ? 'Create and set as current' : 'Add year'}
             </Button>
           </>
@@ -328,7 +328,7 @@ export default function AdminAcademicYears() {
             <Button variant="ghost" onClick={() => setTermYear(null)}>
               Cancel
             </Button>
-            <Button onClick={submitTerm} disabled={saving}>
+            <Button onClick={submitTerm} loading={saving}>
               {saving ? 'Saving…' : 'Add term'}
             </Button>
           </>

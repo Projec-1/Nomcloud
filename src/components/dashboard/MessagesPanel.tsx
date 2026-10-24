@@ -350,7 +350,7 @@ export default function MessagesPanel({
                   aria-label="Write a message"
                   className="flex-1"
                 />
-                <Button onClick={handleSend} disabled={sending || !draft.trim()} icon={<Send className="h-4 w-4" />}>
+                <Button onClick={handleSend} loading={sending} disabled={sending || !draft.trim()} icon={<Send className="h-4 w-4" />}>
                   Send
                 </Button>
               </div>
@@ -426,7 +426,7 @@ function ComposeModal({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={onSubmit} disabled={creating || recipients.length === 0}>
+          <Button onClick={onSubmit} loading={creating} disabled={creating || recipients.length === 0}>
             {creating ? 'Sending…' : 'Send'}
           </Button>
         </>

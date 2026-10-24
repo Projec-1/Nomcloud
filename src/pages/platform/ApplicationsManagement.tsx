@@ -24,6 +24,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { fetchPlatformOperators, type PlatformOperatorRecord } from '@/services/platformService'
 import Button from '@/components/ui/Button'
+import { InlineLoader } from '@/components/ui/Loader'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import Select from '@/components/ui/Select'
@@ -1147,7 +1148,7 @@ export default function ApplicationsManagement() {
   if (!authUser) return null
 
   if (loading) {
-    return <p className="py-12 text-center text-sm text-graphite dark:text-slate-300" role="status">Loading school applications…</p>
+    return <div className="py-12 text-center"><InlineLoader label="Loading school applications" state="searching" /></div>
   }
 
   if (!isPlatformAdmin) {
@@ -1685,7 +1686,7 @@ export default function ApplicationsManagement() {
                   <h2 className="text-lg font-semibold text-ink dark:text-white">Document verification</h2>
                   <p className="mt-1 text-sm text-graphite dark:text-slate-300">Add requirements as needed, then record each item&apos;s current state.</p>
                 </div>
-                {detailLoading && <span className="text-xs text-graphite dark:text-slate-400" role="status">Loading review records…</span>}
+                {detailLoading && <InlineLoader className="text-xs text-graphite dark:text-slate-400" label="Loading review records" state="searching" />}
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <Input label="New document requirement" value={newDocumentId} onChange={(event) => setNewDocumentId(event.target.value)} placeholder="e.g. School registration certificate" maxLength={200} />
@@ -1693,6 +1694,7 @@ export default function ApplicationsManagement() {
                   type="button"
                   className="min-h-11"
                   variant="outline"
+                  loading={localBusy}
                   disabled={localBusy || !newDocumentId.trim() || docList.some((document) => document.id.toLowerCase() === newDocumentId.trim().toLowerCase())}
                   onClick={async () => {
                     const documentId = newDocumentId.trim()
@@ -1724,11 +1726,11 @@ export default function ApplicationsManagement() {
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" className="min-h-11" variant={document.status === 'verified' ? 'accent' : 'outline'} disabled={localBusy || document.status === 'verified'} onClick={() => void runDetailAction('update_document', { document_id: document.id, state: 'verified' }, 'Document marked verified.')}>
+                        <Button size="sm" className="min-h-11" variant={document.status === 'verified' ? 'accent' : 'outline'} loading={localBusy} disabled={localBusy || document.status === 'verified'} onClick={() => void runDetailAction('update_document', { document_id: document.id, state: 'verified' }, 'Document marked verified.')}>
                           <Check className="h-4 w-4" /> Verify
                         </Button>
-                        <Button size="sm" className="min-h-11" variant="outline" disabled={localBusy || document.status === 'missing'} onClick={() => void runDetailAction('update_document', { document_id: document.id, state: 'missing' }, 'Document marked missing.')}>Missing</Button>
-                        <Button size="sm" className="min-h-11" variant="outline" disabled={localBusy || document.status === 'replacement_requested'} onClick={() => void runDetailAction('update_document', { document_id: document.id, state: 'replacement_requested' }, 'Replacement requested.')}>Request replacement</Button>
+                        <Button size="sm" className="min-h-11" variant="outline" loading={localBusy} disabled={localBusy || document.status === 'missing'} onClick={() => void runDetailAction('update_document', { document_id: document.id, state: 'missing' }, 'Document marked missing.')}>Missing</Button>
+                        <Button size="sm" className="min-h-11" variant="outline" loading={localBusy} disabled={localBusy || document.status === 'replacement_requested'} onClick={() => void runDetailAction('update_document', { document_id: document.id, state: 'replacement_requested' }, 'Replacement requested.')}>Request replacement</Button>
                       </div>
                     </li>
                   ))}
@@ -1891,7 +1893,7 @@ export default function ApplicationsManagement() {
                 </Button>
               )}
               {application.status === 'approved' && (
-                <Button className="w-full" variant="accent" disabled={localBusy} onClick={() => void runDetailAction('start_onboarding', {}, 'Onboarding started.')}>
+                <Button className="w-full" variant="accent" loading={localBusy} disabled={localBusy} onClick={() => void runDetailAction('start_onboarding', {}, 'Onboarding started.')}>
                   Start onboarding
                 </Button>
               )}

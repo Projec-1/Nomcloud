@@ -335,7 +335,7 @@ export default function AdminExams() {
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={isSaving}>
+            <Button onClick={handleSubmit} loading={isSaving}>
               {isSaving ? 'Saving…' : editing ? 'Save Changes' : 'Schedule Exam'}
             </Button>
           </>

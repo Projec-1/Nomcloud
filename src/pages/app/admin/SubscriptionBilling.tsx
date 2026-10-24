@@ -19,6 +19,10 @@ import {
 } from '@phosphor-icons/react'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import PaymentJourney from '@/components/finance/PaymentJourney'
+import PaymentMethodCard from '@/components/finance/PaymentMethodCard'
+import PaymentReceiptActions from '@/components/finance/PaymentReceiptActions'
+import PaymentReceiptDocument, { type PaymentReceiptDetails } from '@/components/finance/PaymentReceiptDocument'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import PageHeader from '@/components/ui/PageHeader'
@@ -41,6 +45,7 @@ import {
   type FixedPlanCode,
 } from '@/services/subscriptionDemoService'
 import { isValidEmail, isValidPhone, minLength, type FieldErrors } from '@/utils/validators'
+import { schoolLogoUrl } from '@/services/storageService'
 
 type BillingStep = 'plans' | 'review' | 'payment-method' | 'checkout' | 'result' | 'receipt'
 
@@ -105,7 +110,16 @@ function formatDemoDate(value: string, lang: string) {
 
 function paymentMethodLabel(method: DemoPaymentMethod, t: (key: string) => string) {
   const option = paymentMethods.find((candidate) => candidate.id === method)
-  return option ? t(option.titleKey) : method
+  if (option) return t(option.titleKey)
+  const keyByMethod: Partial<Record<DemoPaymentMethod, string>> = {
+    waafi: 'fees.checkout.method.waafi',
+    zaad: 'fees.checkout.method.zaad',
+    sahal: 'fees.checkout.method.sahal',
+    visa: 'fees.checkout.cardVisa',
+    mastercard: 'fees.checkout.cardMastercard',
+  }
+  const key = keyByMethod[method]
+  return key ? t(key) : method
 }
 
 export default function SubscriptionBilling() {
@@ -582,20 +596,79 @@ export default function SubscriptionBilling() {
                 ))}
               </ul>
 
-              <Button
-                type="button"
-                variant={plan.highlight ? 'accent' : 'outline'}
-                className="mt-7 w-full justify-center"
-                disabled={plan.monthlyPrice === null || !demoAvailable}
-                onClick={() => {
-                  if (plan.monthlyPrice === null) setEnterpriseOpen(true)
-                  else if (plan.code === 'starter' || plan.code === 'growth') startPlanReview(plan.code)
-                }}
-              >
-                {plan.monthlyPrice === null
-                  ? t('billing.enterpriseForm.contactUs')
-                  : t(`billing.plans.choose.${plan.code}`)}
-              </Button>
+              {plan.monthlyPrice === null ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-7 w-full justify-center"
+                    onClick={() => setEnterpriseOpen(true)}
+                  >
+                    {t('billing.enterpriseForm.contactUs')}
+                  </Button>
+                ) : (plan.code === 'starter' || plan.code === 'growth') ? (
+                  <PaymentJourney
+                    kind="subscription"
+                    schoolId={school?.id ?? 'school'}
+                    schoolName={school?.name ?? 'Nom Cloud School'}
+                    schoolLogoUrl={schoolLogoUrl(school?.logo_path ?? null)}
+                    schoolAddress={school?.address}
+                    schoolPhone={school?.phone}
+                    schoolEmail={school?.email}
+                    subjectName={school?.name ?? 'Nom Cloud School'}
+                    payerName={profile?.full_name ?? profile?.email ?? ''}
+                    description={`${plan.name} plan`}
+                    amount={intervalAmount(plan, billingInterval)}
+                    originalAmount={intervalAmount(plan, billingInterval)}
+                    currency="USD"
+                    billingPeriod={t(`billing.interval.${billingInterval}`)}
+                    dueDate={liveSubscription?.current_period_end ?? demoState?.subscription?.expiresAt}
+                    storageId={`${plan.code}-${billingInterval}`}
+                    onResult={(result) => {
+                      if (!school?.id) return
+                      try {
+                        const demoMethod: DemoPaymentMethod = result.method === 'ussd' ? 'card' : result.method
+                        const attemptId = createDemoAttemptId()
+                        const nextState = recordDemoPayment(
+                          school.id,
+                          attemptId,
+                          plan.code,
+                          billingInterval,
+                          result.outcome === 'success'
+                            ? 'succeeded'
+                            : result.outcome === 'failed'
+                              ? 'rejected'
+                              : result.outcome,
+                          demoMethod,
+                        )
+                        const transaction = nextState.transactions.find((entry) => entry.attemptId === attemptId)
+                        if (!transaction) throw new Error(t('billing.demo.storageUnavailable'))
+                        setDemoState(nextState)
+                        setLastTransaction(transaction)
+                        setDemoError(null)
+                      } catch (paymentError) {
+                        setDemoError(paymentError instanceof Error ? paymentError.message : t('billing.demo.storageUnavailable'))
+                      }
+                    }}
+                  >
+                    {(openCheckout, pending, paid) => (
+                      <Button
+                        type="button"
+                        variant={plan.highlight ? 'accent' : 'outline'}
+                        className="mt-7 w-full justify-center"
+                        disabled={!demoAvailable || !school?.id}
+                        onClick={openCheckout}
+                      >
+                        {paid
+                          ? 'View demo receipt'
+                          : pending
+                            ? 'Payment processing'
+                            : liveSubscription?.plan?.code === plan.code || demoState?.subscription?.planCode === plan.code
+                              ? 'Pay / Renew Subscription'
+                              : t(`billing.plans.choose.${plan.code}`)}
+                      </Button>
+                    )}
+                  </PaymentJourney>
+              ) : null}
             </article>
           )
             })}
@@ -639,13 +712,17 @@ export default function SubscriptionBilling() {
             })}
           </ol>
 
-          {step === 'receipt' && lastTransaction ? (
+          {step === 'receipt' && lastTransaction?.outcome === 'succeeded' ? (
             <DemoReceipt
               transaction={lastTransaction}
               schoolName={school?.name ?? ''}
+              schoolLogoUrl={schoolLogoUrl(school?.logo_path ?? null)}
+              schoolAddress={school?.address}
+              schoolPhone={school?.phone}
+              schoolEmail={school?.email}
+              administratorName={profile?.full_name ?? profile?.email ?? ''}
               planName={selectedPlan?.name ?? lastTransaction.planCode}
               paymentMethodName={paymentMethodLabel(lastTransaction.paymentMethod ?? 'card', t)}
-              lang={lang}
               t={t}
               onBack={() => setStep('result')}
               onReturn={returnToPlans}
@@ -694,35 +771,16 @@ export default function SubscriptionBilling() {
                     </h2>
                     <p className="mt-2 max-w-xl text-sm text-graphite">{t('billing.flow.paymentMethod.description')}</p>
                     <div role="group" aria-label={t('billing.flow.paymentMethod.title')} className="mt-6 grid gap-3 sm:grid-cols-2">
-                      {paymentMethods.map(({ id, icon: MethodIcon, titleKey, descriptionKey }) => (
-                        <button
+                      {paymentMethods.map(({ id, icon, titleKey, descriptionKey }) => (
+                        <PaymentMethodCard
                           key={id}
-                          type="button"
-                          aria-pressed={selectedPaymentMethod === id}
-                          onClick={() => choosePaymentMethod(id)}
-                          className={`min-h-28 rounded-xl border p-4 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#202328] ${
-                            selectedPaymentMethod === id
-                              ? 'border-brand bg-brand/5 ring-1 ring-brand dark:bg-brand/10'
-                              : 'border-ink/10 bg-white hover:border-brand/50 dark:border-white/10 dark:bg-[#202328] dark:hover:border-brand/60'
-                          }`}
-                        >
-                          <span className="flex min-w-0 items-start gap-3">
-                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                              selectedPaymentMethod === id
-                                ? 'bg-brand text-white'
-                                : 'bg-ink/5 text-ink dark:bg-white/10 dark:text-white'
-                            }`}>
-                              <MethodIcon className="h-5 w-5" aria-hidden="true" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block break-words font-semibold text-ink dark:text-white">{t(titleKey)}</span>
-                              <span className="mt-1 block break-words text-xs leading-relaxed text-graphite">{t(descriptionKey)}</span>
-                            </span>
-                            {selectedPaymentMethod === id && (
-                              <CheckCircleIcon className="ms-auto h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-                            )}
-                          </span>
-                        </button>
+                          icon={icon}
+                          label={t(titleKey)}
+                          description={t(descriptionKey)}
+                          selected={selectedPaymentMethod === id}
+                          selectionRole="button"
+                          onSelect={() => choosePaymentMethod(id)}
+                        />
                       ))}
                     </div>
                     {!selectedPaymentMethod && (
@@ -1354,73 +1412,67 @@ function ReceiptDetail({ label, value }: { label: string; value: string }) {
 function DemoReceipt({
   transaction,
   schoolName,
+  schoolLogoUrl: logoUrl,
+  schoolAddress,
+  schoolPhone,
+  schoolEmail,
+  administratorName,
   planName,
   paymentMethodName,
-  lang,
   t,
   onBack,
   onReturn,
 }: {
   transaction: DemoTransaction
   schoolName: string
+  schoolLogoUrl: string | null
+  schoolAddress?: string | null
+  schoolPhone?: string | null
+  schoolEmail?: string | null
+  administratorName: string
   planName: string
   paymentMethodName: string
-  lang: string
   t: (key: string) => string
   onBack: () => void
   onReturn: () => void
 }) {
   const paymentDate = transaction.resolvedAt ?? transaction.createdAt
+  const receipt: PaymentReceiptDetails = {
+    schoolName,
+    schoolLogoUrl: logoUrl,
+    schoolAddress,
+    schoolPhone,
+    schoolEmail,
+    reference: transaction.reference,
+    studentName: schoolName,
+    payerName: administratorName,
+    category: planName,
+    originalAmount: transaction.amount,
+    amountPaid: transaction.amount,
+    currency: 'USD',
+    method: paymentMethodName,
+    paidOn: paymentDate,
+    providerReference: transaction.transferReference ?? transaction.reference,
+    isTestPayment: true,
+    isSubscription: true,
+    billingPeriod: t(`billing.interval.${transaction.billingInterval}`),
+    subscriptionStartedAt: paymentDate,
+    subscriptionExpiresAt: intervalExpiry(paymentDate, transaction.billingInterval),
+    status: 'recorded',
+  }
+
   return (
-    <div>
-      <article className="print-document mx-auto max-w-3xl rounded-xl border border-ink/10 bg-white p-5 text-ink shadow-soft dark:border-white/10 dark:bg-[#202328] dark:text-white sm:p-8">
-        <div className="border-2 border-dashed border-red-300 bg-red-50 px-3 py-2 text-center text-xs font-bold tracking-[0.12em] text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 print:border-solid print:bg-white print:text-black">
-          {t('billing.receipt.demoNotice')}
-        </div>
-        <header className="mt-6 flex flex-wrap items-start justify-between gap-5 border-b border-ink/10 pb-5 dark:border-white/15">
-          <div className="flex items-center gap-3">
-            <img src="/logo-512.png" alt="" className="h-11 w-11 object-contain" />
-            <div>
-              <p className="font-bold text-ink dark:text-white">Nom Cloud</p>
-              <p className="text-xs text-graphite">{t('billing.receipt.brandSubtitle')}</p>
-            </div>
-          </div>
-          <div className="text-start sm:text-end">
-            <p className="text-xs text-graphite">{t('billing.history.reference')}</p>
-            <p className="break-all font-mono text-sm font-semibold text-ink dark:text-white">{transaction.reference}</p>
-            <p className="mt-2 text-xs text-graphite">{formatDemoDate(paymentDate, lang)}</p>
-          </div>
-        </header>
-        <h2 className="mt-6 text-2xl font-semibold text-ink dark:text-white">{t('billing.receipt.title')}</h2>
-        <p className="mt-1 text-sm text-graphite">{schoolName}</p>
-        <dl className="mt-5 grid gap-4 rounded-xl border border-ink/10 p-4 dark:border-white/10 sm:grid-cols-2">
-          <ReceiptDetail label={t('billing.order.plan')} value={planName} />
-          <ReceiptDetail label={t('billing.order.frequency')} value={t(`billing.interval.${transaction.billingInterval}`)} />
-          <ReceiptDetail label={t('billing.method.paymentMethod')} value={paymentMethodName} />
-          <ReceiptDetail label={t('billing.receipt.paymentStatus')} value={t('billing.receipt.simulatedSuccess')} />
-          <ReceiptDetail label={t('billing.result.subscriptionStart')} value={formatDemoDate(paymentDate, lang)} />
-          <ReceiptDetail label={t('billing.result.subscriptionExpiry')} value={formatDemoDate(intervalExpiry(paymentDate, transaction.billingInterval), lang)} />
-        </dl>
-        <div className="mt-6 border-y border-ink/10 py-4 dark:border-white/15">
-          <div className="flex flex-wrap justify-between gap-3 text-sm">
-            <span>{t(`billing.receipt.subscriptionPlan.${transaction.billingInterval}`)}</span>
-            <strong>{formatUSD(transaction.amount)}</strong>
-          </div>
-          <div className="mt-4 flex flex-wrap justify-between gap-3 font-semibold">
-            <span>{t('billing.order.totalDue')}</span>
-            <span>{formatUSD(transaction.amount)}</span>
-          </div>
-        </div>
-        <p className="mt-5 text-xs leading-relaxed text-graphite">{t('billing.receipt.disclaimer')}</p>
-      </article>
-      <div className="print-hide mx-auto mt-5 flex max-w-3xl flex-wrap justify-between gap-3">
-        <Button type="button" variant="ghost" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" /> {t('billing.back')}
-        </Button>
-        <div className="flex flex-wrap gap-3">
-          <Button type="button" variant="outline" onClick={() => window.print()}>{t('billing.receipt.print')}</Button>
-          <Button type="button" variant="primary" onClick={onReturn}>{t('billing.backToBilling')}</Button>
-        </div>
+    <div className="mx-auto max-w-3xl">
+      <PaymentReceiptDocument details={receipt} visible />
+      <div className="print-hide mt-5">
+        <PaymentReceiptActions
+          details={receipt}
+          t={t}
+          backLabel={t('billing.back')}
+          onBack={onBack}
+          returnLabel={t('billing.backToBilling')}
+          onReturn={onReturn}
+        />
       </div>
     </div>
   )

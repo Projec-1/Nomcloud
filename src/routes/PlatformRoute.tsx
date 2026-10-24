@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { PageLoader } from '@/components/ui/Loader'
+import Button from '@/components/ui/Button'
 import { mustChangePassword } from '@/services/accountService'
 
 export default function PlatformRoute({ children }: { children: ReactNode }) {
@@ -9,7 +10,7 @@ export default function PlatformRoute({ children }: { children: ReactNode }) {
   const location = useLocation()
 
   if (authState === 'initialising' || authState === 'loading_profile') {
-    return <PageLoader label="Loading platform workspace…" />
+    return <PageLoader />
   }
 
   if (authState === 'signed_out') {
@@ -17,7 +18,12 @@ export default function PlatformRoute({ children }: { children: ReactNode }) {
   }
 
   if (authState === 'error') {
-    return <div className="flex min-h-[50vh] items-center justify-center px-6 text-center text-sm text-red-500">We could not verify your platform access. Please try again.</div>
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="max-w-md text-sm text-red-500">We could not verify your platform access. Please try again.</p>
+        <Button variant="outline" onClick={() => window.location.reload()}>Try again</Button>
+      </div>
+    )
   }
 
   // Same requirement for the platform workspace. See ProtectedRoute.

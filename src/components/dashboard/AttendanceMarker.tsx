@@ -281,7 +281,7 @@ export default function AttendanceMarker({ classes, schoolId, timeZone }: Attend
           </Select>
           <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="sm:w-48" />
         </div>
-        <Button onClick={handleSave} disabled={isSaving || isLoading || students.length === 0} icon={<Save className="h-4 w-4" />}>
+        <Button onClick={handleSave} loading={isSaving} disabled={isSaving || isLoading || students.length === 0} icon={<Save className="h-4 w-4" />}>
           {isSaving ? 'Saving…' : 'Save Attendance'}
         </Button>
       </div>

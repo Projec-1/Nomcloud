@@ -17,6 +17,7 @@ import { avatarColorForId } from '@/services/studentService'
 import { fetchGuardianAccess, revokeAccess, restoreAccess, type PersonAccess } from '@/services/accessService'
 import { listLiveInvitations, sendInvitation, type InvitationRow } from '@/services/invitationService'
 import BulkInviteBar from '@/components/ui/BulkInviteBar'
+import { ThinkingOrb } from 'thinking-orbs'
 import { runBulkInvite, type BulkInviteProgress, type BulkInviteResult } from '@/services/bulkInvite'
 import { errorMessage, toError } from '@/utils/errorMessage'
 
@@ -311,12 +312,13 @@ export default function AdminGuardians() {
                                 <button
                                   type="button"
                                   disabled={!g.email || inviting === g.id}
+                                  aria-busy={inviting === g.id || undefined}
                                   onClick={() => void invite(g)}
                                   aria-label={`${pending ? 'Resend invitation to' : 'Invite'} ${g.full_name}`}
                                   title={g.email ? (pending ? 'Resend invitation' : 'Invite to Nom Cloud') : 'Add an email address first'}
                                   className="rounded-lg p-2 text-graphite hover:bg-ink/5 hover:text-ink disabled:opacity-40 dark:hover:bg-white/10 dark:hover:text-white"
                                 >
-                                  <Mail className="h-4 w-4" />
+                                  {inviting === g.id ? <ThinkingOrb state="working" size={20} color="#C9471B" aria-label="Sending invitation" /> : <Mail className="h-4 w-4" />}
                                 </button>
                               )}
                               {a && (

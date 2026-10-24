@@ -172,10 +172,10 @@ database function.
 1. **Owner, director and administrator may start a payment on a parent's behalf**,
    for any fee in their school. A guardian may start one only for their own linked
    student's fee.
-2. **Partial payments are allowed**, up to the remaining balance. No new constraint
-   was needed: `fee_payments_amount_check` (`amount > 0`) and
-   `fee_records_amount_paid_not_over_check` (`amount_paid <= amount`) already
-   express exactly that.
+2. **Partial payments were originally allowed** up to the remaining balance.
+   The parent checkout now requires full-balance payments until a school-level
+   partial-payment policy exists. The Edge Function enforces this server-side;
+   do not re-enable partial amounts based on a frontend-only check.
 
 ---
 

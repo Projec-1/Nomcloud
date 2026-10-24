@@ -29,6 +29,7 @@ interface SchoolProfileModalProps {
   school: School | null
   requests: Request[]
   auditEntries: PlatformAuditRecord[]
+  busy: boolean
   onClose: () => void
   onOpenRequest: (request: Request) => void
   onStatusChange: (id: string, status: SchoolStatus, message: string) => void
@@ -55,6 +56,7 @@ export default function SchoolProfileModal({
   school,
   requests,
   auditEntries,
+  busy,
   onClose,
   onOpenRequest,
   onStatusChange,
@@ -75,6 +77,8 @@ export default function SchoolProfileModal({
       {school.status === 'Suspended' ? (
         <Button
           variant="accent"
+          loading={busy}
+          disabled={busy}
           onClick={() => onStatusChange(school.id, 'Active', 'School reactivated')}
         >
           Reactivate school
@@ -82,6 +86,8 @@ export default function SchoolProfileModal({
       ) : school.status === 'Active' || school.status === 'Under review' ? (
         <Button
           variant="danger"
+          loading={busy}
+          disabled={busy}
           onClick={() => onStatusChange(school.id, 'Suspended', 'School suspended')}
         >
           Suspend school
@@ -93,7 +99,7 @@ export default function SchoolProfileModal({
   return (
     <Modal
       open
-      onClose={onClose}
+      onClose={() => { if (!busy) onClose() }}
       size="xl"
       title={school.name}
       description={`${school.code ?? school.id} · ${school.location}`}

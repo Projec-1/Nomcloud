@@ -143,7 +143,7 @@ function SettingsForm({
         title="School Settings"
         description="Manage your school's profile, grading and notification preferences."
         actions={
-          <Button onClick={handleSave} disabled={saving} icon={<Save className="h-4 w-4" />}>
+          <Button onClick={handleSave} loading={saving} icon={<Save className="h-4 w-4" />}>
             {saving ? 'Saving…' : 'Save Changes'}
           </Button>
         }
@@ -186,6 +186,7 @@ function SettingsForm({
                 <Button
                   variant="outline"
                   size="sm"
+                  loading={logoBusy}
                   disabled={logoBusy}
                   onClick={() => fileInput.current?.click()}
                   icon={<Upload className="h-4 w-4" />}
@@ -193,7 +194,7 @@ function SettingsForm({
                   {logoBusy ? 'Working…' : logoUrl ? 'Replace logo' : 'Upload logo'}
                 </Button>
                 {logoUrl && (
-                  <Button variant="ghost" size="sm" disabled={logoBusy} onClick={handleLogoRemoved} icon={<Trash2 className="h-4 w-4" />}>
+                  <Button variant="ghost" size="sm" loading={logoBusy} disabled={logoBusy} onClick={handleLogoRemoved} icon={<Trash2 className="h-4 w-4" />}>
                     Remove
                   </Button>
                 )}

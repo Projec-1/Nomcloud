@@ -103,7 +103,7 @@ export function Panel({ title, description, action, children, className }: { tit
   )
 }
 
-export function KpiTile({ label, value, detail, icon: Icon, tone = 'brand' }: { label: string; value: string; detail?: string; icon?: PhosphorIcon; tone?: 'brand' | 'danger' | 'warning' | 'success' }) {
+export function KpiTile({ label, value, detail, icon: Icon, tone = 'brand' }: { label: string; value: ReactNode; detail?: ReactNode; icon?: PhosphorIcon; tone?: 'brand' | 'danger' | 'warning' | 'success' }) {
   const tint = tone === 'danger' ? 'bg-red-500/10 text-red-600 dark:text-red-300' : tone === 'warning' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300' : tone === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' : 'bg-brand/10 text-brand'
   return (
     <div className="rounded-2xl border border-ink/[0.07] bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.04]">
@@ -111,7 +111,7 @@ export function KpiTile({ label, value, detail, icon: Icon, tone = 'brand' }: { 
         <span className="min-w-0 break-words text-sm font-medium text-graphite">{label}</span>
         {Icon && <span className={cn('shrink-0 rounded-xl p-2.5', tint)}><Icon className="h-4 w-4" /></span>}
       </div>
-      <p className="mt-4 break-words text-2xl font-semibold tracking-tight">{value}</p>
+      <div className="mt-4 break-words text-2xl font-semibold tracking-tight">{value}</div>
       {detail && <p className="mt-1 break-words text-xs font-medium text-graphite">{detail}</p>}
     </div>
   )

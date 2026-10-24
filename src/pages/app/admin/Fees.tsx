@@ -619,7 +619,7 @@ export default function AdminFees() {
             <Button variant="ghost" onClick={() => setFeeModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={submitFee} disabled={isSaving}>
+            <Button onClick={submitFee} loading={isSaving}>
               {isSaving ? 'Saving…' : editing ? 'Save Changes' : 'Create Fee'}
             </Button>
           </>
@@ -726,7 +726,7 @@ export default function AdminFees() {
             <Button variant="ghost" onClick={() => setPayTarget(null)}>
               Cancel
             </Button>
-            <Button onClick={submitPayment} disabled={isSaving}>
+            <Button onClick={submitPayment} loading={isSaving}>
               {isSaving ? 'Recording…' : 'Record Payment'}
             </Button>
           </>
@@ -912,6 +912,7 @@ export default function AdminFees() {
             </Button>
             <Button
               onClick={submitReminders}
+              loading={isSaving}
               disabled={isSaving || reminderLoading || reminderRecipients.length === 0}
               icon={<Send className="h-4 w-4" />}
             >

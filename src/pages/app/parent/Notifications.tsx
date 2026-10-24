@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Checks as CheckCheck, Megaphone, BookOpen, CalendarCheck, Wallet, ClipboardText as ClipboardCheck, ChatText as MessageSquare } from '@phosphor-icons/react'
 import PageHeader from '@/components/ui/PageHeader'
@@ -8,6 +9,9 @@ import { timeAgo } from '@/utils/format'
 import { cn } from '@/utils/cn'
 import { useNotifications } from '@/hooks/useCommunications'
 import { markNotificationsRead } from '@/services/communicationService'
+import { ThinkingOrb } from 'thinking-orbs'
+import { useToast } from '@/context/ToastContext'
+import { errorMessage } from '@/utils/errorMessage'
 
 // Phase 8 batch 7. Real notifications, READ ONLY.
 //
@@ -30,14 +34,31 @@ export default function ParentNotifications() {
   const { t } = useLanguage()
   const { state, notifications, unreadCount, schoolId, userId, reload } = useNotifications()
   const navigate = useNavigate()
+  const { showToast } = useToast()
+  const [pendingReadIds, setPendingReadIds] = useState<Set<string>>(new Set())
+  const [markingAll, setMarkingAll] = useState(false)
+  const pendingReadRef = useRef(new Set<string>())
 
-  const markRead = async (ids: string[]) => {
+  const markRead = async (ids: string[], all = false) => {
     if (!schoolId || !userId || ids.length === 0) return
+    const requestedIds = ids.filter((id) => !pendingReadRef.current.has(id))
+    if (requestedIds.length === 0) return
+    requestedIds.forEach((id) => pendingReadRef.current.add(id))
+    setPendingReadIds((current) => new Set([...current, ...requestedIds]))
+    if (all) setMarkingAll(true)
     try {
-      await markNotificationsRead(schoolId, userId, ids)
+      await markNotificationsRead(schoolId, userId, requestedIds)
       reload()
-    } catch {
-      // A convenience. A failure must not interrupt the user.
+    } catch (error: unknown) {
+      showToast({ type: 'error', title: 'Could not update notifications', description: errorMessage(error) })
+    } finally {
+      requestedIds.forEach((id) => pendingReadRef.current.delete(id))
+      setPendingReadIds((current) => {
+        const next = new Set(current)
+        requestedIds.forEach((id) => next.delete(id))
+        return next
+      })
+      if (all) setMarkingAll(false)
     }
   }
 
@@ -51,7 +72,9 @@ export default function ParentNotifications() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => markRead(notifications.filter((n) => !n.readAt).map((n) => n.id))}
+              loading={markingAll}
+              disabled={markingAll}
+              onClick={() => void markRead(notifications.filter((n) => !n.readAt).map((n) => n.id), true)}
               icon={<CheckCheck className="h-4 w-4" />}
             >
               Mark all as read
@@ -73,10 +96,13 @@ export default function ParentNotifications() {
           <div className="card divide-y divide-ink/5 dark:divide-white/5">
             {rows.map((n) => {
               const Icon = iconByType[n.type] ?? Bell
+              const markingRead = pendingReadIds.has(n.id)
               return (
                 <button
                   key={n.id}
                   type="button"
+                  disabled={markingRead}
+                  aria-busy={markingRead || undefined}
                   onClick={() => {
                     void markRead([n.id])
                     if (n.link) navigate(n.link)
@@ -87,7 +113,7 @@ export default function ParentNotifications() {
                   )}
                 >
                   <span className="mt-0.5 rounded-xl bg-ink/5 p-2 text-graphite dark:bg-white/10">
-                    <Icon className="h-4 w-4" />
+                    {markingRead ? <ThinkingOrb state="working" size={20} color="#C9471B" aria-label="Marking notification as read" /> : <Icon className="h-4 w-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-ink dark:text-white">{n.title}</span>

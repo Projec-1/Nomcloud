@@ -48,6 +48,7 @@ export const navByRole: Record<Role, NavItem[]> = {
   ],
   parent: [
     { to: '/app/parent', labelKey: 'dash.nav.overview', icon: LayoutDashboard, end: true },
+    { to: '/app/parent/fees', labelKey: 'dash.nav.fees', icon: Wallet },
     { to: '/app/parent/timetable', labelKey: 'dash.nav.timetable', icon: Table2 },
     { to: '/app/parent/attendance', labelKey: 'dash.nav.attendance', icon: CalendarCheck },
     { to: '/app/parent/homework', labelKey: 'dash.nav.homework', icon: ClipboardCheck },

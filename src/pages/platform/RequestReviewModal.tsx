@@ -24,6 +24,7 @@ interface RequestReviewModalProps {
   schools: School[]
   onClose: () => void
   onDecision: (id: string, status: RequestStatus, message: string) => void
+  decisionBusy: string | null
   onNoteSaved: (message: string) => void
   onOpenSchool: (school: School) => void
 }
@@ -33,6 +34,7 @@ export default function RequestReviewModal({
   schools,
   onClose,
   onDecision,
+  decisionBusy,
   onNoteSaved,
   onOpenSchool,
 }: RequestReviewModalProps) {
@@ -63,11 +65,13 @@ export default function RequestReviewModal({
     ? request.source === 'contact-message'
       ? request.status === 'Resolved'
         ? null
-        : <Button variant="accent" onClick={() => onDecision(request.id, 'Resolved', 'Contact message marked handled')}>Mark handled</Button>
+        : <Button variant="accent" loading={decisionBusy === 'Contact message marked handled'} disabled={decisionBusy !== null} onClick={() => onDecision(request.id, 'Resolved', 'Contact message marked handled')}>Mark handled</Button>
     : request.status === 'Resolved'
       ? (
         <Button
           variant="outline"
+          loading={decisionBusy === 'Request reopened'}
+          disabled={decisionBusy !== null}
           onClick={() => onDecision(request.id, 'Open', 'Request reopened')}
         >
           Reopen request
@@ -77,18 +81,24 @@ export default function RequestReviewModal({
         <>
           <Button
             variant="outline"
+            loading={decisionBusy === 'Changes requested from school'}
+            disabled={decisionBusy !== null}
             onClick={() => onDecision(request.id, 'In review', 'Changes requested from school')}
           >
             Request changes
           </Button>
           <Button
             variant="danger"
+            loading={decisionBusy === 'Request rejected'}
+            disabled={decisionBusy !== null}
             onClick={() => onDecision(request.id, 'Resolved', 'Request rejected')}
           >
             Reject
           </Button>
           <Button
             variant="accent"
+            loading={decisionBusy === 'Request approved'}
+            disabled={decisionBusy !== null}
             onClick={() => onDecision(request.id, 'Resolved', 'Request approved')}
           >
             Approve
@@ -100,7 +110,7 @@ export default function RequestReviewModal({
   return (
     <Modal
       open={Boolean(request)}
-      onClose={onClose}
+      onClose={() => { if (!decisionBusy) onClose() }}
       size="xl"
       title={request?.type ?? 'Request review'}
       description={request ? `${request.id} · ${request.school}` : ''}

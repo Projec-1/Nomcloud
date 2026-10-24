@@ -1,4 +1,5 @@
-import { CheckCircle as CheckCircle2, CircleNotch as Loader2, Envelope as Mail, MinusCircle, XCircle } from '@phosphor-icons/react'
+import { CheckCircle as CheckCircle2, Envelope as Mail, MinusCircle, XCircle } from '@phosphor-icons/react'
+import { InlineLoader } from '@/components/ui/Loader'
 import Button from '@/components/ui/Button'
 import {
   gmailBudgetNote,
@@ -103,10 +104,12 @@ export default function BulkInviteBar({
     return (
       <div className="mb-5 rounded-2xl border border-brand/30 bg-brand/5 p-5">
         <p className="flex items-center gap-2 text-sm font-medium text-ink dark:text-white">
-          <Loader2 className="h-4 w-4 animate-spin text-brand" />
-          {progress.pausing
-            ? 'Pausing between batches, to stay inside the email rate limit…'
-            : `Inviting ${Math.min(progress.done + 1, progress.total)} of ${progress.total}${progress.current ? ` — ${progress.current}` : ''}…`}
+          <InlineLoader
+            label={progress.pausing
+              ? 'Pausing between batches, to stay inside the email rate limit…'
+              : `Inviting ${Math.min(progress.done + 1, progress.total)} of ${progress.total}${progress.current ? ` — ${progress.current}` : ''}…`}
+            state="working"
+          />
         </p>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
           <div className="h-full rounded-full bg-brand transition-all duration-500" style={{ width: `${pct}%` }} />

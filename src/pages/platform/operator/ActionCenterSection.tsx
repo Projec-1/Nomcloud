@@ -13,6 +13,7 @@ import {
   Wrench,
 } from '@phosphor-icons/react'
 import Button from '@/components/ui/Button'
+import { InlineLoader } from '@/components/ui/Loader'
 import Modal from '@/components/ui/Modal'
 import Status from '@/pages/platform/StatusPill'
 import type { Request, School } from '@/pages/platform/types'
@@ -449,7 +450,7 @@ export default function ActionCenterSection({
 
       <div className="mt-4 overflow-hidden rounded-2xl border border-ink/[0.07] bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
         {loading ? (
-          <p className="p-8 text-center text-sm text-graphite">Loading platform records…</p>
+          <div className="p-8 text-center"><InlineLoader label="Loading platform records" state="searching" /></div>
         ) : visible.length === 0 ? (
           <p className="p-8 text-center text-sm text-graphite">Nothing matches these filters — the inbox is clear.</p>
         ) : (

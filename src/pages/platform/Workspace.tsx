@@ -38,6 +38,7 @@ import {
 } from '@phosphor-icons/react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
+import { InlineLoader } from '@/components/ui/Loader'
 import Select from '@/components/ui/Select'
 import { useAuth } from '@/context/AuthContext'
 import type { Request, RequestStatus, School, SchoolStatus } from './types'
@@ -191,6 +192,7 @@ export default function PlatformWorkspace() {
   const [inboxState, setInboxState] = useState<InboxState>({})
   const [requestWork, setRequestWork] = useState<RequestWorkMap>({})
   const [schoolActionBusy, setSchoolActionBusy] = useState(false)
+  const [requestActionBusy, setRequestActionBusy] = useState<string | null>(null)
   const currentPath = location.pathname
 
   useEffect(() => {
@@ -210,7 +212,17 @@ export default function PlatformWorkspace() {
   }, [profileMenuOpen])
 
   useEffect(() => {
-    if (!authUser) return
+    if (!authUser) {
+      setPlatformRecordsLoading(false)
+      setPlatformRecordsError('Sign in to load platform records.')
+      setSchoolRecords([])
+      setRequestRecords([])
+      setAuditRecords([])
+      setAuditEntries([])
+      setOperatorRecords([])
+      setPendingApplicationCount(0)
+      return
+    }
     let cancelled = false
     setPlatformRecordsLoading(true)
     setPlatformRecordsError(null)
@@ -410,11 +422,13 @@ export default function PlatformWorkspace() {
     }
   }
   const updateRequest = async (id: string, status: RequestStatus, message: string) => {
+    if (requestActionBusy) return
     const selected = requestRecords.find((item) => item.id === id)
     if (!selected || selected.source !== 'contact-message' || status !== 'Resolved' || !authUser) {
       notify('This action is not supported for this request.')
       return
     }
+    setRequestActionBusy(message)
     try {
       await markPlatformContactMessageHandled(id, authUser.id)
       setRequest(null)
@@ -422,6 +436,8 @@ export default function PlatformWorkspace() {
       notify(message)
     } catch (cause: unknown) {
       notify(`Request was not updated: ${errorMessage(cause)}`)
+    } finally {
+      setRequestActionBusy(null)
     }
   }
   const searchResults = [
@@ -448,7 +464,7 @@ export default function PlatformWorkspace() {
           </section>)}
         </nav>
         <div className="mt-auto">
-          <div className="mb-3 rounded-2xl border border-ink/[0.07] bg-ink/[0.025] p-3 dark:border-white/[0.08] dark:bg-white/[0.03]"><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500" /><span className="text-xs font-semibold">{platformRecordsLoading ? 'Checking platform records' : platformRecordsError ? 'Platform data unavailable' : 'Platform data connected'}</span></div><p className="mt-1 pl-4 text-[11px] text-graphite">{platformRecordsLoading ? 'Loading current records' : `${schoolRecords.length} registered schools`}</p></div>
+          <div className="mb-3 rounded-2xl border border-ink/[0.07] bg-ink/[0.025] p-3 dark:border-white/[0.08] dark:bg-white/[0.03]"><div className="flex items-center gap-2">{platformRecordsLoading ? <InlineLoader label="Checking platform records" state="connecting" /> : <><span className={`h-2 w-2 rounded-full ${platformRecordsError ? 'bg-red-500' : 'bg-emerald-500'}`} /><span className="text-xs font-semibold">{platformRecordsError ? 'Platform data unavailable' : 'Platform data connected'}</span></>}</div>{!platformRecordsLoading && <p className="mt-1 pl-4 text-[11px] text-graphite">{schoolRecords.length} registered schools</p>}</div>
           <button onClick={() => navigate('/platform/settings')} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white">{displayInitial}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{displayName || displayEmail || 'Platform operator'}</span><span className="block text-xs text-graphite">{operatorRole}</span></span><MoreHorizontal className="h-4 w-4 text-graphite" /></button>
           <button onClick={() => setSignOutOpen(true)} className="mt-2 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-graphite hover:bg-red-500/10 hover:text-red-600"><LogOut className="h-4 w-4" /> Sign out</button>
         </div>
@@ -530,18 +546,18 @@ export default function PlatformWorkspace() {
           </div>
         </header>
         <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8">
-          {platformRecordsError && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-sm text-red-700 dark:text-red-300"><span>Could not load platform records: {platformRecordsError}</span><Button variant="outline" size="sm" onClick={() => setPlatformRecordsNonce((value) => value + 1)}>Retry</Button></div>}
+          {platformRecordsError && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-sm text-red-700 dark:text-red-300"><span>Could not load platform records: {platformRecordsError}</span>{authUser ? <Button variant="outline" size="sm" onClick={() => setPlatformRecordsNonce((value) => value + 1)}>Retry</Button> : <Button variant="outline" size="sm" onClick={() => navigate('/login')}>Sign in</Button>}</div>}
           {section === 'Overview' && <OverviewSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} notify={notify} schools={schoolRecords} requests={requestRecords} auditRows={auditRecords} pendingApplicationCount={pendingApplicationCount} operatorCount={activeOperators} alerts={overviewAlerts} loading={platformRecordsLoading} />}
           {section === 'Action Center' && <ActionCenterSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} schools={schoolRecords} requests={requestRecords} pendingApplicationCount={pendingApplicationCount} operators={operatorRecords} state={inboxState} onStateChange={setInboxState} notify={notify} operator={displayName} loading={platformRecordsLoading} />}
-          {section === 'Schools' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading schools…</p> : <SchoolsView schools={filteredSchools} query={query} setQuery={setQuery} filter={schoolFilter} setFilter={setSchoolFilter} onSchool={setSchool} onNotify={() => navigate('/platform/applications')} />)}
+          {section === 'Schools' && (platformRecordsLoading ? <div className="py-12 text-center"><InlineLoader label="Loading schools" state="searching" /></div> : <SchoolsView schools={filteredSchools} query={query} setQuery={setQuery} filter={schoolFilter} setFilter={setSchoolFilter} onSchool={setSchool} onNotify={() => navigate('/platform/applications')} />)}
           {section === 'School Applications' && <PlatformApprovalPanel />}
           {section === 'People' && <PeopleSection onNotify={notify} operator={displayName} />}
           {section === 'Communications' && <CommunicationsSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
           {section === 'Requests & Reviews' && <RequestsSection requests={requestRecords} operators={operatorRecords} work={requestWork} onWorkChange={setRequestWork} onResolve={updateRequest} onOpenSchool={(name) => { const match = schoolRecords.find((item) => item.name === name); if (match) setSchool(match); else notify('That school is not registered on the platform, so no record can be opened.') }} notify={notify} operator={displayName} />}
           {section === 'Operations Queue' && authUser && <OperationsView currentPath={currentPath} authUserId={authUser.id} schools={schoolRecords} operators={operatorRecords} navigate={navigate} notify={notify} />}
-          {section === 'Operators' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading operators…</p> : <OperatorsSection operators={operatorRecords} onNotify={notify} operator={displayName} />)}
+          {section === 'Operators' && (platformRecordsLoading ? <div className="py-12 text-center"><InlineLoader label="Loading operators" state="searching" /></div> : <OperatorsSection operators={operatorRecords} onNotify={notify} operator={displayName} />)}
           {section === 'Permissions' && <PermissionsSection onNotify={notify} operator={displayName} />}
-          {section === 'Audit Logs' && (platformRecordsLoading ? <p className="py-12 text-center text-sm text-graphite">Loading audit logs…</p> : <AuditSection rows={auditEntries} notify={notify} onNavigate={navigate} operator={displayName} />)}
+          {section === 'Audit Logs' && (platformRecordsLoading ? <div className="py-12 text-center"><InlineLoader label="Loading audit logs" state="searching" /></div> : <AuditSection rows={auditEntries} notify={notify} onNavigate={navigate} operator={displayName} />)}
           {section === 'Security' && <SecuritySection onNotify={notify} onNavigate={navigate} operator={displayName} />}
           {section === 'Maintenance' && <MaintenanceSection onNotify={notify} operator={displayName} />}
           {section === 'Backups & Recovery' && <BackupsSection onNotify={notify} operator={displayName} />}
@@ -560,6 +576,7 @@ export default function PlatformWorkspace() {
         school={school}
         requests={requestRecords}
         auditEntries={auditEntries}
+        busy={schoolActionBusy}
         onClose={() => setSchool(null)}
         onOpenRequest={(item) => { setSchool(null); setRequest(item) }}
         onStatusChange={(...args) => {
@@ -570,14 +587,15 @@ export default function PlatformWorkspace() {
       <RequestReviewModal
         request={request}
         schools={schoolRecords}
-        onClose={() => setRequest(null)}
+        decisionBusy={requestActionBusy}
+        onClose={() => { if (!requestActionBusy) setRequest(null) }}
         onDecision={updateRequest}
         onNoteSaved={notify}
         onOpenSchool={(item) => { setRequest(null); setSchool(item) }}
       />
       <OperatorModal operator={selectedOperator ?? operator} onClose={() => { setOperator(null); setSelectedOperator(null) }} onAction={notify} />
       <Modal open={emergencyOpen} onClose={() => setEmergencyOpen(false)} title="Emergency controls" description="Unavailable: these controls are not connected to live access changes or audit logging." size="md" footer={<Button variant="outline" onClick={() => setEmergencyOpen(false)}>Close</Button>}><div className="space-y-2">{['Suspend a school account', 'Revoke all sessions for a user', 'Restrict an operator account', 'Put platform into maintenance mode'].map((item) => <button key={item} type="button" disabled className="flex w-full cursor-not-allowed items-center gap-3 rounded-2xl border border-red-500/15 p-4 text-left text-sm font-semibold text-red-700 opacity-60 dark:text-red-300"><Ban className="h-4 w-4" />{item}<ChevronRight className="ml-auto h-4 w-4" /></button>)}</div></Modal>
-      <Modal open={signOutOpen} onClose={() => { if (!signOutPending) setSignOutOpen(false) }} title="Sign out?" description="Are you sure you want to sign out of Nom Cloud?" size="sm" footer={<><Button variant="outline" disabled={signOutPending} onClick={() => setSignOutOpen(false)}>Cancel</Button><Button variant="danger" disabled={signOutPending} onClick={() => void handleLogout()}>{signOutPending ? 'Signing out…' : 'Sign Out'}</Button></>}><div /></Modal>
+      <Modal open={signOutOpen} onClose={() => { if (!signOutPending) setSignOutOpen(false) }} title="Sign out?" description="Are you sure you want to sign out of Nom Cloud?" size="sm" footer={<><Button variant="outline" disabled={signOutPending} onClick={() => setSignOutOpen(false)}>Cancel</Button><Button variant="danger" loading={signOutPending} onClick={() => void handleLogout()}>{signOutPending ? 'Signing out…' : 'Sign Out'}</Button></>}><div /></Modal>
     </div>
   )
 }
@@ -708,7 +726,7 @@ function SystemHealthWithIncidents({
         </div>
       )}
       {loading
-        ? <p role="status" className="py-6 text-sm text-graphite">Loading incident context…</p>
+        ? <div className="py-6"><InlineLoader label="Loading incident context" state="searching" /></div>
         : <IncidentCommand operators={operators} cases={cases} authUserId={authUserId} notify={onNotify} />}
     </>
   )

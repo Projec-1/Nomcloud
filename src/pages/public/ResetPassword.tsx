@@ -138,10 +138,8 @@ export default function ResetPassword() {
         <p className="mt-5 text-sm text-graphite">
           Request a new link from the sign-in page. Each link works once and expires.
         </p>
-        <Link to="/login" className="mt-6 block">
-          <Button size="lg" className="w-full">
-            Back to sign in <ArrowRight className="h-4 w-4" />
-          </Button>
+        <Link to="/login" className="btn-primary mt-6 w-full px-8 py-4 text-base">
+          Back to sign in <ArrowRight className="h-4 w-4" />
         </Link>
       </AuthLayout>
     )

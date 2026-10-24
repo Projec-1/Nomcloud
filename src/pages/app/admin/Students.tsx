@@ -668,7 +668,7 @@ export default function AdminStudents() {
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               {t('admin.students.cancel')}
             </Button>
-            <Button onClick={handleSubmit} disabled={isSaving}>
+            <Button onClick={handleSubmit} loading={isSaving}>
               {isSaving ? t('admin.students.saving') : editing ? t('admin.students.saveChanges') : t('admin.students.add')}
             </Button>
           </>
@@ -704,6 +704,7 @@ export default function AdminStudents() {
                       <Button
                         variant="outline"
                         size="sm"
+                        loading={photoBusy}
                         disabled={photoBusy}
                         onClick={() => photoInput.current?.click()}
                         icon={<Upload className="h-4 w-4" />}
@@ -711,7 +712,7 @@ export default function AdminStudents() {
                         {photoBusy ? t('admin.students.working') : editing.photoPath ? t('admin.students.replacePhoto') : t('admin.students.uploadPhoto')}
                       </Button>
                       {editing.photoPath && (
-                        <Button variant="ghost" size="sm" disabled={photoBusy} onClick={handlePhotoRemoved}>
+                        <Button variant="ghost" size="sm" loading={photoBusy} disabled={photoBusy} onClick={handlePhotoRemoved}>
                           {t('admin.students.remove')}
                         </Button>
                       )}
