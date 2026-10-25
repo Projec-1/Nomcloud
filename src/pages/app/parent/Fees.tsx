@@ -26,7 +26,7 @@ import { paymentMethodLabel, type FeePaymentView, type FeeRecordView, type FeeSt
 import { formatDate, formatMoney } from '@/utils/format'
 import { DEFAULT_TIME_ZONE, todayInTimeZone } from '@/utils/schoolCalendar'
 import { schoolLogoUrl } from '@/services/storageService'
-import FeePaymentCheckout from '@/components/finance/FeePaymentCheckout'
+import PaymentJourney from '@/components/finance/PaymentJourney'
 import { loadFeeDemoReceipts, loadPendingFeeDemoTransactions, type PendingFeeDemoTransaction } from '@/services/feePaymentDemoService'
 import PaymentReceiptDocument, { type PaymentReceiptDetails } from '@/components/finance/PaymentReceiptDocument'
 import { downloadPaymentReceiptPdf } from '@/utils/paymentReceiptPdf'
@@ -236,7 +236,7 @@ export default function ParentFees() {
   const { profile, school } = useAuth()
   const { t } = useLanguage()
   const { children, selectedChild, selectChild, state: childrenState } = useSelectedChild()
-  const { state: feesState, reload: reloadFees } = useChildrenFees(children.map((child) => child.id))
+  const { state: feesState } = useChildrenFees(children.map((child) => child.id))
   const feesDisplayState = feesState.status === 'empty'
     ? { status: 'ready' as const, data: [] as FeeRecordView[] }
     : feesState
@@ -420,17 +420,8 @@ export default function ParentFees() {
           const recordsWithDemo = allRecords.map((fee) => {
             const demoReceipts = demoReceiptsByFee[fee.id] ?? []
             const pendingDemoTransactions = pendingDemoByFee[fee.id] ?? []
-            const demoPaid = Math.min(
-              Math.max(fee.amount - fee.amountPaid, 0),
-              demoReceipts.reduce((sum, receipt) => sum + receipt.amountPaid, 0),
-            )
-            const amountPaid = fee.amountPaid + demoPaid
-            const balance = Math.max(0, fee.amount - amountPaid)
             return {
               ...fee,
-              amountPaid,
-              balance,
-              status: balance === 0 ? 'paid' as const : amountPaid > 0 ? 'partial' as const : fee.status,
               demoReceipts,
               pendingDemoTransactions,
             }
@@ -449,10 +440,6 @@ export default function ParentFees() {
           const terms = Array.from(new Set(allRecords.map((fee) => fee.termName))).sort()
           const payments = overviewRecords.flatMap((fee) => [
             ...fee.payments,
-            ...fee.demoReceipts.map((receipt) => ({
-              amount: receipt.amountPaid,
-              paidOn: receipt.paidOn,
-            })),
           ])
           const grouped = Array.from(
             overviewRecords.reduce((groups, fee) => {
@@ -478,23 +465,38 @@ export default function ParentFees() {
                     <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-white">{t('parent.fees.overview')}</h2>
                     <p className="mt-1 text-sm text-graphite">{t('parent.fees.overviewPeriod')}</p>
                   </div>
-                  {firstOutstanding && school?.is_demo && (
-                    <FeePaymentCheckout
-                      fee={firstOutstanding}
-                      school={school}
-                      payerName={profile?.full_name ?? ''}
-                      onPaid={reloadFees}
+                  {firstOutstanding && (
+                    <PaymentJourney
+                      kind="fee"
+                      schoolId={school?.id ?? 'school'}
+                      schoolName={school?.name ?? 'Nom Cloud School'}
+                      schoolLogoUrl={schoolLogoUrl(school?.logo_path ?? null)}
+                      schoolAddress={school?.address}
+                      schoolPhone={school?.phone}
+                      schoolEmail={school?.email}
+                      subjectName={firstOutstanding.studentName}
+                      payerName={profile?.full_name ?? profile?.email ?? ''}
+                      description={firstOutstanding.category}
+                      amount={firstOutstanding.balance}
+                      originalAmount={firstOutstanding.amount}
+                      alreadyPaid={firstOutstanding.amountPaid}
+                      currency={firstOutstanding.currency}
+                      dueDate={firstOutstanding.dueDate}
+                      registrationNumber={firstOutstanding.studentAdmissionNo}
+                      storageId={firstOutstanding.id}
+                      allowPartial
+                      pendingDemo={pendingDemoByFee[firstOutstanding.id]?.[0]}
                     >
-                      {(openCheckout, pending) => (
+                      {(openCheckout, processing) => (
                         <button
                           type="button"
                           onClick={openCheckout}
                           className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                         >
-                          <CreditCard className="h-4 w-4" /> {pending ? t('fees.checkout.checkStatus') : t('fees.checkout.payNow')}
+                          <CreditCard className="h-4 w-4" /> {processing ? t('fees.checkout.processingDemo') : pendingDemoByFee[firstOutstanding.id]?.length ? t('fees.checkout.checkStatus') : t('fees.checkout.payNow')}
                         </button>
                       )}
-                    </FeePaymentCheckout>
+                    </PaymentJourney>
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -586,24 +588,41 @@ export default function ParentFees() {
                                 <p className="font-semibold tabular-nums text-ink dark:text-white">{formatMoney(fee.balance, fee.currency, true)}</p>
                                 <p className="mt-0.5 text-[11px] text-graphite">{t('parent.fees.remaining')}</p>
                               </div>
-                              {fee.balance > 0 && school?.is_demo && (
-                                <FeePaymentCheckout
-                                  fee={fee}
-                                  school={school}
-                                  payerName={profile?.full_name ?? ''}
-                                  onPaid={reloadFees}
+                              {fee.balance > 0 ? (
+                                <PaymentJourney
+                                  kind="fee"
+                                  schoolId={school?.id ?? 'school'}
+                                  schoolName={school?.name ?? 'Nom Cloud School'}
+                                  schoolLogoUrl={schoolLogoUrl(school?.logo_path ?? null)}
+                                  schoolAddress={school?.address}
+                                  schoolPhone={school?.phone}
+                                  schoolEmail={school?.email}
+                                  subjectName={fee.studentName}
+                                  payerName={profile?.full_name ?? profile?.email ?? ''}
+                                  description={fee.category}
+                                  amount={fee.balance}
+                                  originalAmount={fee.amount}
+                                  alreadyPaid={fee.amountPaid}
+                                  currency={fee.currency}
+                                  dueDate={fee.dueDate}
+                                  registrationNumber={fee.studentAdmissionNo}
+                                  storageId={fee.id}
+                                  allowPartial
+                                  pendingDemo={fee.pendingDemoTransactions[0]}
                                 >
-                                  {(openCheckout, pending, paid) => (
+                                  {(openCheckout, processing) => (
                                     <button
                                       type="button"
                                       onClick={openCheckout}
                                       className="min-h-11 whitespace-nowrap rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                                     >
-                                      {paid ? t('fees.checkout.viewReceipt') : pending ? t('fees.checkout.resumeStatus') : t('fees.checkout.payNow')}
+                                      {processing ? t('fees.checkout.processingDemo') : fee.pendingDemoTransactions.length ? t('fees.checkout.resumeStatus') : t('fees.checkout.payNow')}
                                     </button>
                                   )}
-                                </FeePaymentCheckout>
-                              )}
+                                </PaymentJourney>
+                              ) : fee.balance <= 0 ? (
+                                <Badge tone="success">{t('parent.fees.status.paid')}</Badge>
+                              ) : null}
                             </div>
                           </div>
                           {expanded && (
