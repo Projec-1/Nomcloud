@@ -173,7 +173,7 @@ export default function AdminAIAssistant() {
   const [isListening, setIsListening] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [copyState, setCopyState] = useState<{ id: string; error?: boolean } | null>(null)
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const panelRef = useRef<HTMLElement>(null)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const openedOnce = useRef(false)
@@ -201,7 +201,7 @@ export default function AdminAIAssistant() {
     openedOnce.current = true
     composerRef.current?.focus()
     const previousOverflow = document.body.style.overflow
-    if (window.innerWidth < 768) document.body.style.overflow = 'hidden'
+    if (window.innerWidth < 768 || expanded) document.body.style.overflow = 'hidden'
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -228,7 +228,7 @@ export default function AdminAIAssistant() {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open])
+  }, [expanded, open])
 
   useEffect(() => {
     if (!open || !transcriptRef.current) return
@@ -401,14 +401,14 @@ export default function AdminAIAssistant() {
           type="button"
           ref={launcherRef}
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-[70] flex min-h-14 items-center gap-3 rounded-2xl border border-ink/10 bg-white px-3 py-2.5 shadow-[0_8px_30px_rgba(24,24,27,0.16)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_36px_rgba(24,24,27,0.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-white/10 dark:bg-[#202328] dark:shadow-[0_8px_30px_rgba(0,0,0,0.38)]"
+          className="fixed bottom-5 right-5 z-[70] flex min-h-16 items-center gap-3 rounded-2xl border border-ink/10 bg-white px-3 py-2.5 shadow-[0_8px_30px_rgba(24,24,27,0.16)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_36px_rgba(24,24,27,0.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-white/10 dark:bg-[#202328] dark:shadow-[0_8px_30px_rgba(0,0,0,0.38)]"
           style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))', right: 'calc(1.25rem + env(safe-area-inset-right))' }}
           aria-label={t('adminAI.open')}
           aria-haspopup="dialog"
           aria-expanded="false"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/[0.07]">
-            <img src="/logo-512.png" alt="" className="h-8 w-8 object-contain" />
+          <span className="admin-ai-logo-badge flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-white p-1 dark:border-brand/40">
+            <img src="/logo-512.png" alt="" className="h-10 w-10 object-contain" />
           </span>
           <span className="hidden text-left sm:block">
             <span className="block text-sm font-semibold leading-5 text-ink dark:text-white">Nom Cloud AI</span>
@@ -419,18 +419,19 @@ export default function AdminAIAssistant() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-[79] bg-ink/35 backdrop-blur-[2px] md:hidden" onClick={closePanel} aria-hidden="true" />
+          <div className="fixed inset-0 z-[79] bg-ink/35 md:hidden" onClick={closePanel} aria-hidden="true" />
+          {expanded && <div className="fixed inset-0 z-[79] hidden bg-ink/30 md:block" onClick={() => setExpanded(false)} aria-hidden="true" />}
           <section
             ref={panelRef}
             role="dialog"
-            aria-modal={window.innerWidth < 768}
+            aria-modal={window.innerWidth < 768 || expanded}
             aria-labelledby="admin-ai-panel-title"
-            className={`fixed inset-0 z-[80] flex h-[100dvh] w-full flex-col overflow-hidden border border-ink/10 bg-white shadow-[0_18px_64px_rgba(24,24,27,0.22)] dark:border-white/10 dark:bg-[#202328] md:inset-auto md:bottom-4 md:right-4 md:h-[min(820px,calc(100dvh-2rem))] md:min-w-[380px] md:rounded-2xl ${expanded ? 'md:w-[min(40vw,580px)]' : 'md:w-[min(34vw,420px)]'}`}
+            className={`fixed inset-0 z-[80] flex h-[100dvh] w-full flex-col overflow-hidden border border-ink/10 bg-white shadow-[0_18px_64px_rgba(24,24,27,0.22)] dark:border-white/10 dark:bg-[#202328] md:rounded-2xl ${expanded ? 'md:inset-4 md:h-auto md:w-auto md:min-w-0' : 'md:inset-auto md:bottom-4 md:right-4 md:h-[min(820px,calc(100dvh-2rem))] md:min-w-[380px] md:w-[min(40vw,580px)]'}`}
           >
             <header className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-ink/5 px-4 py-3.5 dark:border-white/10 sm:px-5" style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}>
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand/[0.07]">
-                  <img src="/logo-512.png" alt="" className="h-8 w-8 object-contain" />
+                <span className="admin-ai-logo-badge flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-white p-1 dark:border-brand/40">
+                  <img src="/logo-512.png" alt="" className="h-9 w-9 object-contain" />
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -445,7 +446,7 @@ export default function AdminAIAssistant() {
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">{t('adminAI.newConversation')}</span>
                 </button>
-                <button type="button" onClick={() => setExpanded((value) => !value)} className="hidden h-10 w-10 items-center justify-center rounded-lg text-graphite hover:bg-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand md:flex" aria-label={expanded ? t('adminAI.collapse') : t('adminAI.expand')}>
+                <button type="button" onClick={() => setExpanded((value) => !value)} className="hidden h-10 w-10 items-center justify-center rounded-lg text-graphite hover:bg-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand md:flex" aria-label={expanded ? t('adminAI.collapse') : t('adminAI.expand')} title={expanded ? t('adminAI.collapse') : t('adminAI.expand')}>
                   {expanded ? <ArrowsIn className="h-4 w-4" aria-hidden="true" /> : <ArrowsOut className="h-4 w-4" aria-hidden="true" />}
                 </button>
                 <button type="button" onClick={closePanel} className="flex h-10 w-10 items-center justify-center rounded-lg text-graphite hover:bg-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-white/10" aria-label={t('adminAI.close')}>
@@ -485,7 +486,9 @@ export default function AdminAIAssistant() {
               ) : messages.map((message) => (
                 <article key={message.id} className={`flex gap-2.5 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {message.role === 'assistant' && (
-                    <img src="/logo-512.png" alt="" className="mt-1 h-7 w-7 flex-shrink-0 object-contain" />
+                    <span className="admin-ai-logo-badge mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-brand/25 bg-white p-1 dark:border-brand/40">
+                      <img src="/logo-512.png" alt="" className="h-7 w-7 object-contain" />
+                    </span>
                   )}
                   <div className={`min-w-0 max-w-[92%] ${message.role === 'user' ? 'rounded-2xl rounded-br-md bg-brand/[0.08] px-3.5 py-3 dark:bg-brand/15' : 'flex-1 py-1'}`}>
                     <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] text-graphite">
@@ -534,7 +537,9 @@ export default function AdminAIAssistant() {
               ))}
               {isLoading && (
                 <div className="flex items-center gap-2.5 text-xs text-graphite" role="status">
-                  <img src="/logo-512.png" alt="" className="h-7 w-7 object-contain" />
+                  <span className="admin-ai-logo-badge flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-brand/25 bg-white p-1 dark:border-brand/40">
+                    <img src="/logo-512.png" alt="" className="h-7 w-7 object-contain" />
+                  </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" aria-hidden="true" />
                     {t('adminAI.composer.generating')}
