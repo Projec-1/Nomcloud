@@ -1567,6 +1567,190 @@ textarea:focus {
   background-color: #fff !important;
 }
 
+.admin-ai-composer {
+  border-top: 0;
+  background: transparent;
+}
+
+.dark .admin-ai-composer {
+  background: transparent;
+}
+
+.admin-ai-composer-shell {
+  border-color: rgba(255, 255, 255, 0.62);
+  background-color: rgba(255, 248, 243, 0.48);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.dark .admin-ai-composer-shell {
+  border-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(35, 32, 34, 0.62);
+}
+
+.admin-ai-composer-tool {
+  border-color: rgba(34, 35, 33, 0.12);
+  background-color: rgba(255, 255, 255, 0.58);
+}
+
+.dark .admin-ai-composer-tool {
+  border-color: rgba(243, 244, 241, 0.15);
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.admin-ai-workspace {
+  isolation: isolate;
+  color: #222321;
+  background:
+    radial-gradient(ellipse 62% 48% at 65% 42%, rgba(255, 224, 205, 0.95) 0%, rgba(247, 187, 156, 0.72) 35%, transparent 78%),
+    radial-gradient(ellipse 78% 38% at 44% 91%, rgba(224, 149, 117, 0.84) 0%, transparent 76%),
+    linear-gradient(180deg, #987d80 0%, #b58f87 33%, #d59e87 58%, #d59677 78%, #5a4644 100%);
+}
+
+.dark .admin-ai-workspace {
+  color: #f3f4f1;
+  background:
+    radial-gradient(ellipse 62% 48% at 65% 42%, rgba(138, 82, 72, 0.72) 0%, rgba(95, 59, 57, 0.55) 40%, transparent 78%),
+    radial-gradient(ellipse 78% 38% at 44% 91%, rgba(112, 68, 60, 0.72) 0%, transparent 76%),
+    linear-gradient(180deg, #332c31 0%, #44363a 38%, #66463f 70%, #302829 100%);
+}
+
+.admin-ai-transcript {
+  scrollbar-color: rgba(76, 55, 50, 0.42) transparent;
+}
+
+.dark .admin-ai-transcript {
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+.admin-ai-sidebar {
+  background: rgba(61, 43, 44, 0.28);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+.dark .admin-ai-sidebar {
+  background: rgba(27, 25, 28, 0.52);
+}
+
+.admin-ai-sidebar-mark {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.admin-ai-new-chat {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 5px 18px rgba(65, 43, 40, 0.1) !important;
+}
+
+.admin-ai-new-chat:hover,
+.admin-ai-new-chat:focus-visible,
+.admin-ai-sidebar > button:last-of-type:hover,
+.admin-ai-sidebar > button:last-of-type:focus-visible {
+  background-color: rgba(43, 31, 33, 0.58);
+  color: #fff;
+}
+
+.admin-ai-history-row.is-active,
+.admin-ai-history-row:hover {
+  background: rgba(43, 31, 33, 0.58);
+  color: #fff;
+}
+
+.admin-ai-main {
+  background: linear-gradient(145deg, rgba(255, 246, 239, 0.08), rgba(255, 244, 235, 0.02));
+}
+
+.dark .admin-ai-main {
+  background: linear-gradient(145deg, rgba(18, 16, 19, 0.08), rgba(18, 16, 19, 0.16));
+}
+
+.admin-ai-top-pill {
+  background: rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.admin-ai-mode-tag {
+  color: #fff;
+  background: rgba(88, 61, 51, 0.35);
+}
+
+.admin-ai-close {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.admin-ai-close:hover,
+.admin-ai-close:focus-visible {
+  background-color: rgba(43, 31, 33, 0.58);
+  color: #fff;
+}
+
+.admin-ai-welcome-mark {
+  background: rgba(255, 246, 239, 0.34);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 46px rgba(255, 232, 216, 0.52) !important;
+}
+
+.dark .admin-ai-welcome-mark {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 42px rgba(229, 157, 123, 0.24) !important;
+}
+
+.admin-ai-suggestion {
+  border-color: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 246, 239, 0.37);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.admin-ai-suggestion:hover {
+  background: rgba(255, 250, 246, 0.6);
+}
+
+.admin-ai-suggestion:nth-child(1) .admin-ai-suggestion-icon {
+  color: #7841df;
+  background: rgba(225, 211, 255, 0.86);
+}
+
+.admin-ai-suggestion:nth-child(2) .admin-ai-suggestion-icon {
+  color: #d96a1e;
+  background: rgba(255, 225, 204, 0.9);
+}
+
+.admin-ai-suggestion:nth-child(3) .admin-ai-suggestion-icon {
+  color: #2867cf;
+  background: rgba(210, 226, 255, 0.9);
+}
+
+.dark .admin-ai-suggestion {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(32, 27, 30, 0.42);
+  color: #fff;
+}
+
+.dark .admin-ai-suggestion:hover {
+  background: rgba(45, 34, 35, 0.65);
+}
+
+.admin-ai-attachment-menu {
+  border-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(255, 248, 244, 0.84);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 32px rgba(69, 45, 42, 0.18) !important;
+}
+
+.dark .admin-ai-attachment-menu {
+  border-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(35, 31, 34, 0.9);
+}
+
+.admin-ai-workspace button:focus-visible,
+.admin-ai-workspace textarea:focus-visible {
+  outline-color: #b3411a;
+}
+
 [class*='backdrop-blur'] {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;

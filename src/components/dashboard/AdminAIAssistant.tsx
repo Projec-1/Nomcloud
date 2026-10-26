@@ -4,8 +4,9 @@ import {
   ArrowsIn,
   ArrowsOut,
   CalendarCheck,
-  ChartBar,
   Check,
+  ChatCircleDots,
+  ClockCounterClockwise,
   File,
   Image as ImageIcon,
   Microphone,
@@ -25,6 +26,24 @@ import {
   type AdminAIReport,
   type AdminAIResponse,
 } from '@/services/adminAIService'
+
+interface LocalAttachment {
+  id: string
+  file: File
+  previewUrl?: string
+}
+
+interface AssistantMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  createdAt: number
+  attachments?: { name: string; type: string; previewUrl?: string }[]
+  report?: AdminAIReport
+  action?: AdminAIActionPreview
+  actionStatus?: 'confirmed' | 'cancelled'
+  error?: string
+}
 
 interface SpeechRecognitionResult {
   readonly isFinal: boolean
@@ -59,34 +78,23 @@ interface BrowserSpeechWindow extends Window {
   webkitSpeechRecognition?: SpeechRecognitionConstructor
 }
 
-interface LocalAttachment {
+interface AssistantConversation {
   id: string
-  file: File
-  previewUrl?: string
-}
-
-interface AssistantMessage {
-  id: string
-  role: 'user' | 'assistant'
-  text: string
-  createdAt: number
-  attachments?: { name: string; type: string; previewUrl?: string }[]
-  report?: AdminAIReport
-  action?: AdminAIActionPreview
-  actionStatus?: 'confirmed' | 'cancelled'
-  error?: string
+  title: string
+  updatedAt: number
+  messages: AssistantMessage[]
 }
 
 const MAX_ATTACHMENTS = 5
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const makeId = () => crypto.randomUUID()
 const adminAIService = demoAdminAIService
+const supportedDocumentExtensions = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt'])
 
 const suggestions = [
   { title: 'adminAI.suggestion.attendance', prompt: 'adminAI.suggestion.attendancePrompt', icon: CalendarCheck },
   { title: 'adminAI.suggestion.fees', prompt: 'adminAI.suggestion.feesPrompt', icon: Wallet },
   { title: 'adminAI.suggestion.records', prompt: 'adminAI.suggestion.recordsPrompt', icon: Users },
-  { title: 'adminAI.suggestion.academic', prompt: 'adminAI.suggestion.academicPrompt', icon: ChartBar },
 ]
 
 function AIReportCard({ report }: { report: AdminAIReport }) {
@@ -162,30 +170,42 @@ function ActionPreview({
 }
 
 export default function AdminAIAssistant() {
-  const { school } = useAuth()
+  const { displayName } = useAuth()
   const { lang, t } = useLanguage()
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<AssistantMessage[]>([])
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [conversations, setConversations] = useState<AssistantConversation[]>([])
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState<LocalAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState('')
   const [voiceError, setVoiceError] = useState('')
   const [isListening, setIsListening] = useState(false)
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [copyState, setCopyState] = useState<{ id: string; error?: boolean } | null>(null)
-  const [expanded, setExpanded] = useState(false)
   const panelRef = useRef<HTMLElement>(null)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const openedOnce = useRef(false)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const attachmentMenuRef = useRef<HTMLDivElement>(null)
+  const attachmentMenuButtonRef = useRef<HTMLButtonElement>(null)
+  const imageMenuItemRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const transcriptRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   const voiceBaseDraft = useRef('')
+  const activeConversationIdRef = useRef<string | null>(null)
   const previewUrls = useRef(new Map<string, string>())
   const isDemo = adminAIService.mode === 'demo'
   const isArabic = lang === 'ar'
+  const messages = conversations.find(({ id }) => id === activeConversationId)?.messages ?? []
+  const adminFirstName = displayName.trim().split(/\s+/)[0]
+  const localHour = new Date().getHours()
+  const greetingKey = localHour < 12 ? 'adminAI.greeting.morning' : localHour < 18 ? 'adminAI.greeting.afternoon' : 'adminAI.greeting.evening'
+  const greetingParts = t(adminFirstName ? greetingKey : `${greetingKey}Fallback`).split('{name}')
 
   useEffect(() => () => {
     recognitionRef.current?.stop()
@@ -201,11 +221,19 @@ export default function AdminAIAssistant() {
     openedOnce.current = true
     composerRef.current?.focus()
     const previousOverflow = document.body.style.overflow
-    if (window.innerWidth < 768 || expanded) document.body.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setOpen(false)
+        if (attachmentMenuOpen) {
+          setAttachmentMenuOpen(false)
+          attachmentMenuButtonRef.current?.focus()
+        } else if (showHistory) {
+          setShowHistory(false)
+        } else {
+          setIsExpanded(false)
+          setOpen(false)
+        }
         return
       }
       if (event.key !== 'Tab' || !panelRef.current) return
@@ -228,12 +256,25 @@ export default function AdminAIAssistant() {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [expanded, open])
+  }, [attachmentMenuOpen, open, showHistory])
+
+  useEffect(() => {
+    if (!attachmentMenuOpen) return
+    imageMenuItemRef.current?.focus()
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && !attachmentMenuRef.current?.contains(target) && !attachmentMenuButtonRef.current?.contains(target)) {
+        setAttachmentMenuOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [attachmentMenuOpen])
 
   useEffect(() => {
     if (!open || !transcriptRef.current) return
     transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
-  }, [open, messages.length, isLoading])
+  }, [activeConversationId, open, messages.length, isLoading, showHistory])
 
   const removeAttachment = (id: string) => {
     const url = previewUrls.current.get(id)
@@ -246,7 +287,7 @@ export default function AdminAIAssistant() {
     if (!files) return
     setAttachmentError('')
     const selected = Array.from(files)
-    const availableSlots = MAX_ATTACHMENTS - attachments.length
+    const availableSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length)
     if (selected.length > availableSlots) setAttachmentError(t('adminAI.attachments.limit'))
     const next: LocalAttachment[] = []
     for (const file of selected.slice(0, availableSlots)) {
@@ -254,13 +295,46 @@ export default function AdminAIAssistant() {
         setAttachmentError(t('adminAI.attachments.tooLarge'))
         continue
       }
+      const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+      const isImage = file.type.startsWith('image/')
+      const isDocument = supportedDocumentExtensions.has(extension)
+      if (!isImage && !isDocument) {
+        setAttachmentError(t('adminAI.attachments.unsupportedType'))
+        continue
+      }
       const id = makeId()
-      const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
+      const previewUrl = isImage ? URL.createObjectURL(file) : undefined
       if (previewUrl) previewUrls.current.set(id, previewUrl)
       next.push({ id, file, previewUrl })
     }
     setAttachments((current) => [...current, ...next])
     if (fileInputRef.current) fileInputRef.current.value = ''
+    if (imageInputRef.current) imageInputRef.current.value = ''
+    setAttachmentMenuOpen(false)
+    attachmentMenuButtonRef.current?.focus()
+  }
+
+  const appendMessage = (message: AssistantMessage) => {
+    let conversationId = activeConversationIdRef.current
+    if (!conversationId) {
+      conversationId = makeId()
+      activeConversationIdRef.current = conversationId
+      setActiveConversationId(conversationId)
+    }
+    const id = conversationId
+    setConversations((current) => {
+      const existing = current.find((conversation) => conversation.id === id)
+      const nextMessages = [...(existing?.messages ?? []), message]
+      const firstUserMessage = nextMessages.find((item) => item.role === 'user')
+      const titleSource = firstUserMessage?.text || firstUserMessage?.attachments?.[0]?.name || t('adminAI.newConversation')
+      const conversation: AssistantConversation = {
+        id,
+        title: titleSource.length > 56 ? `${titleSource.slice(0, 53)}…` : titleSource,
+        updatedAt: message.createdAt,
+        messages: nextMessages,
+      }
+      return [conversation, ...current.filter((item) => item.id !== id)]
+    })
   }
 
   const startVoiceInput = () => {
@@ -327,30 +401,33 @@ export default function AdminAIAssistant() {
       attachments: attachmentSnapshot,
       createdAt: Date.now(),
     }
-    setMessages((current) => [...current, userMessage])
+    appendMessage(userMessage)
     setDraft('')
     setAttachmentError('')
     if (composerRef.current) composerRef.current.style.height = 'auto'
     setAttachments([])
     setIsLoading(true)
+    const conversationId = activeConversationIdRef.current
     try {
       const response: AdminAIResponse = await adminAIService.sendMessage(prompt || t('adminAI.attachments.messageOnly'), lang, attachmentNames)
-      setMessages((current) => [...current, {
+      if (activeConversationIdRef.current !== conversationId) return
+      appendMessage({
         id: makeId(),
         role: 'assistant',
         text: response.text,
         report: response.report,
         action: response.action,
         createdAt: Date.now(),
-      }])
+      })
     } catch (error) {
-      setMessages((current) => [...current, {
+      if (activeConversationIdRef.current !== conversationId) return
+      appendMessage({
         id: makeId(),
         role: 'assistant',
         text: '',
         error: error instanceof Error ? error.message : t('adminAI.responseError'),
         createdAt: Date.now(),
-      }])
+      })
     } finally {
       setIsLoading(false)
     }
@@ -364,7 +441,9 @@ export default function AdminAIAssistant() {
   }
 
   const setActionStatus = (messageId: string, status: 'confirmed' | 'cancelled') => {
-    setMessages((current) => current.map((message) => message.id === messageId ? { ...message, actionStatus: status } : message))
+    setConversations((current) => current.map((conversation) => conversation.id === activeConversationId
+      ? { ...conversation, messages: conversation.messages.map((message) => message.id === messageId ? { ...message, actionStatus: status } : message) }
+      : conversation))
   }
 
   const copyResponse = async (message: AssistantMessage) => {
@@ -379,18 +458,35 @@ export default function AdminAIAssistant() {
   const resetChat = () => {
     recognitionRef.current?.stop()
     setIsListening(false)
-    previewUrls.current.forEach((url) => URL.revokeObjectURL(url))
-    previewUrls.current.clear()
-    setMessages([])
+    activeConversationIdRef.current = null
+    setActiveConversationId(null)
+    setShowHistory(false)
     setDraft('')
     setAttachmentError('')
     setVoiceError('')
+    setAttachmentMenuOpen(false)
+    attachments.forEach(({ id }) => {
+      const url = previewUrls.current.get(id)
+      if (url) URL.revokeObjectURL(url)
+      previewUrls.current.delete(id)
+    })
+    setAttachments([])
     setCopyState(null)
+  }
+
+  const openConversation = (conversation: AssistantConversation) => {
+    activeConversationIdRef.current = conversation.id
+    setActiveConversationId(conversation.id)
+    setShowHistory(false)
+    setDraft('')
+    setAttachmentError('')
   }
 
   const closePanel = () => {
     recognitionRef.current?.stop()
     setIsListening(false)
+    setAttachmentMenuOpen(false)
+    setIsExpanded(false)
     setOpen(false)
   }
 
@@ -400,12 +496,15 @@ export default function AdminAIAssistant() {
         <button
           type="button"
           ref={launcherRef}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setIsExpanded(false)
+            setOpen(true)
+          }}
           className="fixed bottom-5 right-5 z-[70] flex min-h-16 items-center gap-3 rounded-2xl border border-ink/10 bg-white px-3 py-2.5 shadow-[0_8px_30px_rgba(24,24,27,0.16)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_36px_rgba(24,24,27,0.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-white/10 dark:bg-[#202328] dark:shadow-[0_8px_30px_rgba(0,0,0,0.38)]"
           style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))', right: 'calc(1.25rem + env(safe-area-inset-right))' }}
           aria-label={t('adminAI.open')}
           aria-haspopup="dialog"
-          aria-expanded="false"
+          aria-expanded={open}
         >
           <span className="admin-ai-logo-badge flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-white p-1 dark:border-brand/40">
             <img src="/logo-512.png" alt="" className="h-10 w-10 object-contain" />
@@ -418,72 +517,174 @@ export default function AdminAIAssistant() {
       )}
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-[79] bg-ink/35 md:hidden" onClick={closePanel} aria-hidden="true" />
-          {expanded && <div className="fixed inset-0 z-[79] hidden bg-ink/30 md:block" onClick={() => setExpanded(false)} aria-hidden="true" />}
-          <section
-            ref={panelRef}
-            role="dialog"
-            aria-modal={window.innerWidth < 768 || expanded}
-            aria-labelledby="admin-ai-panel-title"
-            className={`fixed inset-0 z-[80] flex h-[100dvh] w-full flex-col overflow-hidden border border-ink/10 bg-white shadow-[0_18px_64px_rgba(24,24,27,0.22)] dark:border-white/10 dark:bg-[#202328] md:rounded-2xl ${expanded ? 'md:inset-4 md:h-auto md:w-auto md:min-w-0' : 'md:inset-auto md:bottom-4 md:right-4 md:h-[min(820px,calc(100dvh-2rem))] md:min-w-[380px] md:w-[min(40vw,580px)]'}`}
-          >
-            <header className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-ink/5 px-4 py-3.5 dark:border-white/10 sm:px-5" style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}>
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="admin-ai-logo-badge flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-white p-1 dark:border-brand/40">
-                  <img src="/logo-512.png" alt="" className="h-9 w-9 object-contain" />
+        <section
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-ai-panel-title"
+          className={`admin-ai-workspace fixed z-[80] flex overflow-hidden border border-white/40 transition-[inset,width,height,border-radius] duration-200 motion-reduce:transition-none ${
+            isExpanded
+              ? 'inset-0 rounded-none sm:inset-2 sm:rounded-2xl'
+              : 'inset-x-0 bottom-0 top-[8dvh] rounded-t-2xl sm:inset-x-4 sm:bottom-4 sm:top-auto sm:mx-auto sm:h-[min(760px,calc(100dvh-2rem))] sm:w-[min(680px,calc(100vw-2rem))] sm:rounded-2xl md:inset-x-auto md:right-6 md:mx-0 md:w-[min(680px,calc(100vw-3rem))]'
+          }`}
+        >
+          <aside className="admin-ai-sidebar hidden w-[224px] flex-shrink-0 flex-col border-r border-white/20 px-4 py-5 text-white md:flex">
+            <div className="flex items-center gap-2.5 px-2">
+              <span className="admin-ai-sidebar-mark flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full">
+                <img src="/logo-512.png" alt="" className="h-6 w-6 object-contain" />
+              </span>
+              <span className="text-[17px] font-semibold tracking-tight text-white">Nom Cloud</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={resetChat}
+              disabled={isLoading}
+              className="admin-ai-new-chat mt-8 flex min-h-11 items-center gap-2.5 rounded-xl border border-white/20 px-3 text-sm font-medium text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-40"
+            >
+              <Plus className="h-4 w-4 text-[#ff9a4e]" aria-hidden="true" />
+              {t('adminAI.newConversation')}
+            </button>
+
+            <div className="mb-2 mt-7 px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-white/70">{t('adminAI.history.sidebar')}</div>
+            {conversations.length === 0 ? (
+              <p className="px-1 py-3 text-xs leading-5 text-white/65">{t('adminAI.history.empty')}</p>
+            ) : (
+              <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+                {conversations.slice(0, 5).map((conversation) => (
+                  <li key={conversation.id}>
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => openConversation(conversation)}
+                      className={`admin-ai-history-row flex min-h-14 w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white disabled:opacity-50 ${conversation.id === activeConversationId ? 'is-active' : ''}`}
+                    >
+                      <ChatCircleDots className="mt-0.5 h-4 w-4 flex-shrink-0 text-white/85" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-medium text-white">{conversation.title}</span>
+                        <time className="mt-1 block text-[10px] text-white/65" dateTime={new Date(conversation.updatedAt).toISOString()}>
+                          {new Date(conversation.updatedAt).toLocaleString(lang, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
+                        </time>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button type="button" onClick={() => setShowHistory(true)} className="mt-3 flex min-h-10 items-center gap-2 rounded-xl border border-white/15 px-3 text-xs text-white/90 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+              <ClockCounterClockwise className="h-4 w-4" aria-hidden="true" />
+              {t('adminAI.history.viewAll')}
+            </button>
+
+          </aside>
+
+          <div className="admin-ai-main flex min-w-0 flex-1 flex-col">
+            <header className="flex flex-shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
+              <button
+                type="button"
+                onClick={() => setShowHistory((value) => !value)}
+                disabled={isLoading}
+                className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/30 bg-white/20 px-3 text-xs font-medium text-ink backdrop-blur-sm transition-colors hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand md:hidden"
+                aria-pressed={showHistory}
+              >
+                <ClockCounterClockwise className="h-4 w-4" aria-hidden="true" />
+                {t('adminAI.history.short')}
+              </button>
+              <span className="hidden md:block" />
+              <div className="flex items-center gap-2">
+                <span className="admin-ai-top-pill inline-flex h-10 items-center gap-2 rounded-full border border-white/35 px-3.5 text-xs font-medium text-white">
+                  <Sparkle className="h-4 w-4 text-[#ff9a4e]" aria-hidden="true" />
+                  <span id="admin-ai-panel-title">{t('adminAI.topLabel')}</span>
+                  {isDemo && <span className="admin-ai-mode-tag rounded-full px-1.5 py-0.5 text-[9px]">{t('adminAI.demo')}</span>}
                 </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 id="admin-ai-panel-title" className="text-sm font-semibold text-ink dark:text-white">Nom Cloud AI</h2>
-                    {isDemo && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-200">{t('adminAI.demo')}</span>}
-                  </div>
-                  <p className="truncate text-xs text-graphite">{school?.name || t('adminAI.subtitle')}</p>
-                </div>
-              </div>
-              <div className="flex flex-shrink-0 items-center gap-1">
-                <button type="button" onClick={resetChat} className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-graphite hover:bg-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-white/10" aria-label={t('adminAI.newConversation')} title={t('adminAI.newConversation')}>
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t('adminAI.newConversation')}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded((value) => !value)}
+                  className="admin-ai-close flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  aria-label={t(isExpanded ? 'adminAI.collapse' : 'adminAI.expand')}
+                  title={t(isExpanded ? 'adminAI.collapse' : 'adminAI.expand')}
+                  aria-pressed={isExpanded}
+                >
+                  {isExpanded ? <ArrowsIn className="h-4 w-4" aria-hidden="true" /> : <ArrowsOut className="h-4 w-4" aria-hidden="true" />}
                 </button>
-                <button type="button" onClick={() => setExpanded((value) => !value)} className="hidden h-10 w-10 items-center justify-center rounded-lg text-graphite hover:bg-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand md:flex" aria-label={expanded ? t('adminAI.collapse') : t('adminAI.expand')} title={expanded ? t('adminAI.collapse') : t('adminAI.expand')}>
-                  {expanded ? <ArrowsIn className="h-4 w-4" aria-hidden="true" /> : <ArrowsOut className="h-4 w-4" aria-hidden="true" />}
-                </button>
-                <button type="button" onClick={closePanel} className="flex h-10 w-10 items-center justify-center rounded-lg text-graphite hover:bg-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-white/10" aria-label={t('adminAI.close')}>
+                <button type="button" onClick={closePanel} className="admin-ai-close flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" aria-label={t('adminAI.close')}>
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
             </header>
 
-            {isDemo && (
-              <div className="flex flex-shrink-0 items-start gap-2 border-b border-amber-500/15 bg-amber-500/[0.05] px-4 py-2.5 text-xs leading-5 text-ink dark:text-white/90 sm:px-5">
-                <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" aria-hidden="true" />
-                <p>{t('adminAI.demoNotice')}</p>
-              </div>
-            )}
-
-            <div ref={transcriptRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5" aria-label={t('adminAI.chat')} aria-live="polite">
-              {messages.length === 0 ? (
-                <div className="flex min-h-full flex-col justify-center">
-                  <div className="mb-5">
-                    <h3 className="text-xl font-semibold tracking-tight text-ink dark:text-white sm:text-2xl">{t('adminAI.welcome')}</h3>
-                    <p className="mt-2 text-sm leading-6 text-graphite">{t('adminAI.welcomeDetail')}</p>
+            <div ref={transcriptRef} className={`admin-ai-transcript min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-3 sm:px-6 ${messages.length === 0 && !showHistory ? 'flex flex-col justify-center' : ''}`} aria-label={showHistory ? t('adminAI.history') : t('adminAI.chat')} aria-live={showHistory ? 'off' : 'polite'}>
+              {showHistory ? (
+                <section aria-labelledby="admin-ai-history-title" className="mx-auto flex h-full w-full max-w-3xl flex-col">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 id="admin-ai-history-title" className="text-lg font-semibold tracking-tight text-ink dark:text-white">{t('adminAI.history')}</h3>
+                    <button type="button" onClick={resetChat} disabled={isLoading} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-brand/20 bg-white/80 px-3 text-xs font-semibold text-ink transition-colors hover:border-brand/40 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-40 dark:border-white/15 dark:bg-white/[0.06] dark:text-white">
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      {t('adminAI.newConversation')}
+                    </button>
                   </div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-graphite">{t('adminAI.suggestions')}</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="mb-3 text-xs leading-5 text-graphite">{t('adminAI.history.memoryNotice')}</p>
+                  {conversations.length === 0 ? (
+                    <div className="flex flex-1 flex-col items-center justify-center px-4 text-center" role="status">
+                      <ClockCounterClockwise className="mb-3 h-8 w-8 text-brand/70" aria-hidden="true" />
+                      <p className="text-sm font-semibold text-ink dark:text-white">{t('adminAI.history.empty')}</p>
+                      <p className="mt-1 max-w-sm text-xs leading-5 text-graphite">{t('adminAI.history.emptyDetail')}</p>
+                    </div>
+                  ) : (
+                    <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+                      {conversations.map((conversation) => (
+                        <li key={conversation.id}>
+                          <button
+                            type="button"
+                            disabled={isLoading}
+                            onClick={() => openConversation(conversation)}
+                            className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-xl px-3 text-left transition-colors hover:bg-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50 dark:hover:bg-white/[0.06] ${conversation.id === activeConversationId ? 'bg-white/80 dark:bg-white/[0.08]' : ''}`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-ink dark:text-white">{conversation.title}</span>
+                              <span className="mt-1 block text-[11px] text-graphite">{conversation.messages.length} {t('adminAI.history.messages')}</span>
+                            </span>
+                            <time className="shrink-0 text-[11px] text-graphite" dateTime={new Date(conversation.updatedAt).toISOString()}>
+                              {new Date(conversation.updatedAt).toLocaleDateString(lang, { month: 'short', day: 'numeric' })}
+                            </time>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ) : messages.length === 0 ? (
+                <div className="admin-ai-welcome mx-auto flex w-full max-w-3xl flex-col items-center justify-center py-5 text-center">
+                  <span className="admin-ai-welcome-mark mb-4 flex h-[88px] w-[88px] items-center justify-center rounded-full border border-white/65">
+                    <img src="/logo-512.png" alt="" className="h-[58px] w-[58px] object-contain" />
+                  </span>
+                  <h3 className="text-2xl font-semibold tracking-tight text-ink sm:text-[30px]">
+                    {greetingParts[0]}
+                    {adminFirstName && <span className="text-brand">{adminFirstName}</span>}
+                    {greetingParts[1]}
+                  </h3>
+                  <p className="mt-2 text-base text-ink/70 sm:text-lg">{t('adminAI.greeting.prompt')}</p>
+                  <div className="mt-6 grid w-full max-w-[570px] grid-cols-3 gap-2.5 sm:gap-3">
                     {suggestions.map(({ title, prompt, icon: Icon }) => (
                       <button key={title} type="button" onClick={() => {
                         setDraft(t(prompt))
                         composerRef.current?.focus()
-                      }} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-ink/10 px-3 py-2 text-left text-xs font-medium text-ink transition-colors hover:border-brand/30 hover:bg-brand/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:border-white/10 dark:text-white dark:hover:bg-white/[0.04]">
-                        <Icon className="h-4 w-4 flex-shrink-0 text-brand" aria-hidden="true" />
-                        {t(title)}
+                      }} className="admin-ai-suggestion flex min-h-[94px] flex-col items-start justify-between rounded-2xl border px-3 py-3 text-left text-xs font-semibold text-ink transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand sm:min-h-[108px] sm:px-4 sm:text-sm">
+                        <span className="admin-ai-suggestion-icon flex h-8 w-8 items-center justify-center rounded-xl sm:h-9 sm:w-9">
+                          <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" aria-hidden="true" />
+                        </span>
+                        <span>{t(title)}</span>
                       </button>
                     ))}
                   </div>
-                  {isDemo && <p className="mt-5 text-xs text-graphite">{t('adminAI.composer.note')}</p>}
                 </div>
-              ) : messages.map((message) => (
+              ) : messages.map((message) => {
+                const previousUser = message.error
+                  ? messages.slice(0, messages.findIndex((item) => item.id === message.id)).reverse().find((item) => item.role === 'user')
+                  : undefined
+                const canRetry = previousUser !== undefined && !previousUser.attachments?.length
+                return (
                 <article key={message.id} className={`flex gap-2.5 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {message.role === 'assistant' && (
                     <span className="admin-ai-logo-badge mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-brand/25 bg-white p-1 dark:border-brand/40">
@@ -499,13 +700,13 @@ export default function AdminAIAssistant() {
                     {message.error ? (
                       <div role="alert" className="rounded-lg border border-red-500/20 bg-red-500/[0.04] p-3 text-sm text-red-700 dark:text-red-300">
                         {message.error}
-                        <button type="button" onClick={() => {
-                          const previousUser = messages.slice(0, messages.findIndex((item) => item.id === message.id)).reverse().find((item) => item.role === 'user')
-                          if (!previousUser) return
-                          setMessages((current) => current.filter((item) => item.id !== message.id))
+                        {canRetry && previousUser && <button type="button" disabled={isLoading} onClick={() => {
+                          setConversations((current) => current.map((conversation) => conversation.id === activeConversationId
+                            ? { ...conversation, messages: conversation.messages.filter((item) => item.id !== message.id) }
+                            : conversation))
                           setDraft(previousUser.text)
                           composerRef.current?.focus()
-                        }} className="mt-2 block min-h-10 font-semibold underline">{t('adminAI.retry')}</button>
+                        }} className="mt-2 block min-h-10 font-semibold underline disabled:opacity-40">{t('adminAI.retry')}</button>}
                       </div>
                     ) : (
                       <>
@@ -534,8 +735,9 @@ export default function AdminAIAssistant() {
                     )}
                   </div>
                 </article>
-              ))}
-              {isLoading && (
+                )
+              })}
+              {!showHistory && isLoading && (
                 <div className="flex items-center gap-2.5 text-xs text-graphite" role="status">
                   <span className="admin-ai-logo-badge flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-brand/25 bg-white p-1 dark:border-brand/40">
                     <img src="/logo-512.png" alt="" className="h-7 w-7 object-contain" />
@@ -548,7 +750,7 @@ export default function AdminAIAssistant() {
               )}
             </div>
 
-            <form onSubmit={(event) => void submitMessage(event)} className="flex-shrink-0 border-t border-ink/5 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-white/10 dark:bg-[#202328] sm:px-4">
+            {!showHistory && <form onSubmit={(event) => void submitMessage(event)} className="admin-ai-composer relative mx-auto w-full max-w-[700px] flex-shrink-0 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 sm:px-4">
               {attachments.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2">
                   {attachments.map(({ id, file, previewUrl }) => (
@@ -566,9 +768,9 @@ export default function AdminAIAssistant() {
               )}
               {attachmentError && <p className="mb-2 text-xs text-red-600 dark:text-red-400" role="alert">{attachmentError}</p>}
               {voiceError && <p className="mb-2 text-xs text-red-600 dark:text-red-400" role="alert">{voiceError}</p>}
-              {isListening && <p className="mb-2 inline-flex items-center gap-2 text-xs font-medium text-brand" role="status"><span className="h-2 w-2 animate-pulse rounded-full bg-brand" />{t('adminAI.voice.listening')}</p>}
-              {isDemo && <p className="mb-2 text-[10px] leading-4 text-graphite">{t('adminAI.attachments.localOnly')} {t('adminAI.voice.localOnly')}</p>}
-              <div className="rounded-2xl border border-ink/10 bg-mist/70 p-2 focus-within:border-brand/35 focus-within:ring-2 focus-within:ring-brand/10 dark:border-white/10 dark:bg-white/[0.035]">
+              {isListening && <p className="mb-2 text-xs leading-4 text-graphite" role="status">{t('adminAI.voice.localOnly')} {t('adminAI.voice.listening')}</p>}
+              {isDemo && <p className="mb-2 text-[10px] leading-4 text-ink/70">{t('adminAI.attachments.localOnly')}</p>}
+              <div className="admin-ai-composer-shell rounded-2xl border p-2 focus-within:border-white/80 dark:focus-within:border-white/35">
                 <label htmlFor="admin-ai-chat-composer" className="sr-only">{t('adminAI.composer.label')}</label>
                 <textarea
                   id="admin-ai-chat-composer"
@@ -586,21 +788,52 @@ export default function AdminAIAssistant() {
                   placeholder={t('adminAI.composer.placeholder')}
                   dir={isArabic ? 'rtl' : 'auto'}
                   disabled={isLoading}
-                  className="max-h-28 min-h-12 w-full resize-none bg-transparent px-2 py-2 text-sm leading-5 text-ink placeholder:text-graphite/80 focus:outline-none dark:text-white"
+                  className="max-h-28 min-h-12 w-full resize-none bg-transparent px-2 py-2 text-sm leading-5 text-ink placeholder:text-graphite/80 focus:outline-none focus-visible:outline-none dark:text-white"
                 />
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1">
-                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(event) => addAttachments(event.target.files)} aria-label={t('adminAI.attachments.choose')} />
+                  <div className="relative flex items-center gap-1">
+                    <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" multiple className="hidden" onChange={(event) => addAttachments(event.target.files)} aria-label={t('adminAI.attachments.choose')} />
                     <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => addAttachments(event.target.files)} aria-label={t('adminAI.attachments.image')} />
-                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLoading || attachments.length >= MAX_ATTACHMENTS} className="flex h-10 w-10 items-center justify-center rounded-lg text-graphite hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-40 dark:hover:bg-white/10" aria-label={t('adminAI.attachments.choose')} title={t('adminAI.attachments.choose')}>
-                      <Paperclip className="h-4 w-4" aria-hidden="true" />
+                    <button
+                      ref={attachmentMenuButtonRef}
+                      type="button"
+                      onClick={() => setAttachmentMenuOpen((value) => !value)}
+                      disabled={isLoading || attachments.length >= MAX_ATTACHMENTS}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-ink/10 bg-white/75 text-ink transition-colors hover:border-brand/35 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-40 dark:border-white/15 dark:bg-white/[0.05] dark:text-white"
+                      aria-label={t('adminAI.attachments.menu')}
+                      aria-expanded={attachmentMenuOpen}
+                      aria-controls="admin-ai-attachment-menu"
+                      title={t('adminAI.attachments.menu')}
+                    >
+                      <Plus className={`h-5 w-5 transition-transform duration-150 ${attachmentMenuOpen ? 'rotate-45' : ''}`} aria-hidden="true" />
                     </button>
-                    <button type="button" onClick={() => imageInputRef.current?.click()} disabled={isLoading || attachments.length >= MAX_ATTACHMENTS} className="flex h-10 w-10 items-center justify-center rounded-lg text-graphite hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-40 dark:hover:bg-white/10" aria-label={t('adminAI.attachments.image')} title={t('adminAI.attachments.image')}>
-                      <ImageIcon className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                    <button type="button" onClick={startVoiceInput} disabled={isLoading} className={`flex h-10 w-10 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-40 ${isListening ? 'bg-brand/10 text-brand' : 'text-graphite hover:bg-white dark:hover:bg-white/10'}`} aria-label={isListening ? t('adminAI.voice.stop') : t('adminAI.voice.start')} aria-pressed={isListening} title={isListening ? t('adminAI.voice.stop') : t('adminAI.voice.start')}>
-                      {isListening ? <Stop className="h-4 w-4" aria-hidden="true" /> : <Microphone className="h-4 w-4" aria-hidden="true" />}
-                    </button>
+                    {attachmentMenuOpen && (
+                      <div
+                        id="admin-ai-attachment-menu"
+                        ref={attachmentMenuRef}
+                        className="admin-ai-attachment-menu absolute bottom-12 left-0 z-20 w-52 rounded-2xl border p-1.5"
+                        role="group"
+                        aria-label={t('adminAI.attachments.menu')}
+                      >
+                        <button
+                          ref={imageMenuItemRef}
+                          type="button"
+                          onClick={() => imageInputRef.current?.click()}
+                          className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-ink transition-colors hover:bg-brand/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-white"
+                        >
+                          <ImageIcon className="h-4 w-4 text-brand" aria-hidden="true" />
+                          {t('adminAI.attachments.image')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-ink transition-colors hover:bg-brand/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-white"
+                        >
+                          <Paperclip className="h-4 w-4 text-brand" aria-hidden="true" />
+                          {t('adminAI.attachments.choose')}
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="hidden text-[10px] tabular-nums text-graphite sm:inline">{draft.length}/4000</span>
@@ -610,9 +843,10 @@ export default function AdminAIAssistant() {
                   </div>
                 </div>
               </div>
-            </form>
-          </section>
-        </>
+              <p className="mt-2 text-center text-[10px] leading-4 text-white/85">{t('adminAI.footer.disclaimer')}</p>
+            </form>}
+          </div>
+        </section>
       )}
     </>
   )
