@@ -397,7 +397,11 @@ async function assembleFeeRecords(
 
   return rows.map((r) => {
     const amount = Number(r.amount)
-    const amountPaid = Number(r.amount_paid)
+    const recordedPayments = paymentsByFee.get(r.id) ?? []
+    const amountPaid = Math.min(
+      amount,
+      recordedPayments.reduce((cents, payment) => cents + Math.round(payment.amount * 100), 0) / 100,
+    )
     const term = termsById.get(r.term_id)
     const enrollment = term
       ? enrollmentsForStudent.get(r.student_id)?.find(
@@ -423,7 +427,7 @@ async function assembleFeeRecords(
       dueDate: r.due_date,
       status: deriveFeeStatus(amount, amountPaid, r.due_date, today),
       balance: Math.max(0, amount - amountPaid),
-      payments: paymentsByFee.get(r.id) ?? [],
+      payments: recordedPayments,
     }
   })
 }
