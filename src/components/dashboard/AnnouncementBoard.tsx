@@ -337,7 +337,7 @@ export default function AnnouncementBoard({
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={isSaving}>
+            <Button onClick={handleSubmit} loading={isSaving}>
               {isSaving ? 'Saving…' : editing ? 'Save changes' : form.publishAt ? 'Schedule announcement' : 'Publish'}
             </Button>
           </>

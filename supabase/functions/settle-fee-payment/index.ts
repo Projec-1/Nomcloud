@@ -43,6 +43,7 @@ import {
 
 interface SettleRequest {
   transaction_id: string
+  require_mock?: boolean
 }
 
 Deno.serve(async (request) => {
@@ -64,6 +65,9 @@ Deno.serve(async (request) => {
     }
 
     const provider = getPaymentProvider()
+    if (input.require_mock === true && !provider.isMock) {
+      throw new HttpError(409, 'This test transaction cannot be settled by the live payment provider')
+    }
 
     // The pending event is the source of truth for what was started.
     const { data: started, error: startedError } = await clients.adminClient

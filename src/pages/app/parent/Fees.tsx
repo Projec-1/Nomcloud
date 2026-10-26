@@ -12,7 +12,7 @@ import ResourceGate from '@/components/ui/ResourceGate'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
 import { paymentMethodLabel, type FeePaymentView, type FeeStatus } from '@/services/financeService'
-import { settleFeePayment, startFeePayment } from '@/services/feePaymentService'
+import { isVerifiedFeePayment, settleFeePayment, startFeePayment } from '@/services/feePaymentService'
 import { formatDate, formatMoney } from '@/utils/format'
 import { downloadReceiptImage } from '@/utils/receipt'
 import { schoolLogoUrl } from '@/services/storageService'
@@ -91,15 +91,20 @@ export default function ParentFees() {
 
   const settleFeeTransaction = async (transactionId: string, mockHint?: boolean) => {
     try {
-      const settled = await settleFeePayment(transactionId)
-      if (settled.fee_payment_id && settled.processing_status === 'applied') {
+      const settled = await settleFeePayment(transactionId, { requireMock: school?.is_demo === true })
+      if (isVerifiedFeePayment(settled)) {
         setPaymentOutcome({
           status: 'succeeded',
           mock: mockHint || settled.mock,
           message: t('parent.fees.payment.succeeded'),
         })
         reloadFees()
-      } else if (settled.outcome === 'rejected' || settled.processing_status === 'rejected') {
+      } else if (
+        settled.eventType === 'declined' ||
+        settled.eventType === 'cancelled' ||
+        settled.outcome === 'rejected' ||
+        settled.processingStatus === 'rejected'
+      ) {
         setPaymentTransactionId(null)
         setPaymentOutcome({
           status: 'failed',
@@ -149,9 +154,11 @@ export default function ParentFees() {
       const started = await startFeePayment({
         feeRecordId,
         amount: balance,
-        accountNumber: accountNumber.replace('+', ''),
+        paymentMethod: 'mobile_money',
+        accountNo: accountNumber.replace('+', ''),
+        requireMock: school?.is_demo === true,
       })
-      if (started.event_type === 'declined' || started.event_type === 'cancelled') {
+      if (started.eventType === 'declined' || started.eventType === 'cancelled') {
         setPaymentTransactionId(null)
         setPaymentOutcome({
           status: 'failed',
@@ -161,8 +168,8 @@ export default function ParentFees() {
         return
       }
 
-      setPaymentTransactionId(started.transaction_id)
-      await settleFeeTransaction(started.transaction_id, started.mock)
+      setPaymentTransactionId(started.transactionId)
+      await settleFeeTransaction(started.transactionId, started.mock)
     } catch (error) {
       setPaymentOutcome({
         status: 'unknown',

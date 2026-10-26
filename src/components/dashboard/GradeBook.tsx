@@ -435,13 +435,13 @@ export default function GradeBook({ classes, schoolId, readOnly = false }: Grade
                 <option value="year">Full academic year</option>
               </Select>
               <div className="flex flex-wrap gap-2 sm:justify-end">
-                <Button variant="outline" size="sm" onClick={() => void handleExport('pdf')} disabled={!selectedClass || !termId || isExporting} icon={<Printer className="h-4 w-4" />}>
+                <Button variant="outline" size="sm" onClick={() => void handleExport('pdf')} loading={isExporting} disabled={!selectedClass || !termId || isExporting} icon={<Printer className="h-4 w-4" />}>
                   Save as PDF
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => void handleExport('xlsx')} disabled={!selectedClass || !termId || isExporting} icon={<DownloadSimple className="h-4 w-4" />}>
+                <Button variant="outline" size="sm" onClick={() => void handleExport('xlsx')} loading={isExporting} disabled={!selectedClass || !termId || isExporting} icon={<DownloadSimple className="h-4 w-4" />}>
                   Excel
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => void handleExport('csv')} disabled={!selectedClass || !termId || isExporting} icon={<DownloadSimple className="h-4 w-4" />}>
+                <Button variant="outline" size="sm" onClick={() => void handleExport('csv')} loading={isExporting} disabled={!selectedClass || !termId || isExporting} icon={<DownloadSimple className="h-4 w-4" />}>
                   CSV
                 </Button>
               </div>
@@ -449,7 +449,7 @@ export default function GradeBook({ classes, schoolId, readOnly = false }: Grade
           </div>
         ) : (
           <div className="mt-5 flex justify-end border-t border-ink/5 pt-4 dark:border-white/10">
-            <Button onClick={handleSave} disabled={!canSave} icon={<Save className="h-4 w-4" />}>
+            <Button onClick={handleSave} loading={isSaving} disabled={!canSave} icon={<Save className="h-4 w-4" />}>
               {isSaving ? 'Saving…' : 'Save Grades'}
             </Button>
           </div>

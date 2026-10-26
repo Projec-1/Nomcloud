@@ -163,3 +163,54 @@ export function useChildFees(studentId: string | null): UseChildFeesResult {
 
   return { state, records, reload }
 }
+
+export function useChildrenFees(studentIds: string[]): UseChildFeesResult {
+  const { school, authState } = useAuth()
+  const schoolId = school?.id ?? null
+  const timeZone = school?.timezone ?? DEFAULT_TIME_ZONE
+  const idsKey = Array.from(new Set(studentIds)).sort().join('|')
+  const ids = idsKey ? idsKey.split('|') : []
+
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+  const [records, setRecords] = useState<FeeRecordView[]>([])
+  const [nonce, setNonce] = useState(0)
+  const reload = useCallback(() => setNonce((n) => n + 1), [])
+
+  useEffect(() => {
+    let cancelled = false
+    if (authState !== 'ready') return
+    if (!schoolId || ids.length === 0) {
+      setIsLoading(false)
+      setRecords([])
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+    Promise.all(ids.map((studentId) => fetchChildFeeRecords(schoolId, studentId, timeZone)))
+      .then((rows) => {
+        if (!cancelled) setRecords(rows.flat())
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(toError(err))
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [schoolId, timeZone, authState, idsKey, nonce])
+
+  const state = deriveResourceState<FeeRecordView[]>({
+    isLoading: authState !== 'ready' || isLoading,
+    canAccess: authState !== 'ready' ? undefined : schoolId !== null && ids.length > 0,
+    error,
+    data: records,
+    retry: reload,
+  })
+
+  return { state, records, reload }
+}

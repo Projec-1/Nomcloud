@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { List as Menu, Moon, Sun, CaretDown as ChevronDown, Gear as Settings, SignOut as LogOut, Camera, Trash as Trash2 } from '@phosphor-icons/react'
+import { ThinkingOrb } from 'thinking-orbs'
 import { useAuth } from '@/context/AuthContext'
 import SignOutButton from '@/components/ui/SignOutButton'
 import { useToast } from '@/context/ToastContext'
@@ -151,19 +152,23 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                     <button
                       type="button"
                       disabled={avatarBusy}
+                      aria-busy={avatarBusy || undefined}
                       onClick={() => avatarInput.current?.click()}
                       className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink hover:bg-ink/5 disabled:opacity-50 dark:text-white dark:hover:bg-white/10"
                     >
-                      <Camera className="h-4 w-4" /> {avatarBusy ? t('dash.topbar.working') : profile.avatar_url ? t('dash.topbar.changePicture') : t('dash.topbar.addPicture')}
+                      {avatarBusy ? <ThinkingOrb state="working" size={20} color="#C9471B" aria-hidden="true" /> : <Camera className="h-4 w-4" />}
+                      {avatarBusy ? t('dash.topbar.working') : profile.avatar_url ? t('dash.topbar.changePicture') : t('dash.topbar.addPicture')}
                     </button>
                     {profile.avatar_url && (
                       <button
                         type="button"
                         disabled={avatarBusy}
+                        aria-busy={avatarBusy || undefined}
                         onClick={handleAvatarRemoved}
                         className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-ink hover:bg-ink/5 disabled:opacity-50 dark:text-white dark:hover:bg-white/10"
                       >
-                        <Trash2 className="h-4 w-4" /> {t('dash.topbar.removePicture')}
+                        {avatarBusy ? <ThinkingOrb state="working" size={20} color="#C9471B" aria-hidden="true" /> : <Trash2 className="h-4 w-4" />}
+                        {t('dash.topbar.removePicture')}
                       </button>
                     )}
                   </>

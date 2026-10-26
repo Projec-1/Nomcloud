@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import { ThinkingOrb } from 'thinking-orbs'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { useAuth } from '@/context/AuthContext'
@@ -50,8 +51,10 @@ export default function SignOutButton({
           else void handleLogout()
         }}
         disabled={loading}
+        aria-busy={loading || undefined}
         className={className}
       >
+        {loading && <ThinkingOrb state="connecting" size={20} color="#C9471B" aria-hidden="true" />}
         {children}
       </button>
       <ConfirmDialog

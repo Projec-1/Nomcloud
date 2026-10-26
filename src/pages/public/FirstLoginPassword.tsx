@@ -32,9 +32,19 @@ export default function FirstLoginPassword() {
   const [error, setError] = useState('')
 
   if (authState === 'initialising' || authState === 'loading_profile') {
-    return <PageLoader label="Loading your account…" />
+    return <PageLoader />
   }
   if (authState === 'signed_out') return <Navigate to="/login" replace />
+  if (authState === 'error') {
+    return (
+      <AuthLayout title="We could not verify your account" subtitle="Your session could not be checked. Try again or sign in again to continue.">
+        <div className="flex flex-col gap-3">
+          <Button variant="accent" onClick={() => window.location.reload()}>Try again</Button>
+          <Button variant="outline" onClick={() => navigate('/login', { replace: true })}>Back to sign in</Button>
+        </div>
+      </AuthLayout>
+    )
+  }
   // Nothing to do here: either they never had the requirement, or it is done.
   if (authState === 'ready' && !mustChangePassword(authUser)) return <Navigate to="/" replace />
 

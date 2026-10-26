@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import DemoModeBanner from '@/components/dashboard/DemoModeBanner'
 import Sidebar from '@/components/dashboard/Sidebar'
 import Topbar from '@/components/dashboard/Topbar'
+import AdminAIAssistant from '@/components/dashboard/AdminAIAssistant'
 import type { Role } from '@/types'
 
 export default function DashboardLayout({ role }: { role: Role }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const location = useLocation()
 
   return (
     <div className={`${role === 'admin' ? 'admin-workspace' : ''} flex min-h-screen bg-mist dark:bg-[#17191C]`}>
@@ -20,6 +22,7 @@ export default function DashboardLayout({ role }: { role: Role }) {
           </div>
         </main>
       </div>
+      {role === 'admin' && location.pathname.startsWith('/app/admin') && <AdminAIAssistant />}
     </div>
   )
 }

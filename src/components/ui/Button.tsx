@@ -1,5 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
-import { CircleNotch as Loader2 } from '@phosphor-icons/react'
+import { ThinkingOrb } from 'thinking-orbs'
 import { cn } from '@/utils/cn'
 
 type Variant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger'
@@ -33,9 +33,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={cn(variantClass[variant], sizeClass[size], className)}
         disabled={disabled || loading}
+        aria-busy={loading || undefined}
         {...props}
       >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+        {loading ? <ThinkingOrb state="working" size={20} color="#C9471B" aria-hidden="true" /> : icon}
         {children}
       </button>
     )

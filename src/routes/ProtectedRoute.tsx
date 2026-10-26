@@ -10,7 +10,7 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation()
 
   if (authState === 'initialising' || authState === 'loading_profile') {
-    return <PageLoader label="Loading your workspace…" />
+    return <PageLoader />
   }
 
   if (authState === 'signed_out') {
@@ -52,5 +52,5 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (authState === 'ready') return <>{children}</>
 
-  return <PageLoader label="Loading your workspace…" />
+  return <PageLoader />
 }

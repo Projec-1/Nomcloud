@@ -72,57 +72,61 @@ export default function PublicHeader() {
         </div>
 
         <button
-          className="flex items-center justify-center rounded-full p-2 text-ink dark:text-white lg:hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-full p-0 text-ink dark:text-white lg:hidden"
           onClick={() => setMenuOpen((v) => !v)}
-          aria-label="Toggle menu"
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={menuOpen}
+          aria-controls="public-mobile-navigation"
         >
           {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
       </div>
 
-      {menuOpen && (
-        <div className="border-t border-ink/5 bg-white px-3 pb-5 pt-2 dark:border-white/10 dark:bg-[#171917] sm:px-6 lg:hidden">
-          <nav className="flex flex-col gap-1">
-            {NAV_LINKS.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                onClick={() => setMenuOpen(false)}
-                className={({ isActive }: { isActive: boolean }) =>
-                  cn('rounded-xl px-4 py-3 text-sm font-medium', isActive ? 'bg-ink/5 dark:bg-white/10 text-ink dark:text-white' : 'text-graphite')
-                }
-              >
-                {t(link.key)}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/5 pt-4 dark:border-white/10 sm:gap-3">
-            <button
-              onClick={toggleTheme}
-              className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm text-graphite hover:bg-ink/5 dark:hover:bg-white/10"
+      <div
+        id="public-mobile-navigation"
+        hidden={!menuOpen}
+        className="border-t border-ink/5 bg-white px-3 pb-5 pt-2 dark:border-white/10 dark:bg-[#171917] sm:px-6 lg:hidden"
+      >
+        <nav className="flex flex-col gap-1">
+          {NAV_LINKS.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }: { isActive: boolean }) =>
+                cn('rounded-xl px-4 py-3 text-sm font-medium', isActive ? 'bg-ink/5 dark:bg-white/10 text-ink dark:text-white' : 'text-graphite')
+              }
             >
-              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />} Theme
+              {t(link.key)}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/5 pt-4 dark:border-white/10 sm:gap-3">
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm text-graphite hover:bg-ink/5 dark:hover:bg-white/10"
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />} Theme
+          </button>
+          {profile && activeRole ? (
+            <button onClick={() => navigate(`/app/${activeRole}`)} className="btn-ghost flex-1 justify-center py-2.5 text-sm">
+              {t('nav.dashboard')}
             </button>
-            {profile && activeRole ? (
-              <button onClick={() => navigate(`/app/${activeRole}`)} className="btn-ghost flex-1 justify-center py-2.5 text-sm">
-                {t('nav.dashboard')}
-              </button>
-            ) : (
-              <>
-                <Link to="/login" className="btn-ghost flex-1 justify-center py-2.5 text-sm">
-                  Sign In
-                </Link>
-                <Link to="/signup" className="btn-accent flex-1 justify-center py-2.5 text-sm">
-                  Get Started
-                </Link>
-              </>
-            )}
-          </div>
-          <div className="mt-4 flex items-center justify-center border-t border-ink/5 pt-4 dark:border-white/10">
-            <LanguageSwitcher />
-          </div>
+          ) : (
+            <>
+              <Link to="/login" className="btn-ghost flex-1 justify-center py-2.5 text-sm">
+                Sign In
+              </Link>
+              <Link to="/signup" className="btn-accent flex-1 justify-center py-2.5 text-sm">
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
-      )}
+        <div className="mt-4 flex items-center justify-center border-t border-ink/5 pt-4 dark:border-white/10">
+          <LanguageSwitcher />
+        </div>
+      </div>
     </header>
   )
 }

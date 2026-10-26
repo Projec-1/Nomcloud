@@ -3,7 +3,7 @@ import { subscriptionPlans } from '@/data/subscriptionPlans'
 export type FixedPlanCode = 'starter' | 'growth'
 export type DemoBillingInterval = 'monthly' | 'annual'
 export type DemoPaymentOutcome = 'succeeded' | 'failed' | 'cancelled' | 'pending' | 'rejected'
-export type DemoPaymentMethod = 'card' | 'evc-plus' | 'edahab' | 'bank-transfer'
+export type DemoPaymentMethod = 'card' | 'evc-plus' | 'waafi' | 'zaad' | 'sahal' | 'edahab' | 'visa' | 'mastercard' | 'bank-transfer'
 
 export interface DemoSubscription {
   planCode: FixedPlanCode
@@ -76,7 +76,8 @@ function isBillingInterval(value: unknown): value is DemoBillingInterval {
 }
 
 function isDemoPaymentMethod(value: unknown): value is DemoPaymentMethod {
-  return value === 'card' || value === 'evc-plus' || value === 'edahab' || value === 'bank-transfer'
+  return value === 'card' || value === 'evc-plus' || value === 'waafi' || value === 'zaad' ||
+    value === 'sahal' || value === 'edahab' || value === 'visa' || value === 'mastercard' || value === 'bank-transfer'
 }
 
 function isDemoPaymentOutcome(value: unknown): value is DemoPaymentOutcome {

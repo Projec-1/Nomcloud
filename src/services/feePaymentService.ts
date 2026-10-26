@@ -1,44 +1,125 @@
 import { supabase } from '@/lib/supabase'
 import { edgeFunctionErrorMessage } from '@/utils/edgeFunctionError'
 
-interface StartFeePaymentResult {
-  transaction_id: string
-  event_type: 'pending' | 'approved' | 'declined' | 'cancelled'
-  processing_status: string
+export type OnlinePaymentMethod = 'mobile_money' | 'card' | 'ussd' | 'bank_agent'
+export type PaymentEventType = 'pending' | 'approved' | 'declined' | 'cancelled'
+export type PaymentProcessingStatus = 'received' | 'applied' | 'rejected' | 'ignored'
+export type PaymentOutcome = 'applied' | 'duplicate' | 'rejected' | 'ignored'
+
+export interface StartedFeePayment {
+  transactionId: string
+  eventType: PaymentEventType
   amount: number
   currency: string
   mock: boolean
 }
 
-interface SettleFeePaymentResult {
-  outcome: 'applied' | 'duplicate' | 'ignored' | 'rejected'
-  processing_status: string
-  fee_payment_id: string | null
+export interface SettledFeePayment {
+  transactionId: string
+  eventType: PaymentEventType
+  outcome: PaymentOutcome
+  processingStatus: PaymentProcessingStatus
+  feePaymentId: string | null
+  reason: string | null
   mock: boolean
 }
 
-async function invokePayment<T>(functionName: string, body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(functionName, { body })
-  if (error) throw new Error(edgeFunctionErrorMessage(error, functionName))
-  if (data === null || typeof data !== 'object') throw new Error('Payment service returned an invalid response.')
-  return data as T
+function responseObject(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('The payment service returned an invalid response.')
+  }
+  return value as Record<string, unknown>
 }
 
-export function startFeePayment(input: {
+function paymentEventType(value: unknown): PaymentEventType {
+  if (value === 'pending' || value === 'approved' || value === 'declined' || value === 'cancelled') return value
+  throw new Error('The payment service returned an unknown transaction status.')
+}
+
+function paymentOutcome(value: unknown): PaymentOutcome {
+  if (value === 'applied' || value === 'duplicate' || value === 'rejected' || value === 'ignored') return value
+  throw new Error('The payment service returned an unknown processing result.')
+}
+
+function paymentProcessingStatus(value: unknown): PaymentProcessingStatus {
+  if (value === 'received' || value === 'applied' || value === 'rejected' || value === 'ignored') return value
+  throw new Error('The payment service returned an unknown processing status.')
+}
+
+export async function startFeePayment(input: {
   feeRecordId: string
   amount: number
-  accountNumber: string
-}) {
-  return invokePayment<StartFeePaymentResult>('start-fee-payment', {
-    fee_record_id: input.feeRecordId,
-    amount: input.amount,
-    payment_method: 'mobile_money',
-    account_no: input.accountNumber,
+  paymentMethod: OnlinePaymentMethod
+  accountNo: string
+  requireMock?: boolean
+}): Promise<StartedFeePayment> {
+  const functionName = 'start-fee-payment'
+  const { data, error } = await supabase.functions.invoke(functionName, {
+    body: {
+      fee_record_id: input.feeRecordId,
+      amount: input.amount,
+      payment_method: input.paymentMethod,
+      account_no: input.accountNo,
+      require_mock: input.requireMock,
+    },
   })
+  if (error) throw new Error(edgeFunctionErrorMessage(error, functionName))
+
+  const result = responseObject(data)
+  if (
+    typeof result.transaction_id !== 'string' ||
+    typeof result.amount !== 'number' ||
+    typeof result.currency !== 'string' ||
+    typeof result.mock !== 'boolean'
+  ) {
+    throw new Error('The payment service returned incomplete transaction details.')
+  }
+
+  return {
+    transactionId: result.transaction_id,
+    eventType: paymentEventType(result.event_type),
+    amount: result.amount,
+    currency: result.currency,
+    mock: result.mock,
+  }
 }
 
-export function settleFeePayment(transactionId: string) {
-  return invokePayment<SettleFeePaymentResult>('settle-fee-payment', {
-    transaction_id: transactionId,
+export async function settleFeePayment(
+  transactionId: string,
+  options: { requireMock?: boolean } = {},
+): Promise<SettledFeePayment> {
+  const functionName = 'settle-fee-payment'
+  const { data, error } = await supabase.functions.invoke(functionName, {
+    body: { transaction_id: transactionId, require_mock: options.requireMock },
   })
+  if (error) throw new Error(edgeFunctionErrorMessage(error, functionName))
+
+  const result = responseObject(data)
+  if (
+    typeof result.transaction_id !== 'string' ||
+    typeof result.processing_status !== 'string' ||
+    typeof result.outcome !== 'string' ||
+    typeof result.mock !== 'boolean'
+  ) {
+    throw new Error('The payment service returned incomplete verification details.')
+  }
+
+  return {
+    transactionId: result.transaction_id,
+    eventType: paymentEventType(result.event_type),
+    outcome: paymentOutcome(result.outcome),
+    processingStatus: paymentProcessingStatus(result.processing_status),
+    feePaymentId: typeof result.fee_payment_id === 'string' ? result.fee_payment_id : null,
+    reason: typeof result.reason === 'string' ? result.reason : null,
+    mock: result.mock,
+  }
+}
+
+export function isVerifiedFeePayment(result: SettledFeePayment): boolean {
+  return (
+    result.eventType === 'approved' &&
+    (result.outcome === 'applied' || result.outcome === 'duplicate') &&
+    result.processingStatus === 'applied' &&
+    result.feePaymentId !== null
+  )
 }

@@ -73,7 +73,8 @@ test('parent fee UI settles through the student-fee service and requires an appl
   const page = await read('src/pages/app/parent/Fees.tsx')
   assert.match(page, /startFeePayment\(/)
   assert.match(page, /settleFeePayment\(/)
-  assert.match(page, /settled\.fee_payment_id && settled\.processing_status === 'applied'/)
+  assert.match(page, /isVerifiedFeePayment\(settled\)/)
+  assert.match(page, /requireMock: school\?\.is_demo === true/)
   assert.match(page, /status: 'unknown'/)
   assert.match(page, /paymentInFlight\.current/)
   assert.match(page, /retryFeePaymentStatus/)
@@ -82,11 +83,31 @@ test('parent fee UI settles through the student-fee service and requires an appl
   const service = await read('src/services/feePaymentService.ts')
   assert.match(service, /'start-fee-payment'/)
   assert.match(service, /'settle-fee-payment'/)
+  assert.match(service, /result\.eventType === 'approved'/)
+  assert.match(service, /result\.processingStatus === 'applied'/)
+  assert.match(service, /result\.feePaymentId !== null/)
+  assert.match(service, /require_mock: input\.requireMock/)
 
   const start = await read('supabase/functions/start-fee-payment/index.ts')
   assert.match(start, /rejectUnresolvedPayment/)
   assert.match(start, /A previous student-fee payment is still awaiting confirmation/)
   assert.match(start, /event_type', \['approved', 'declined', 'cancelled'\]/)
+})
+
+test('admin demo checkout requires mock processing and labels receipts as tests', async () => {
+  const checkout = await read('src/components/finance/FeePaymentCheckout.tsx')
+  assert.match(checkout, /requireMock: true/)
+  assert.match(checkout, /isTestPayment: result\.mock/)
+
+  const service = await read('src/services/feePaymentService.ts')
+  assert.match(service, /require_mock: options\.requireMock/)
+
+  for (const relativePath of [
+    'supabase/functions/start-fee-payment/index.ts',
+    'supabase/functions/settle-fee-payment/index.ts',
+  ]) {
+    assert.match(await read(relativePath), /input\.require_mock === true/)
+  }
 })
 
 test('new payment experience translations exist in English, Somali, and Arabic', async () => {

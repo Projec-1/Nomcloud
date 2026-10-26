@@ -13,6 +13,7 @@ import {
   Warning as AlertTriangle,
 } from '@phosphor-icons/react'
 import Button from '@/components/ui/Button'
+import { InlineLoader, Skeleton } from '@/components/ui/Loader'
 import Status from '@/pages/platform/StatusPill'
 import type { Request, School } from '@/pages/platform/types'
 import { downloadCsv, KpiTile, Panel, SectionHeader } from './PrototypeKit'
@@ -155,10 +156,10 @@ export default function OverviewSection({
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiTile label="Registered schools" value={loading ? '…' : schools.length.toLocaleString()} detail={`${activeSchools} active${suspendedSchools.length ? ` · ${suspendedSchools.length} suspended` : ''}`} icon={Building2} />
-        <KpiTile label="Active students" value={loading ? '…' : totalStudents.toLocaleString()} detail={`${totalTeachers.toLocaleString()} teachers across registered schools`} icon={Users} />
-        <KpiTile label="Open requests" value={loading ? '…' : openRequests.length.toLocaleString()} detail={`Among newest ${requests.length.toLocaleString()} loaded messages`} icon={ClipboardCheck} tone={openRequests.length > 0 ? 'warning' : 'success'} />
-        <KpiTile label="Platform operators" value={loading ? '…' : operatorCount.toLocaleString()} detail="Holding active platform access" icon={ShieldWarning} />
+        <KpiTile label="Registered schools" value={loading ? <Skeleton className="h-8 w-24" /> : schools.length.toLocaleString()} detail={!loading ? `${activeSchools} active${suspendedSchools.length ? ` · ${suspendedSchools.length} suspended` : ''}` : undefined} icon={Building2} />
+        <KpiTile label="Active students" value={loading ? <Skeleton className="h-8 w-24" /> : totalStudents.toLocaleString()} detail={!loading ? `${totalTeachers.toLocaleString()} teachers across registered schools` : undefined} icon={Users} />
+        <KpiTile label="Open requests" value={loading ? <Skeleton className="h-8 w-24" /> : openRequests.length.toLocaleString()} detail={!loading ? `Among newest ${requests.length.toLocaleString()} loaded messages` : undefined} icon={ClipboardCheck} tone={openRequests.length > 0 ? 'warning' : 'success'} />
+        <KpiTile label="Platform operators" value={loading ? <Skeleton className="h-8 w-24" /> : operatorCount.toLocaleString()} detail={!loading ? 'Holding active platform access' : undefined} icon={ShieldWarning} />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
@@ -169,7 +170,7 @@ export default function OverviewSection({
             action={<button onClick={() => navigate('/platform/actions')} className="text-xs font-semibold text-brand">Open action centre <ArrowUpRight className="inline h-3.5 w-3.5" /></button>}
           >
             {loading ? (
-              <p className="py-6 text-sm text-graphite">Loading platform records…</p>
+              <div className="py-6"><InlineLoader label="Loading platform records" state="searching" /></div>
             ) : tasks.length ? (
               <ul className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">
                 {tasks.map((task) => {

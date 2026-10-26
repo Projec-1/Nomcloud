@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowUpRight, Plus, WarningCircle } from '@phosphor-icons/react'
 import Button from '@/components/ui/Button'
+import { InlineLoader } from '@/components/ui/Loader'
 import Select from '@/components/ui/Select'
 import type { PlatformOperatorRecord } from '@/services/platformService'
 import { errorMessage } from '@/utils/errorMessage'
@@ -93,7 +94,7 @@ export default function IncidentCommand({
         onError={notify}
       />}
       {error && <div role="alert" className="mt-5 flex flex-wrap items-center justify-between gap-3 border-y border-red-500/30 p-4 text-sm text-red-800 dark:text-red-300"><span>Could not load incidents: {error}</span><Button size="sm" variant="outline" onClick={reload}>Retry</Button></div>}
-      {loading ? <p role="status" className="py-8 text-sm text-graphite">Loading incident records…</p> : error ? null : incidents.length ? (
+      {loading ? <div className="py-8"><InlineLoader label="Loading incident records" state="searching" /></div> : error ? null : incidents.length ? (
         <div className="mt-5 space-y-5">
           {incidents.map((incident) => <IncidentCard key={incident.id} incident={incident} operators={activeOperators} cases={cases} notify={notify} onChanged={reload} />)}
         </div>
@@ -272,23 +273,23 @@ function IncidentCard({ incident, operators, cases, notify, onChanged }: {
             <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
               {operators.length ? operators.map((operator) => <label key={operator.id} className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={selectedResponders.includes(operator.id)} onChange={(event) => setSelectedResponders((current) => event.target.checked ? [...current, operator.id] : current.filter((id) => id !== operator.id))} />{operator.fullName}<span className="text-xs text-graphite">{operator.team ?? 'Team metadata unavailable'}</span></label>) : <p className="text-sm text-graphite">No active operators available.</p>}
             </div>
-            <Button className="mt-3" size="sm" variant="outline" disabled={busy || selectedResponders.length === incident.responders.length && selectedResponders.every((id) => incident.responders.includes(id))} onClick={() => void saveResponders()}>Save responders</Button>
+            <Button className="mt-3" size="sm" variant="outline" loading={busy} disabled={busy || selectedResponders.length === incident.responders.length && selectedResponders.every((id) => incident.responders.includes(id))} onClick={() => void saveResponders()}>Save responders</Button>
           </fieldset>
           <form className="mt-5 space-y-3" onSubmit={(event) => void addUpdate(event)}>
             <label className="block text-xs font-semibold text-graphite">Command log<Select className="mt-1.5" value={updateType} onChange={(event) => setUpdateType(event.target.value as PlatformIncidentUpdate['updateType'])}><option value="update">Situation update</option><option value="recovery_step">Recovery step</option></Select></label>
             <textarea className="input min-h-20 w-full resize-y" required maxLength={3000} value={draftUpdate} onChange={(event) => setDraftUpdate(event.target.value)} placeholder="Record a status update or recovery action" />
-            <Button type="submit" size="sm" variant="accent" disabled={busy || !draftUpdate.trim()}>Record update</Button>
+            <Button type="submit" size="sm" variant="accent" loading={busy} disabled={busy || !draftUpdate.trim()}>Record update</Button>
           </form>
         </section>
 
         <section>
           <h4 className="font-semibold">Command timeline</h4>
-          {loadingUpdates ? <p className="mt-3 text-sm text-graphite">Loading updates…</p> : updates.length ? <ol className="mt-3 max-h-64 divide-y divide-ink/10 overflow-y-auto dark:divide-white/10">{updates.map((update) => <li key={update.id} className="py-3"><p className="text-sm">{update.body}</p><p className="mt-1 text-xs text-graphite">{update.updateType.replace('_', ' ')} · {update.actorName} · {stamp(update.createdAt)}</p></li>)}</ol> : <p className="mt-3 text-sm text-graphite">No command updates recorded.</p>}
+          {loadingUpdates ? <div className="mt-3"><InlineLoader label="Loading command updates" state="searching" /></div> : updates.length ? <ol className="mt-3 max-h-64 divide-y divide-ink/10 overflow-y-auto dark:divide-white/10">{updates.map((update) => <li key={update.id} className="py-3"><p className="text-sm">{update.body}</p><p className="mt-1 text-xs text-graphite">{update.updateType.replace('_', ' ')} · {update.actorName} · {stamp(update.createdAt)}</p></li>)}</ol> : <p className="mt-3 text-sm text-graphite">No command updates recorded.</p>}
           <form className="mt-5 space-y-3 border-t border-ink/10 pt-4 dark:border-white/10" onSubmit={(event) => { event.preventDefault(); void change({ postmortem }, 'Post-incident review saved.') }}>
             <label className="block text-xs font-semibold text-graphite">Post-incident review<textarea className="input mt-1.5 min-h-24 w-full resize-y" maxLength={5000} value={postmortem} onChange={(event) => setPostmortem(event.target.value)} placeholder="Document impact, cause, response and follow-up" /></label>
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" size="sm" variant="outline" disabled={busy || !postmortem.trim()}>Save review</Button>
-              {incident.postmortem && !incident.postmortemReviewedAt && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void change({ postmortemReviewedAt: new Date().toISOString() }, 'Post-incident review marked reviewed.')}>Mark reviewed</Button>}
+              <Button type="submit" size="sm" variant="outline" loading={busy} disabled={busy || !postmortem.trim()}>Save review</Button>
+              {incident.postmortem && !incident.postmortemReviewedAt && <Button type="button" size="sm" variant="outline" loading={busy} disabled={busy} onClick={() => void change({ postmortemReviewedAt: new Date().toISOString() }, 'Post-incident review marked reviewed.')}>Mark reviewed</Button>}
               {incident.postmortemReviewedAt && <span className="text-xs text-emerald-700 dark:text-emerald-300">Reviewed {stamp(incident.postmortemReviewedAt)}</span>}
             </div>
           </form>

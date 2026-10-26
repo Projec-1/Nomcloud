@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import EmptyState from '@/components/ui/EmptyState'
 import ResourceGate from '@/components/ui/ResourceGate'
+import { InlineLoader } from '@/components/ui/Loader'
 import { useAuth } from '@/context/AuthContext'
 import { useRecordableClasses } from '@/hooks/useRecordableClasses'
 import { createTimetableSlot, deleteTimetableSlot, fetchManagedTimetable, updateTimetableSlot, type TimetableSlotInput } from '@/services/classService'
@@ -508,7 +509,7 @@ export default function AdminTimetables() {
                 </div>
               </div>
             </section>
-            {error ? <div role="alert" className="rounded-xl border border-red-500/20 p-4 text-sm text-red-700 dark:text-red-300">{error.message}<Button variant="outline" size="sm" className="ml-3" onClick={reload}>Retry</Button></div> : loadingSlots ? <p className="py-12 text-center text-sm text-graphite">Loading timetable…</p> : slots.length === 0 ? (
+            {error ? <div role="alert" className="rounded-xl border border-red-500/20 p-4 text-sm text-red-700 dark:text-red-300">{error.message}<Button variant="outline" size="sm" className="ml-3" onClick={reload}>Retry</Button></div> : loadingSlots ? <div className="py-12 text-center"><InlineLoader label="Loading timetable" state="searching" /></div> : slots.length === 0 ? (
               <EmptyState icon={CalendarRange} title="No lessons scheduled" description={`Build the first day for ${selectedClass.name}.`} action={<Button onClick={openBuilder}>Create timetable</Button>} />
             ) : (
               <section className="overflow-hidden rounded-2xl border border-ink/[0.08] bg-white dark:border-white/10 dark:bg-white/[0.03]">
@@ -580,14 +581,14 @@ export default function AdminTimetables() {
         footer={builderReady ? (
           <>
             <Button variant="ghost" onClick={() => setBuilderOpen(false)} disabled={savingDay}>Cancel</Button>
-            <Button onClick={() => void saveBuilderDay()} disabled={savingDay}>
+            <Button onClick={() => void saveBuilderDay()} loading={savingDay}>
               {savingDay ? 'Saving day…' : 'Save day'}
             </Button>
           </>
         ) : (
           <>
             <Button variant="ghost" onClick={() => setBuilderOpen(false)}>Cancel</Button>
-            <Button onClick={() => void startDayBuilder()} disabled={builderLoading || subjectsLoading || subjects.length === 0 || !builderClassId}>
+            <Button onClick={() => void startDayBuilder()} loading={builderLoading} disabled={builderLoading || subjectsLoading || subjects.length === 0 || !builderClassId}>
               {builderLoading ? 'Loading…' : 'Build day'}
             </Button>
           </>
@@ -607,7 +608,7 @@ export default function AdminTimetables() {
               </Select>
             </div>
             <p className="text-sm text-graphite">Subjects, teachers and times are added as individual lesson rows in the builder.</p>
-            {subjectsLoading && <p role="status" className="text-sm text-graphite">Loading school subjects…</p>}
+            {subjectsLoading && <InlineLoader label="Loading school subjects" state="searching" className="text-sm text-graphite" />}
             {subjectsError && (
               <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-500/20 px-3 py-2.5 text-sm text-red-700 dark:text-red-300">
                 <span>{subjectsError}</span>
@@ -711,7 +712,7 @@ export default function AdminTimetables() {
         )}
       </Modal>
 
-      <Modal open={editorOpen} onClose={() => setEditorOpen(false)} title={editing ? 'Edit timetable slot' : 'Add timetable slot'} footer={<><Button variant="ghost" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={() => void saveSlot()} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add lesson'}</Button></>}>
+      <Modal open={editorOpen} onClose={() => setEditorOpen(false)} title={editing ? 'Edit timetable slot' : 'Add timetable slot'} footer={<><Button variant="ghost" onClick={() => setEditorOpen(false)}>Cancel</Button><Button onClick={() => void saveSlot()} loading={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add lesson'}</Button></>}>
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Select label="Day" value={form.day} onChange={(event) => setForm({ ...form, day: event.target.value })}>{weekdays.map((day) => <option key={day} value={day}>{isoWeekdayLabel(day)}</option>)}</Select>

@@ -4,6 +4,7 @@ import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
 import RequestProcessing from '@/components/ui/RequestProcessing'
+import { InlineLoader } from '@/components/ui/Loader'
 import { useAuth } from '@/context/AuthContext'
 import { downloadResults, downloadTemplate, readSheet, toRecords, ImportFileError, type SheetMatrix } from '@/services/import/spreadsheet'
 import { matchHeaders, unmappedRequired, unmappedRequiredMessage } from '@/services/import/headers'
@@ -69,6 +70,7 @@ export default function ImportDialog<T, Ctx>({
   const [outcomes, setOutcomes] = useState<RowOutcome[] | null>(null)
   const [progress, setProgress] = useState<ImportProgress | null>(null)
   const [busy, setBusy] = useState(false)
+  const [resultsBusy, setResultsBusy] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [mapping, setMapping] = useState<ColumnMapping>({})
@@ -76,8 +78,14 @@ export default function ImportDialog<T, Ctx>({
   const [unmatched, setUnmatched] = useState<string[]>([])
   const contextRef = useRef<Ctx | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const taskIdRef = useRef(0)
+  const readingRef = useRef(false)
+  const importingRef = useRef(false)
 
   const reset = useCallback(() => {
+    taskIdRef.current += 1
+    readingRef.current = false
+    importingRef.current = false
     setPhase('upload')
     setError(null)
     setBlocked(null)
@@ -152,12 +160,15 @@ export default function ImportDialog<T, Ctx>({
   )
 
   const processFile = async (file: File | undefined) => {
-    if (!file || !schoolId) return
+    if (!file || !schoolId || readingRef.current || phase === 'importing') return
+    readingRef.current = true
+    const taskId = ++taskIdRef.current
     setPhase('reading')
     setError(null)
     setBlocked(null)
     try {
       const context = await kind.loadContext(schoolId)
+      if (taskId !== taskIdRef.current) return
       contextRef.current = context
 
       const stop = kind.precheck(context)
@@ -168,6 +179,7 @@ export default function ImportDialog<T, Ctx>({
       }
 
       const source = await readSheet(file)
+      if (taskId !== taskIdRef.current) return
       setSheet(source)
 
       // Recognise their headers. Everything required found means no questions:
@@ -183,8 +195,11 @@ export default function ImportDialog<T, Ctx>({
       }
       setPhase(buildPlan(source, match.mapping) ? 'review' : 'mapping')
     } catch (err: unknown) {
+      if (taskId !== taskIdRef.current) return
       setError(err instanceof ImportFileError ? err.message : `Could not read ${file.name}. ${errorMessage(err)}`)
       setPhase('upload')
+    } finally {
+      if (taskId === taskIdRef.current) readingRef.current = false
     }
   }
 
@@ -194,17 +209,36 @@ export default function ImportDialog<T, Ctx>({
   }
 
   const startImport = async () => {
-    if (!schoolId || !plan || !contextRef.current) return
+    if (importingRef.current || phase !== 'review' || !schoolId || !plan || !contextRef.current) return
+    importingRef.current = true
+    const taskId = ++taskIdRef.current
     setPhase('importing')
     setProgress({ done: 0, total: plan.counts.ready, current: null })
     try {
       const results = await runImport({ schoolId, kind, plan, context: contextRef.current, onProgress: setProgress })
+      if (taskId !== taskIdRef.current) return
       setOutcomes(results)
       setPhase('done')
       onImported()
     } catch (err: unknown) {
+      if (taskId !== taskIdRef.current) return
       setError(errorMessage(err))
       setPhase('review')
+    } finally {
+      if (taskId === taskIdRef.current) importingRef.current = false
+    }
+  }
+
+  const handleDownloadResults = async () => {
+    if (resultsBusy || !outcomes) return
+    setResultsBusy(true)
+    setError(null)
+    try {
+      await downloadResults(`${kind.fileName} - results`, outcomes)
+    } catch (err: unknown) {
+      setError(errorMessage(err))
+    } finally {
+      setResultsBusy(false)
     }
   }
 
@@ -245,7 +279,12 @@ export default function ImportDialog<T, Ctx>({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        if (phase === 'importing') return
+        taskIdRef.current += 1
+        readingRef.current = false
+        onClose()
+      }}
       title={`Bulk import ${noun}`}
       description="1 Upload → 2 Review → 3 Import. Everything is processed in your browser."
       size="xl"
@@ -258,7 +297,7 @@ export default function ImportDialog<T, Ctx>({
           />
         ) : phase === 'done' ? (
           <>
-            <Button variant="outline" onClick={() => void downloadResults(`${kind.fileName} - results`, outcomes ?? [])}>
+            <Button variant="outline" loading={resultsBusy} onClick={() => void handleDownloadResults()}>
               <Download className="h-4 w-4" /> Download results
             </Button>
             <Button onClick={onClose}>Done</Button>
@@ -295,23 +334,31 @@ export default function ImportDialog<T, Ctx>({
               type="file"
               accept=".csv,.xlsx"
               className="hidden"
+              disabled={phase === 'reading' || phase === 'importing'}
               onChange={(e) => void processFile(e.target.files?.[0])}
             />
             <button
               type="button"
+              disabled={phase === 'reading' || phase === 'importing'}
+              aria-busy={phase === 'reading' || undefined}
               onClick={() => fileRef.current?.click()}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault()
+                if (phase === 'reading' || phase === 'importing') return
                 const file = event.dataTransfer.files[0]
                 if (file) void processFile(file)
               }}
-              className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-ink/10 px-6 py-10 text-center hover:border-accent dark:border-white/10"
+              className="flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-ink/10 px-6 py-10 text-center hover:border-accent disabled:cursor-wait disabled:opacity-70 dark:border-white/10"
             >
-              <Upload className="h-7 w-7 text-accent" />
-              <span className="mt-3 text-sm font-semibold text-ink dark:text-white">
-                {phase === 'reading' ? 'Reading and checking…' : `Upload ${noun} file`}
-              </span>
+              {phase === 'reading' ? (
+                <InlineLoader label={`Reading and checking ${noun}`} state="working" />
+              ) : (
+                <>
+                  <Upload className="h-7 w-7 text-accent" />
+                  <span className="mt-3 text-sm font-semibold text-ink dark:text-white">Upload {noun} file</span>
+                </>
+              )}
               <span className="mt-1 text-xs text-graphite">Drop a file here or choose Excel File</span>
               <span className="mt-2 text-[11px] text-graphite">Supported formats: XLSX, CSV · up to {kind.maxRows} rows</span>
             </button>

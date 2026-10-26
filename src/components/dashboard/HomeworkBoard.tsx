@@ -471,7 +471,7 @@ export default function HomeworkBoard({ classes, schoolId, timeZone }: HomeworkB
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={isSaving}>
+            <Button onClick={handleSubmit} loading={isSaving}>
               {isSaving ? 'Assigning…' : 'Assign to Class'}
             </Button>
           </>

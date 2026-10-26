@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ArrowLeft, Clock, MagnifyingGlass, Plus, WarningCircle } from '@phosphor-icons/react'
+import { ThinkingOrb } from 'thinking-orbs'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
 import type { PlatformOperatorRecord } from '@/services/platformService'
@@ -307,7 +308,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
                 <LabeledField label="Private note">
                   <textarea className={`${fieldClass} min-h-24 resize-y`} value={note} onChange={(event) => setNote(event.target.value)} maxLength={3000} placeholder="Record investigation context for other operators" />
                 </LabeledField>
-                <Button type="submit" size="sm" variant="outline" disabled={busy || !note.trim()}>Add note</Button>
+                <Button type="submit" size="sm" variant="outline" loading={busy} disabled={busy || !note.trim()}>Add note</Button>
               </form>
               <form className="mt-5 grid gap-3 border-t border-ink/10 pt-5 dark:border-white/10 sm:grid-cols-2" onSubmit={(event) => void saveEvidence(event)}>
                 <LabeledField label="Evidence description">
@@ -316,7 +317,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
                 <LabeledField label="Evidence URL or reference">
                   <input className={fieldClass} value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} maxLength={1000} placeholder="Link to approved evidence storage" />
                 </LabeledField>
-                <div className="sm:col-span-2"><Button type="submit" size="sm" variant="outline" disabled={busy || !evidenceBody.trim() || !evidenceReference.trim()}>Add evidence reference</Button></div>
+                <div className="sm:col-span-2"><Button type="submit" size="sm" variant="outline" loading={busy} disabled={busy || !evidenceBody.trim() || !evidenceReference.trim()}>Add evidence reference</Button></div>
               </form>
             </section>
 
@@ -324,7 +325,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
               <section className={panelClass}>
                 <h2 className="font-semibold">Approval</h2>
                 <p className="mt-2 text-sm text-graphite">Approval status: <span className="font-semibold capitalize text-ink dark:text-white">{selected.approvalStatus.replace('_', ' ')}</span></p>
-                {selected.approvalStatus === 'pending' && <div className="mt-4 flex flex-wrap gap-2"><Button variant="accent" size="sm" disabled={busy} onClick={() => void update({ approvalStatus: 'approved' }, 'Approval recorded.')}>Approve</Button><Button variant="danger" size="sm" disabled={busy} onClick={() => void update({ approvalStatus: 'declined' }, 'Approval declined.')}>Decline</Button></div>}
+                {selected.approvalStatus === 'pending' && <div className="mt-4 flex flex-wrap gap-2"><Button variant="accent" size="sm" loading={busy} disabled={busy} onClick={() => void update({ approvalStatus: 'approved' }, 'Approval recorded.')}>Approve</Button><Button variant="danger" size="sm" loading={busy} disabled={busy} onClick={() => void update({ approvalStatus: 'declined' }, 'Approval declined.')}>Decline</Button></div>}
               </section>
             )}
           </div>
@@ -338,8 +339,8 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
                 <LabeledField label="Severity"><Select className="min-h-11" value={selected.severity} disabled={busy} onChange={(event) => void update({ severity: event.target.value as PlatformCaseSeverity }, 'Case severity updated.')}><option value="sev1">SEV 1 · Critical</option><option value="sev2">SEV 2 · High</option><option value="sev3">SEV 3 · Moderate</option><option value="sev4">SEV 4 · Low</option></Select></LabeledField>
                 <LabeledField label="Assigned operator"><Select className="min-h-11" value={selected.assignedOperatorId ?? ''} disabled={busy} onChange={(event) => void update({ assignedOperatorId: event.target.value || null }, 'Case assignment updated.')}><option value="">Unassigned</option>{operators.filter((item) => !item.revokedAt).map((item) => <option key={item.id} value={item.id}>{item.fullName}</option>)}</Select></LabeledField>
                 <LabeledField label="Team"><input className={fieldClass} defaultValue={selected.team ?? ''} disabled={busy} maxLength={80} placeholder="Assign a team" onBlur={(event) => { const value = event.target.value.trim() || null; if (value !== selected.team) void update({ team: value }, 'Team routing updated.') }} /></LabeledField>
-                <LabeledField label="Deadline"><div className="flex gap-2"><input className={fieldClass} type="datetime-local" disabled={busy} value={deadlineDraft} onChange={(event) => setDeadlineDraft(event.target.value)} /><Button type="button" size="sm" variant="outline" disabled={busy || deadlineDraft === localDateTimeInput(selected.dueAt)} onClick={() => void update({ dueAt: deadlineDraft ? new Date(deadlineDraft).toISOString() : null }, 'Case deadline updated.')}>Save</Button></div></LabeledField>
-                <button type="button" disabled={busy || selected.status === 'resolved' || selected.status === 'closed' || selected.approvalStatus === 'pending' || selected.approvalStatus === 'approved'} onClick={() => void update({ requiresApproval: true, approvalStatus: 'pending' }, 'Approval requested.')} className="min-h-11 w-full border border-ink/10 px-3 text-left text-sm font-semibold disabled:opacity-60 dark:border-white/10">{selected.approvalStatus === 'declined' ? 'Request approval again' : selected.requiresApproval ? 'Approval required' : 'Request approval'}</button>
+                <LabeledField label="Deadline"><div className="flex gap-2"><input className={fieldClass} type="datetime-local" disabled={busy} value={deadlineDraft} onChange={(event) => setDeadlineDraft(event.target.value)} /><Button type="button" size="sm" variant="outline" loading={busy} disabled={busy || deadlineDraft === localDateTimeInput(selected.dueAt)} onClick={() => void update({ dueAt: deadlineDraft ? new Date(deadlineDraft).toISOString() : null }, 'Case deadline updated.')}>Save</Button></div></LabeledField>
+                <button type="button" disabled={busy || selected.status === 'resolved' || selected.status === 'closed' || selected.approvalStatus === 'pending' || selected.approvalStatus === 'approved'} aria-busy={busy || undefined} onClick={() => void update({ requiresApproval: true, approvalStatus: 'pending' }, 'Approval requested.')} className="flex min-h-11 w-full items-center gap-2 border border-ink/10 px-3 text-left text-sm font-semibold disabled:opacity-60 dark:border-white/10">{busy && <ThinkingOrb state="working" size={20} color="#C9471B" aria-hidden="true" />}{selected.approvalStatus === 'declined' ? 'Request approval again' : selected.requiresApproval ? 'Approval required' : 'Request approval'}</button>
               </div>
               {selected.status === 'escalated' && <p className="mt-4 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300"><WarningCircle className="mt-0.5 h-4 w-4 shrink-0" />Escalated case. Confirm an owner and deadline.</p>}
             </section>
@@ -363,7 +364,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
               {assignee && <p className="mt-2 text-sm text-graphite">Owner: <span className="font-medium text-ink dark:text-white">{assignee.fullName}</span></p>}
               <p className="mt-2 flex items-center gap-2 text-xs text-graphite"><Clock className="h-4 w-4" />Due {dateTime(selected.dueAt)}</p>
               <LabeledField label="Resolution summary"><textarea className={`${fieldClass} mt-3 min-h-24 resize-y`} value={resolution} onChange={(event) => setResolution(event.target.value)} maxLength={3000} placeholder="Record outcome and follow-up" /></LabeledField>
-              <Button className="mt-3 w-full" size="sm" variant="accent" disabled={busy || !resolution.trim() || selected.status === 'resolved' || selected.approvalStatus === 'pending'} onClick={() => void update({ resolution: resolution.trim(), status: 'resolved' }, 'Case resolved and recorded.')}>Record resolution</Button>
+              <Button className="mt-3 w-full" size="sm" variant="accent" loading={busy} disabled={busy || !resolution.trim() || selected.status === 'resolved' || selected.approvalStatus === 'pending'} onClick={() => void update({ resolution: resolution.trim(), status: 'resolved' }, 'Case resolved and recorded.')}>Record resolution</Button>
               {selected.approvalStatus === 'pending' && <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">Resolve after the requested approval is decided.</p>}
             </section>
           </aside>

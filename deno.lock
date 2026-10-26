@@ -27,6 +27,7 @@
         "npm:react@^18.3.1",
         "npm:supabase@^2.116.0",
         "npm:tailwindcss@^3.4.10",
+        "npm:thinking-orbs@~0.3.2",
         "npm:typescript@^5.5.4",
         "npm:vite@^5.4.2"
       ]

@@ -8,6 +8,10 @@ School subscription payments use a separate `platform_invoices` /
 `platform_payments` ledger and the new, not-yet-applied
 `20261023120000_subscription_checkout.sql` migration. Production configuration
 and deployment remain a separate approval stage.
+The repository also contains migration
+`20261023000001_guardian_payment_receipt_details.sql` for verified receipt
+metadata and private optional evidence files. Its application to the connected
+production database has not been performed or verified here.
 **Reads:** `SCHEMA_DESIGN.md` §11 (payment events, deferred) and §29 (`fee_payments`);
 migration `20260912000006_finance_rls`; corrective
 `20260914000001_restrict_fee_record_amount_paid_insert` (§H.13 of the Phase 8 plan).
@@ -25,8 +29,9 @@ the trigger, or the finance policies.
 1. **One shared WaafiPay merchant account** for the whole platform. One set of
    credentials, held as Edge Function secrets. No per-school credential storage.
 2. **The parent payment UI calls the server-side fee flow.** It never writes
-   `fee_payments` directly and reports success only after the server confirms
-   that the fee payment was applied.
+   `fee_payments` directly. It reports success only after the server confirms
+   an applied payment; pending, failed, cancelled, or unverified outcomes are
+   not presented as paid.
 3. **Owner, director and administrator may read `payment_events`**, raw payloads
    and any contact details in them included, within their own school.
 4. **Four payment methods from the start** in one `payment_method` column:
@@ -147,5 +152,9 @@ must insert `fee_payments` rows only and never write `fee_records.amount_paid`.
 
 ## Decisions for you
 
-None outstanding. The three decisions this plan raised, plus the payment-method
-scope, were locked on 2026-09-15 and are recorded at the top of this document.
+The remaining live-payment handoff requires WaafiPay merchant approval for
+school fee collection, credentials in Supabase Edge Function secrets, and
+documented/sandbox-tested provider requests and responses. No live method is
+shown or claimed until that work is complete. School fee payments remain
+separate from Nom Cloud subscription billing; this flow uses only
+`fee_records`, `fee_payments`, and `payment_events`.

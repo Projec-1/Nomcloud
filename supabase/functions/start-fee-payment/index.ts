@@ -12,8 +12,9 @@
 //      fee's student, or owner / director / administrator of its school.
 //   3. Mock safety: in mock mode, refuse any school that is not the demo school.
 //   4. Validate the amount against the REAL remaining balance read from the
-//      database (decision 2): greater than zero, at most the balance, two
-//      decimal places. Partial payments are allowed.
+//      database: greater than zero, at most the balance, two decimal places.
+//      The full balance is required until a school policy for partial payments
+//      exists.
 //   5. PreAuthorize through the provider adapter.
 //   6. Record the provider's answer through apply_payment_event.
 //   7. Return the transaction reference for settle-fee-payment.
@@ -43,6 +44,7 @@ interface StartRequest {
   amount: number
   payment_method: PaymentMethod
   account_no: string
+  require_mock?: boolean
 }
 
 async function rejectUnresolvedPayment(
@@ -119,12 +121,18 @@ Deno.serve(async (request) => {
     const fee = await loadPayableFee(clients, input.fee_record_id)
 
     const provider = getPaymentProvider()
+    if (input.require_mock === true && !provider.isMock) {
+      throw new HttpError(503, 'Test payments are unavailable while the live payment provider is active')
+    }
     enforceMockSafety(provider.isMock, fee)
     await rejectUnresolvedPayment(clients, fee, provider.name)
 
     if (fee.balance <= 0) throw new HttpError(409, 'This fee is already fully paid')
     if (input.amount > fee.balance) {
       throw new HttpError(422, `amount exceeds the remaining balance of ${fee.balance.toFixed(2)} ${fee.currency}`)
+    }
+    if (Math.round(input.amount * 100) !== Math.round(fee.balance * 100)) {
+      throw new HttpError(422, 'Partial fee payments are not currently enabled')
     }
 
     const result = await provider.preAuthorize({

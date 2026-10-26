@@ -1061,6 +1061,24 @@
   --nc-radius: 10px;
 }
 
+.nc-startup-loader__logo {
+  transform-origin: center;
+  animation: nc-startup-logo-breathe 2.4s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+  will-change: transform;
+}
+
+@keyframes nc-startup-logo-breathe {
+  0%, 100% { transform: scale(0.96); }
+  50% { transform: scale(1.04); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nc-startup-loader__logo {
+    animation: none;
+    will-change: auto;
+  }
+}
+
 .dark {
   color-scheme: dark;
   --nc-canvas: #171917;
@@ -1541,6 +1559,14 @@ textarea:focus {
   box-shadow: none !important;
 }
 
+.admin-ai-logo-badge {
+  background-color: #fff;
+}
+
+.dark .admin-ai-logo-badge {
+  background-color: #fff !important;
+}
+
 [class*='backdrop-blur'] {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -1715,6 +1741,81 @@ table {
   .parent-dashboard__stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.nc-skeleton {
+  background-color: rgb(34 35 33 / 6%);
+  animation: nc-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.dark .nc-skeleton {
+  background-color: rgb(255 255 255 / 10%);
+}
+
+.nc-payment-progress {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(34 35 33 / 8%);
+}
+
+.dark .nc-payment-progress {
+  background: rgb(255 255 255 / 12%);
+}
+
+.nc-payment-progress__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #c9471b;
+  transform-origin: left center;
+  transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[dir='rtl'] .nc-payment-progress__fill {
+  transform-origin: right center;
+}
+
+.nc-payment-success {
+  display: grid;
+  width: 5rem;
+  height: 5rem;
+  place-items: center;
+  border: 1px solid rgb(22 163 74 / 22%);
+  border-radius: 50%;
+  background: rgb(22 163 74 / 8%);
+  color: #15803d;
+  animation: nc-success-reveal 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.nc-payment-success__check {
+  animation: nc-check-reveal 300ms 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.nc-payment-error-mark,
+.nc-payment-cancelled-mark {
+  animation: nc-status-settle 260ms ease-out both;
+}
+
+@keyframes nc-skeleton-pulse {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
+}
+
+@keyframes nc-success-reveal {
+  from { opacity: 0; transform: scale(0.86); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes nc-check-reveal {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes nc-status-settle {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1918,18 +2019,21 @@ table {
 
   .print-document {
     position: absolute !important;
-    inset: 0 auto auto 0 !important;
+    top: 0 !important;
+    left: 50% !important;
+    right: auto !important;
     display: block !important;
-    width: 100% !important;
-    max-width: none !important;
+    width: 160mm !important;
+    max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
-    border: 0 !important;
-    border-radius: 0 !important;
+    border: 1px solid #d9dee7 !important;
+    border-radius: 3mm !important;
     background: #fff !important;
     box-shadow: none !important;
     color: #111 !important;
+    transform: translateX(-50%) !important;
   }
 
   .print-document * {
@@ -1975,6 +2079,23 @@ table {
     color: #333 !important;
   }
 
+  .print-document .receipt-brand-bar {
+    background-color: #e6252a !important;
+  }
+
+  .print-document .receipt-status--test,
+  .print-document .receipt-test-notice {
+    border-color: #b45309 !important;
+    background-color: #fef3c7 !important;
+    color: #78350f !important;
+  }
+
+  .print-document .receipt-status--verified {
+    border-color: #047857 !important;
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+  }
+
   .print-only {
     display: block !important;
   }
@@ -1993,4 +2114,106 @@ table {
 
 .print-only {
   display: none;
+}
+
+.receipt-print-root {
+  display: none !important;
+}
+
+@media print {
+  @page receipt {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  body.printing-payment-receipt {
+    display: block !important;
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body.printing-payment-receipt > *:not(.receipt-print-root) {
+    display: none !important;
+  }
+
+  body.printing-payment-receipt .receipt-print-root {
+    position: static !important;
+    display: none !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    visibility: visible !important;
+  }
+
+  body.printing-payment-receipt .receipt-print-root.receipt-print-selected {
+    display: block !important;
+    page: receipt;
+  }
+
+  body.printing-payment-receipt .receipt-print-root,
+  body.printing-payment-receipt .receipt-print-root * {
+    visibility: visible !important;
+  }
+
+  body.printing-payment-receipt .receipt-paper {
+    position: static !important;
+    width: 100% !important;
+    max-width: 180mm !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #152238 !important;
+    transform: none !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  body.printing-payment-receipt .receipt-content {
+    padding: 5mm 6mm !important;
+    font-size: 9pt !important;
+  }
+
+  body.printing-payment-receipt .receipt-paper header,
+  body.printing-payment-receipt .receipt-paper section,
+  body.printing-payment-receipt .receipt-paper dl,
+  body.printing-payment-receipt .receipt-paper footer,
+  body.printing-payment-receipt .receipt-paper dt,
+  body.printing-payment-receipt .receipt-paper dd,
+  body.printing-payment-receipt .receipt-paper p,
+  body.printing-payment-receipt .receipt-paper span,
+  body.printing-payment-receipt .receipt-paper img {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  body.printing-payment-receipt .receipt-paper .receipt-brand-bar {
+    background-color: #c9471b !important;
+  }
+
+  body.printing-payment-receipt .receipt-paper .receipt-status--test,
+  body.printing-payment-receipt .receipt-paper .receipt-test-notice {
+    border-color: #b45309 !important;
+    background-color: #fef3c7 !important;
+    color: #78350f !important;
+  }
+
+  body.printing-payment-receipt .receipt-paper .receipt-status--verified {
+    border-color: #047857 !important;
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+  }
 }

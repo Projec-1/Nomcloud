@@ -1,13 +1,14 @@
 # Nom Cloud — Payment Edge Function Plan (WaafiPay)
 
 **Status:** The student-fee flow uses the existing `payment_events` and
-`fee_payments` ledgers. A shared WaafiPay adapter now implements the documented
-sandbox purchase and preauthorization APIs; the school-subscription checkout is
-being added separately in code and migration
-`20261023120000_subscription_checkout.sql`. That migration and the new
+`fee_payments` ledgers. A shared WaafiPay adapter implements the documented
+sandbox purchase and preauthorization APIs, and the parent fee page calls the
+server-side payment functions. No merchant sandbox transaction has been
+verified, and the adapter rejects the production endpoint. School-subscription
+checkout is implemented separately in code and migration
+`20261023120000_subscription_checkout.sql`; that migration and the new
 `subscription-checkout` Edge Function have not been applied or deployed as part
-of this work. Sandbox credentials and a merchant transaction have not been
-verified. The adapter rejects the production endpoint.
+of this work. Do not treat demo-mode results as live provider confirmation.
 **Reads:** `docs/PAYMENT_INTEGRATION_PLAN.md`; migration
 `20260915000002_payment_events`; `supabase/functions/approve-school-application/index.ts`
 as the structural pattern.
@@ -28,8 +29,8 @@ jobs, with different callers and different trust.
 
 | Function | Called by | Does | Writes money? |
 |---|---|---|---|
-| `start-fee-payment` | Signed-in parent (JWT required) | Verifies the caller may pay this fee, checks the amount against the real balance, calls PreAuthorize, records the provider's answer as a `pending` or `declined` event, returns a transaction reference. | **No** |
-| `settle-fee-payment` | The app polling after the parent approves, or a WaafiPay callback if one exists | Asks WaafiPay for the outcome and calls Commit, then records and applies the result. Re-running it is harmless. | **Yes, via the DB function** |
+| `start-fee-payment` | Signed-in guardian or authorized school finance admin (JWT required) | Verifies the caller may pay this fee, checks the amount against the real balance, calls PreAuthorize, records the provider's answer as a `pending` or `declined` event, returns a transaction reference. | **No** |
+| `settle-fee-payment` | The app checking status after payment starts, or a future verified WaafiPay callback | Asks WaafiPay for the outcome and calls Commit, then records and applies the result. Re-running it is harmless. | **Yes, via the DB function** |
 
 Keeping the money write out of the first function means a start request can never
 create a payment, however it is called.
@@ -179,10 +180,10 @@ database function.
 1. **Owner, director and administrator may start a payment on a parent's behalf**,
    for any fee in their school. A guardian may start one only for their own linked
    student's fee.
-2. **Partial payments are allowed**, up to the remaining balance. No new constraint
-   was needed: `fee_payments_amount_check` (`amount > 0`) and
-   `fee_records_amount_paid_not_over_check` (`amount_paid <= amount`) already
-   express exactly that.
+2. **Partial payments were originally allowed** up to the remaining balance.
+   The parent checkout now requires full-balance payments until a school-level
+   partial-payment policy exists. The Edge Function enforces this server-side;
+   do not re-enable partial amounts based on a frontend-only check.
 
 ---
 
