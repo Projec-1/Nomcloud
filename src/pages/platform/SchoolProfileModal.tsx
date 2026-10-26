@@ -12,7 +12,6 @@ const profileTabs = [
   'Activity',
   'Requests',
   'Records',
-  'Permissions',
   'Audit History',
 ]
 
@@ -285,28 +284,6 @@ export default function SchoolProfileModal({
           </section>
         )}
 
-        {tab === 'Permissions' && (
-          <section aria-labelledby="school-permissions-heading">
-            <h2 id="school-permissions-heading" className="font-semibold">School access</h2>
-            <p className="mt-1 text-sm text-graphite">Current role scopes for this organization.</p>
-            <div className="mt-3 divide-y divide-ink/10 dark:divide-white/10">
-              {[
-                ['Administrator', 'Manage school settings, staff, and records'],
-                ['Teacher', 'Access assigned classes and teaching records'],
-                ['Parent or guardian', 'View linked children and school updates'],
-              ].map(([role, scope]) => (
-                <div key={role} className="flex min-h-16 items-start gap-3 py-3">
-                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{role}</span>
-                    <span className="mt-1 block text-xs text-graphite">{scope}</span>
-                  </span>
-                  <span className="text-xs text-graphite">Role scope</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
     </Modal>
   )

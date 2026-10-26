@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, CheckCircle, CircleNotch, CreditCard, ShieldCheck } from '@phosphor-icons/react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ArrowLeft, ArrowRight, CheckCircle, CircleNotch, DeviceMobile, ShieldCheck } from '@phosphor-icons/react'
 import type { SchoolRow } from '@/types/auth'
 import { useLanguage } from '@/context/LanguageContext'
 import { fetchChildFeeRecords, type FeeRecordView } from '@/services/financeService'
@@ -7,6 +7,10 @@ import {
   isVerifiedFeePayment,
   settleFeePayment,
   startFeePayment,
+  clearPendingFeePayment,
+  loadPendingFeePayment,
+  recoverFeePayment,
+  savePendingFeePayment,
   type SettledFeePayment,
 } from '@/services/feePaymentService'
 import { errorMessage } from '@/utils/errorMessage'
@@ -17,8 +21,29 @@ import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import PaymentReceiptDocument, { type PaymentReceiptDetails } from '@/components/finance/PaymentReceiptDocument'
 import PaymentReceiptActions from '@/components/finance/PaymentReceiptActions'
+import PaymentMethodCard from '@/components/finance/PaymentMethodCard'
 
-type Step = 'review' | 'method' | 'confirm' | 'processing' | 'success' | 'failed'
+type Step = 'review' | 'method' | 'confirm' | 'processing' | 'pending' | 'notConfirmed' | 'success' | 'failed' | 'cancelled' | 'unavailable'
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error('Payment status check timed out.')), timeoutMs)
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeout)
+        resolve(value)
+      },
+      (reason: unknown) => {
+        window.clearTimeout(timeout)
+        reject(reason)
+      },
+    )
+  })
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+}
 
 interface FeePaymentCheckoutProps {
   fee: FeeRecordView
@@ -41,12 +66,23 @@ export default function FeePaymentCheckout({
   const [amountMode, setAmountMode] = useState<'full' | 'partial'>('full')
   const [partialAmount, setPartialAmount] = useState('')
   const [accountNo, setAccountNo] = useState('')
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'mobile_money' | null>(null)
   const [transactionId, setTransactionId] = useState<string | null>(null)
   const [isMock, setIsMock] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [receiptError, setReceiptError] = useState('')
   const [receipt, setReceipt] = useState<PaymentReceiptDetails | null>(null)
+  const statusCheckId = useRef(0)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      statusCheckId.current += 1
+    }
+  }, [])
 
   const amount = amountMode === 'full' ? fee.balance : Number(partialAmount)
   const amountIsValid = Number.isFinite(amount) && amount > 0 && amount <= fee.balance
@@ -57,6 +93,7 @@ export default function FeePaymentCheckout({
     setAmountMode('full')
     setPartialAmount('')
     setAccountNo('')
+    setSelectedPaymentMethod(null)
     setTransactionId(null)
     setReceipt(null)
     setError('')
@@ -64,8 +101,21 @@ export default function FeePaymentCheckout({
   }
 
   const openCheckout = () => {
-    if (step === 'failed') startOver()
+    if (step === 'failed' || step === 'cancelled' || step === 'success') startOver()
     setOpen(true)
+    try {
+      const attempt = loadPendingFeePayment(fee.id)
+      if (!attempt) {
+        if (!canUseGateway) setStep('unavailable')
+        return
+      }
+      setTransactionId(attempt.transactionId)
+      setStep('notConfirmed')
+      setError(t('fees.checkout.paymentNotConfirmedMessage'))
+    } catch (attemptError) {
+      setStep('notConfirmed')
+      setError(errorMessage(attemptError))
+    }
   }
 
   const finishVerifiedPayment = async (result: SettledFeePayment) => {
@@ -102,6 +152,7 @@ export default function FeePaymentCheckout({
         paidOn: payment.paidOn,
         paidAt: payment.paidAt,
         providerReference: result.transactionId,
+        isTestPayment: result.mock,
         status: 'verified',
       })
     } catch (receiptLoadError) {
@@ -109,37 +160,113 @@ export default function FeePaymentCheckout({
     }
   }
 
-  const checkStatus = async (id: string) => {
+  const checkStatus = async (id: string, confirmedPending = false) => {
+    const checkId = ++statusCheckId.current
     setIsSubmitting(true)
     setError('')
     setStep('processing')
     try {
-      const result = await settleFeePayment(id)
-      setIsMock(result.mock)
-      if (isVerifiedFeePayment(result)) {
-        await finishVerifiedPayment(result)
-      } else if (result.eventType === 'declined' || result.eventType === 'cancelled' || result.outcome === 'rejected') {
-        setStep('failed')
-        setError(
-          result.eventType === 'cancelled'
-            ? t('fees.checkout.cancelled')
-            : result.reason === 'exceeds_balance'
-              ? t('fees.checkout.balanceChanged')
-              : t('fees.checkout.declined'),
-        )
-      } else {
-        setStep('processing')
+      let providerPending = confirmedPending
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        if (!mounted.current || statusCheckId.current !== checkId) return
+        let result: SettledFeePayment
+        try {
+          result = await withTimeout(settleFeePayment(id), 5000)
+        } catch {
+          if (!mounted.current || statusCheckId.current !== checkId) return
+          if (attempt < 3) await wait(1500)
+          continue
+        }
+        if (!mounted.current || statusCheckId.current !== checkId) return
+        setIsMock(result.mock)
+        if (isVerifiedFeePayment(result)) {
+          clearPendingFeePayment(fee.id)
+          await finishVerifiedPayment(result)
+          return
+        }
+        if (result.eventType === 'cancelled') {
+          clearPendingFeePayment(fee.id)
+          setStep('cancelled')
+          setError(t('fees.checkout.cancelled'))
+          return
+        }
+        if (result.eventType === 'pending') providerPending = true
+        if (result.eventType === 'declined' || result.outcome === 'rejected') {
+          clearPendingFeePayment(fee.id)
+          setStep('failed')
+          setError(result.reason === 'exceeds_balance' ? t('fees.checkout.balanceChanged') : t('fees.checkout.declined'))
+          return
+        }
+        if (attempt < 3) await wait(1500)
       }
-    } catch (verificationError) {
-      setStep('processing')
-      setError(errorMessage(verificationError))
+      if (mounted.current && statusCheckId.current === checkId) {
+        setStep(providerPending ? 'pending' : 'notConfirmed')
+        setError(providerPending ? t('fees.checkout.paymentPendingMessage') : t('fees.checkout.paymentNotConfirmedMessage'))
+      }
     } finally {
+      if (mounted.current && statusCheckId.current === checkId) setIsSubmitting(false)
+    }
+  }
+
+  const checkSavedStatus = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    setStep('processing')
+    setError('')
+    try {
+      const attempt = loadPendingFeePayment(fee.id)
+      if (!attempt) {
+        setStep('notConfirmed')
+        setError(t('fees.checkout.paymentNotConfirmedMessage'))
+        return
+      }
+      if (attempt.transactionId) {
+        setTransactionId(attempt.transactionId)
+        setIsSubmitting(false)
+        await checkStatus(attempt.transactionId)
+        return
+      }
+      const recovered = await withTimeout(recoverFeePayment(fee.id, attempt.clientReference), 5000)
+      if (!mounted.current) return
+      if (!recovered) {
+        setStep('notConfirmed')
+        setError(t('fees.checkout.paymentNotConfirmedMessage'))
+        return
+      }
+      setTransactionId(recovered.transactionId)
+      setIsMock(recovered.mock)
+      if (recovered.eventType === 'declined' || recovered.eventType === 'cancelled') {
+        clearPendingFeePayment(fee.id)
+        setStep(recovered.eventType === 'cancelled' ? 'cancelled' : 'failed')
+        setError(recovered.eventType === 'cancelled' ? t('fees.checkout.cancelled') : t('fees.checkout.declined'))
+        return
+      }
+      savePendingFeePayment(fee.id, { ...attempt, transactionId: recovered.transactionId })
       setIsSubmitting(false)
+      await checkStatus(recovered.transactionId, recovered.eventType === 'pending')
+    } catch {
+      if (mounted.current) {
+        setStep('notConfirmed')
+        setError(t('fees.checkout.paymentNotConfirmedMessage'))
+      }
+    } finally {
+      if (mounted.current) setIsSubmitting(false)
     }
   }
 
   const confirmPayment = async () => {
-    if (!school || !canUseGateway || !amountIsValid) return
+    if (isSubmitting || !school || !canUseGateway || !amountIsValid || selectedPaymentMethod !== 'mobile_money') return
+    try {
+      if (loadPendingFeePayment(fee.id)) {
+        setStep('notConfirmed')
+        setError(t('fees.checkout.paymentNotConfirmedMessage'))
+        return
+      }
+    } catch (attemptError) {
+      setStep('notConfirmed')
+      setError(errorMessage(attemptError))
+      return
+    }
     const trimmedAccount = accountNo.trim()
     if (!/^\+?\d{6,15}$/.test(trimmedAccount)) {
       setError(t('fees.checkout.invalidAccount'))
@@ -149,24 +276,42 @@ export default function FeePaymentCheckout({
 
     setIsSubmitting(true)
     setError('')
+    const reference = crypto.randomUUID()
+    let attemptSaved = false
     try {
+      savePendingFeePayment(fee.id, { clientReference: reference, transactionId: null, amount, createdAt: new Date().toISOString() })
+      attemptSaved = true
       const started = await startFeePayment({
         feeRecordId: fee.id,
+        clientReference: reference,
         amount,
-        paymentMethod: 'mobile_money',
+        paymentMethod: selectedPaymentMethod,
         accountNo: trimmedAccount,
       })
       setTransactionId(started.transactionId)
       setIsMock(started.mock)
+      savePendingFeePayment(fee.id, {
+        clientReference: reference,
+        transactionId: started.transactionId,
+        amount,
+        createdAt: new Date().toISOString(),
+      })
       if (started.eventType === 'declined' || started.eventType === 'cancelled') {
-        setStep('failed')
+        clearPendingFeePayment(fee.id)
+        setStep(started.eventType === 'cancelled' ? 'cancelled' : 'failed')
         setError(started.eventType === 'cancelled' ? t('fees.checkout.cancelled') : t('fees.checkout.declined'))
         return
       }
-      await checkStatus(started.transactionId)
+      setIsSubmitting(false)
+      await checkStatus(started.transactionId, started.eventType === 'pending')
     } catch (startError) {
-      setStep('failed')
-      setError(errorMessage(startError))
+      if (attemptSaved) {
+        setStep('notConfirmed')
+        setError(t('fees.checkout.paymentNotConfirmedMessage'))
+      } else {
+        setStep('confirm')
+        setError(errorMessage(startError))
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -199,7 +344,7 @@ export default function FeePaymentCheckout({
           <Button variant="ghost" onClick={() => setStep('review')} icon={<ArrowLeft className="h-4 w-4" />}>
             {t('fees.checkout.back')}
           </Button>
-          <Button onClick={() => { setError(''); setStep('confirm') }} disabled={!accountNo.trim()}>
+          <Button onClick={() => { setError(''); setStep('confirm') }} disabled={!accountNo.trim() || !selectedPaymentMethod}>
             {t('fees.checkout.continue')}
           </Button>
         </>
@@ -220,7 +365,7 @@ export default function FeePaymentCheckout({
     if (step === 'processing') {
       return (
         <>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={isSubmitting}>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
             {t('fees.checkout.backToFees')}
           </Button>
           <Button
@@ -228,6 +373,16 @@ export default function FeePaymentCheckout({
             loading={isSubmitting}
             disabled={!transactionId || isSubmitting}
           >
+            {t('fees.checkout.checkStatus')}
+          </Button>
+        </>
+      )
+    }
+    if (step === 'notConfirmed' || step === 'pending') {
+      return (
+        <>
+          <Button variant="ghost" onClick={() => setOpen(false)}>{t('fees.checkout.backToFees')}</Button>
+          <Button onClick={checkSavedStatus} loading={isSubmitting} disabled={isSubmitting}>
             {t('fees.checkout.checkStatus')}
           </Button>
         </>
@@ -241,12 +396,23 @@ export default function FeePaymentCheckout({
         </>
       )
     }
+    if (step === 'cancelled') {
+      return (
+        <>
+          <Button variant="ghost" onClick={() => setOpen(false)}>{t('fees.checkout.backToFees')}</Button>
+          <Button onClick={startOver}>{t('fees.checkout.tryAgain')}</Button>
+        </>
+      )
+    }
+    if (step === 'unavailable') {
+      return <Button variant="ghost" onClick={() => setOpen(false)}>{t('fees.checkout.backToFees')}</Button>
+    }
     return null
   })()
 
   return (
     <>
-      {children(openCheckout, step === 'processing', step === 'success')}
+      {children(openCheckout, step === 'processing' || step === 'pending', step === 'success')}
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -313,14 +479,14 @@ export default function FeePaymentCheckout({
             </div>
             <fieldset>
               <legend className="mb-3 text-sm font-semibold text-ink dark:text-white">{t('fees.checkout.paymentMethod')}</legend>
-              <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-brand bg-brand/[0.04] px-4 py-3">
-                <input type="radio" name={`method-${fee.id}`} checked readOnly />
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand/10 text-brand"><CreditCard className="h-5 w-5" /></span>
-                <span>
-                  <span className="block text-sm font-semibold text-ink dark:text-white">{t('fees.checkout.waafiMobileMoney')}</span>
-                  <span className="mt-0.5 block text-xs text-graphite">{t('fees.checkout.testOnly')}</span>
-                </span>
-              </label>
+              <PaymentMethodCard
+                icon={DeviceMobile}
+                label={t('fees.checkout.waafiMobileMoney')}
+                description={t('fees.checkout.testOnly')}
+                mark="WAAFI"
+                selected={selectedPaymentMethod === 'mobile_money'}
+                onSelect={() => setSelectedPaymentMethod('mobile_money')}
+              />
             </fieldset>
             <Input
               label={t('fees.checkout.testAccount')}
@@ -353,19 +519,33 @@ export default function FeePaymentCheckout({
           </div>
         )}
 
-        {step === 'processing' && (
+        {step === 'unavailable' && (
+          <p role="status" className="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-4 text-sm leading-6 text-graphite">
+            {t('parent.fees.paymentOffice')}
+          </p>
+        )}
+
+        {(step === 'processing' || step === 'pending' || step === 'notConfirmed') && (
           <div role="status" aria-live="polite" className="space-y-4 py-4 text-center">
-            <CircleNotch className="mx-auto h-8 w-8 animate-spin text-brand" aria-hidden="true" />
-            <h2 className="text-lg font-semibold text-ink dark:text-white">{t('fees.checkout.processing')}</h2>
+            {step === 'processing' && <CircleNotch className="mx-auto h-8 w-8 animate-spin text-brand" aria-hidden="true" />}
+            <h2 className="text-lg font-semibold text-ink dark:text-white">
+              {step === 'pending'
+                ? t('fees.checkout.paymentPending')
+                : step === 'notConfirmed'
+                  ? t('fees.checkout.paymentNotConfirmed')
+                  : t('fees.checkout.processing')}
+            </h2>
             <p className="mx-auto max-w-md text-sm leading-6 text-graphite">{error || t('fees.checkout.processingDescription')}</p>
             {transactionId && <p className="break-all text-xs text-graphite">{t('fees.checkout.transactionReference')}: {transactionId}</p>}
           </div>
         )}
 
-        {step === 'failed' && (
+        {(step === 'failed' || step === 'cancelled') && (
           <div className="space-y-3 rounded-xl border border-red-500/25 bg-red-500/[0.04] p-5">
             <h2 className="font-semibold text-ink dark:text-white">{t('fees.checkout.notCompleted')}</h2>
-            <p role="alert" className="text-sm leading-6 text-graphite">{error || t('fees.checkout.declined')}</p>
+            <p role="alert" className="text-sm leading-6 text-graphite">
+              {error || (step === 'cancelled' ? t('fees.checkout.cancelled') : t('fees.checkout.declined'))}
+            </p>
           </div>
         )}
 

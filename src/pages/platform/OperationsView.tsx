@@ -403,9 +403,8 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
           })}
         </div>
       ) : <p className="border-y border-ink/10 px-4 py-10 text-center text-sm text-graphite dark:border-white/10">No cases match these filters.</p>}
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-4 dark:border-white/10">
+      <div className="mt-6 border-t border-ink/10 pt-4 dark:border-white/10">
         <p className="text-xs text-graphite">Contact enquiries are synced into this queue. School requests remain available in Requests &amp; Reviews.</p>
-        <button type="button" className="text-sm font-semibold text-brand underline underline-offset-2" onClick={() => navigate('/platform/health#incidents')}>Open incident command</button>
       </div>
     </div>
   )

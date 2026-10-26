@@ -41,7 +41,6 @@ interface NotificationPrefs {
   newApplication: boolean
   newRequest: boolean
   billingFailure: boolean
-  securityAlert: boolean
   weeklyDigest: boolean
 }
 
@@ -49,7 +48,6 @@ const DEFAULT_PREFS: NotificationPrefs = {
   newApplication: true,
   newRequest: true,
   billingFailure: true,
-  securityAlert: true,
   weeklyDigest: false,
 }
 
@@ -68,7 +66,6 @@ const NOTIFY_OPTIONS: Array<{ key: keyof NotificationPrefs; label: string; detai
   { key: 'newApplication', label: 'New school applications', detail: 'When a school submits an application for review.' },
   { key: 'newRequest', label: 'New contact requests', detail: 'When the public contact form produces a request.' },
   { key: 'billingFailure', label: 'Failed payments', detail: 'When an invoice goes overdue or a payment fails.' },
-  { key: 'securityAlert', label: 'Security alerts', detail: 'When a high severity signal is raised against the platform.' },
   { key: 'weeklyDigest', label: 'Weekly digest', detail: 'A summary of platform activity every Monday.' },
 ]
 
@@ -336,11 +333,8 @@ export default function SettingsSection({
             <ul className="space-y-3 text-sm text-graphite">
               <li className="flex gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> Platform access is verified on the database, not only in this interface.</li>
               <li className="flex gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> Operator grants and revocations are written to <span className="font-mono text-xs">platform_admins</span>.</li>
-              <li className="flex gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" /> Multi-factor authentication is not enforced for operators yet — the Security screen tracks it as an open configuration item.</li>
+              <li className="flex gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" /> Multi-factor authentication is not enforced for operators yet. Configure authentication requirements in Supabase.</li>
             </ul>
-            <div className="mt-4">
-              <Button variant="outline" size="sm" onClick={() => notify('Open the Security screen from the sidebar to review signals and configuration checks.')}>Open Security</Button>
-            </div>
           </Panel>
         </div>
       )}
@@ -399,16 +393,11 @@ export default function SettingsSection({
               <span className="ml-auto text-xs text-graphite">{platform.pendingApplications} applications pending</span>
             </div>
           </Panel>
-          <Panel title="Where platform settings live" description="So nothing is changed twice.">
+          <Panel title="Platform configuration" description="Features are managed in Nom Cloud; infrastructure is managed in Supabase.">
             <ul className="space-y-3 text-sm text-graphite">
-              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Maintenance mode and release windows: <span className="font-semibold text-ink dark:text-white">Maintenance</span></li>
               <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Feature availability and rollouts: <span className="font-semibold text-ink dark:text-white">Features</span></li>
-              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> What each operator role may do: <span className="font-semibold text-ink dark:text-white">Permissions</span></li>
-              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Providers, keys and webhooks: <span className="font-semibold text-ink dark:text-white">Integrations</span></li>
+              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Database, authentication, access policies, backups and infrastructure: <span className="font-semibold text-ink dark:text-white">Supabase Dashboard</span></li>
             </ul>
-            <Restrict>
-              These controls already exist on their own screens with their own audit trails. This page shows them rather than duplicating them, so a change is only ever made in one place.
-            </Restrict>
           </Panel>
         </div>
       )}

@@ -7,10 +7,8 @@ import {
   FileText,
   MagnifyingGlass as Search,
   Megaphone,
-  ShieldWarning,
   UserCircle,
   Warning as AlertTriangle,
-  Wrench,
 } from '@phosphor-icons/react'
 import Button from '@/components/ui/Button'
 import { InlineLoader } from '@/components/ui/Loader'
@@ -32,18 +30,16 @@ import {
   SampleTag,
   type Tone,
 } from './PrototypeKit'
-import { billingInvoices, billingPayments, healthIncidents, integrations, schoolSubscriptions, securitySignals, webhookEndpoints } from './prototypeData'
+import { billingInvoices, billingPayments, schoolSubscriptions } from './prototypeData'
 
 /**
  * Action centre: one inbox for everything that needs an operator decision.
  *
- * Approvals, overdue tasks, failing integrations, billing problems and security
- * alerts all arrive here from one place, each with an owner, a status and a
- * recorded resolution, instead of an operator having to remember which screen a
- * problem lives on.
+ * Approvals, overdue tasks and billing problems arrive here from one place,
+ * each with an owner, a status and a recorded resolution.
  */
 
-export type InboxCategory = 'Approval' | 'Task' | 'Integration' | 'Billing' | 'Security' | 'Health'
+export type InboxCategory = 'Approval' | 'Task' | 'Billing'
 
 export interface InboxItem {
   id: string
@@ -69,26 +65,20 @@ export interface InboxEntry {
 
 export type InboxState = Record<string, InboxEntry>
 
-const CATEGORIES: Array<'All' | InboxCategory> = ['All', 'Approval', 'Task', 'Integration', 'Billing', 'Security', 'Health']
+const CATEGORIES: Array<'All' | InboxCategory> = ['All', 'Approval', 'Task', 'Billing']
 const STATUSES = ['All', 'Unassigned', 'Assigned', 'Resolved'] as const
 type StatusFilter = (typeof STATUSES)[number]
 
 const categoryTone: Record<InboxCategory, Tone> = {
   Approval: 'warning',
   Task: 'info',
-  Integration: 'danger',
   Billing: 'warning',
-  Security: 'danger',
-  Health: 'danger',
 }
 
 const categoryIcon: Record<InboxCategory, typeof AlertTriangle> = {
   Approval: ClipboardCheck,
   Task: FileText,
-  Integration: Wrench,
   Billing: CreditCard,
-  Security: ShieldWarning,
-  Health: AlertTriangle,
 }
 
 function itemStatus(entry: InboxEntry | undefined): StatusFilter | 'Open' {
@@ -193,38 +183,6 @@ export default function ActionCenterSection({
 
     const sampled: InboxItem[] = []
 
-    integrations
-      .filter((integration) => integration.status !== 'Connected')
-      .forEach((integration) => {
-        sampled.push({
-          id: `integration-${integration.id}`,
-          category: 'Integration',
-          title: `${integration.provider} is ${integration.status.toLowerCase()}`,
-          detail: `${integration.category} · credential ${integration.credentialStatus.toLowerCase()}. ${integration.note}`,
-          nextStep: 'Check the credential, run a test delivery, and retry anything queued before telling schools it is fixed.',
-          path: '/platform/integrations',
-          pathLabel: 'Integrations',
-          sample: true,
-          severity: integration.status === 'Disconnected' ? 'danger' : 'warning',
-        })
-      })
-
-    webhookEndpoints
-      .filter((endpoint) => endpoint.status === 'Failing')
-      .forEach((endpoint) => {
-        sampled.push({
-          id: `webhook-${endpoint.id}`,
-          category: 'Integration',
-          title: `Webhook ${endpoint.path} failing`,
-          detail: `${endpoint.failureRate}% of ${endpoint.provider} deliveries are failing. Last delivery ${new Date(endpoint.lastDeliveryAt).toLocaleString()}.`,
-          nextStep: 'Retry the failed deliveries, then fix the provider link before resuming the endpoint.',
-          path: '/platform/integrations',
-          pathLabel: 'Integrations',
-          sample: true,
-          severity: 'danger',
-        })
-      })
-
     billingInvoices
       .filter((invoice) => invoice.status === 'Overdue')
       .forEach((invoice) => {
@@ -271,38 +229,6 @@ export default function ActionCenterSection({
           pathLabel: 'Billing',
           sample: true,
           severity: 'warning',
-        })
-      })
-
-    securitySignals
-      .filter((signal) => signal.status === 'New' || signal.status === 'Investigating')
-      .forEach((signal) => {
-        sampled.push({
-          id: `security-${signal.id}`,
-          category: 'Security',
-          title: `${signal.severity} severity ${signal.kind.toLowerCase()}`,
-          detail: `${signal.school} · ${signal.summary}`,
-          nextStep: 'Investigate the evidence, contain the session if needed, and record the decision.',
-          path: '/platform/security',
-          pathLabel: 'Security',
-          sample: true,
-          severity: signal.severity === 'High' ? 'danger' : 'warning',
-        })
-      })
-
-    healthIncidents
-      .filter((incident) => incident.status !== 'Resolved')
-      .forEach((incident) => {
-        sampled.push({
-          id: `health-${incident.id}`,
-          category: 'Health',
-          title: `${incident.title} (${incident.id})`,
-          detail: `${incident.severity} · ${incident.services.join(', ')} · owned by ${incident.owner}.`,
-          nextStep: 'Follow the incident, confirm the impact, and publish an update when the state changes.',
-          path: '/platform/health',
-          pathLabel: 'System health',
-          sample: true,
-          severity: incident.severity === 'Critical' ? 'danger' : 'warning',
         })
       })
 
@@ -369,7 +295,7 @@ export default function ActionCenterSection({
       <SectionHeader
         eyebrow="Operator attention"
         title="Action centre"
-        description="Every approval, overdue task, failing integration, billing problem and security alert in one inbox — open it, give it an owner, and resolve it with a reason."
+        description="Review approvals, overdue tasks and billing problems — open an item, give it an owner, and resolve it with a reason."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-xl border border-ink/[0.07] bg-white px-3 py-2 text-xs font-semibold text-graphite dark:border-white/[0.08] dark:bg-white/[0.04]">
@@ -381,11 +307,11 @@ export default function ActionCenterSection({
       />
 
       <PrototypeNotice
-        scope="Integrations, billing, security and health alerts"
-        detail="Applications, contact requests and suspended schools are read from the database. Alerts taken from the integration, billing, security and health prototypes are marked as sample data and link to the screen that owns them."
+        scope="Billing alerts"
+        detail="Applications, contact requests and suspended schools are read from the database. Billing examples are marked as sample data and link to Billing."
       />
 
-      <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-3">
         {CATEGORIES.filter((item) => item !== 'All').map((item) => {
           const Icon = categoryIcon[item]
           return (

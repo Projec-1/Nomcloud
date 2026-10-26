@@ -272,9 +272,8 @@ export default function OperatorsSection({ operators, onNotify, operator }: {
               </li>
             ))}
           </ul>
-          <Callout tone="info" title="High-risk actions need two operators">
-            Suspending a school, exporting student data, crediting an account above the threshold, rotating credentials and deleting records all require a second
-            operator. Those rules live in Permissions, and every action dialog in the Control Center enforces them.
+          <Callout tone="info" title="Platform access remains protected">
+            Operator access continues to use the existing platform authorization checks and database policies. Removing the Permissions screen does not change those controls.
           </Callout>
         </Panel>
       </div>

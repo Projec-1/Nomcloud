@@ -231,7 +231,7 @@ export default function ActivitySection({ onNotify, onNavigate, operator }: { on
         ] : []}
         footer={selected && (
           <>
-            <button onClick={() => { setOpenId(null); onNavigate?.(selected.kind === 'Security' ? '/platform/security' : selected.kind === 'Billing' ? '/platform/billing' : '/platform/schools') }} className="btn-outline px-4 py-2 text-sm">
+            <button onClick={() => { setOpenId(null); onNavigate?.(selected.kind === 'Billing' ? '/platform/billing' : '/platform/schools') }} className="btn-outline px-4 py-2 text-sm">
               <Eye className="mr-2 inline h-4 w-4" /> Open related record
             </button>
             {(selected.kind === 'Delivery' || selected.kind === 'Integration') && selected.outcome !== 'Completed' && (

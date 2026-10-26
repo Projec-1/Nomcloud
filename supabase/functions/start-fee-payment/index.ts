@@ -5,7 +5,9 @@
 // event it can record is 'pending' or 'declined', and apply_payment_event marks
 // both 'ignored'. Money is recorded only by settle-fee-payment.
 //
-// POST { fee_record_id, amount, payment_method, account_no }
+// POST { fee_record_id, client_reference, amount, payment_method, account_no }
+// Recover without creating a new preauthorization:
+// POST { fee_record_id, client_reference, recover_only: true }
 //
 //   1. Verify the caller's JWT.
 //   2. Require that the caller may pay this fee (decision 1): a guardian of the
@@ -13,8 +15,6 @@
 //   3. Mock safety: in mock mode, refuse any school that is not the demo school.
 //   4. Validate the amount against the REAL remaining balance read from the
 //      database: greater than zero, at most the balance, two decimal places.
-//      The full balance is required until a school policy for partial payments
-//      exists.
 //   5. PreAuthorize through the provider adapter.
 //   6. Record the provider's answer through apply_payment_event.
 //   7. Return the transaction reference for settle-fee-payment.
@@ -41,9 +41,11 @@ import {
 
 interface StartRequest {
   fee_record_id: string
+  client_reference: string
   amount: number
   payment_method: PaymentMethod
   account_no: string
+  recover_only?: boolean
   require_mock?: boolean
 }
 
@@ -64,6 +66,38 @@ Deno.serve(async (request) => {
     if (typeof input.fee_record_id !== 'string' || !UUID_RE.test(input.fee_record_id)) {
       throw new HttpError(400, 'fee_record_id must be a UUID')
     }
+    if (typeof input.client_reference !== 'string' || !UUID_RE.test(input.client_reference)) {
+      throw new HttpError(400, 'client_reference must be a UUID')
+    }
+    if (input.recover_only !== undefined && typeof input.recover_only !== 'boolean') {
+      throw new HttpError(400, 'recover_only must be a boolean')
+    }
+
+    const fee = await loadPayableFee(clients, input.fee_record_id)
+    const { data: existing, error: existingError } = await clients.adminClient
+      .from('payment_events')
+      .select('provider_event_id, event_type, amount, currency')
+      .eq('school_id', fee.schoolId)
+      .eq('fee_record_id', fee.id)
+      .eq('provider', 'waafipay')
+      .eq('raw_payload->>client_reference', input.client_reference)
+      .in('event_type', ['pending', 'declined'])
+      .order('received_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (existingError) throw new HttpError(500, existingError.message)
+    if (existing) {
+      return json({
+        found: true,
+        transaction_id: existing.provider_event_id,
+        event_type: existing.event_type,
+        amount: Number(existing.amount),
+        currency: existing.currency,
+        mock: getPaymentProvider().isMock,
+      })
+    }
+    if (input.recover_only === true) return json({ found: false })
+
     if (!PAYMENT_METHODS.includes(input.payment_method)) {
       throw new HttpError(400, `payment_method must be one of ${PAYMENT_METHODS.join(', ')}`)
     }
@@ -80,8 +114,6 @@ Deno.serve(async (request) => {
       throw new HttpError(400, 'amount must be a positive number with at most two decimal places')
     }
 
-    const fee = await loadPayableFee(clients, input.fee_record_id)
-
     const provider = getPaymentProvider()
     if (input.require_mock === true && !provider.isMock) {
       throw new HttpError(503, 'Test payments are unavailable while the live payment provider is active')
@@ -92,12 +124,8 @@ Deno.serve(async (request) => {
     if (input.amount > fee.balance) {
       throw new HttpError(422, `amount exceeds the remaining balance of ${fee.balance.toFixed(2)} ${fee.currency}`)
     }
-    if (Math.round(input.amount * 100) !== Math.round(fee.balance * 100)) {
-      throw new HttpError(422, 'Partial fee payments are not currently enabled')
-    }
-
     const result = await provider.preAuthorize({
-      referenceId: crypto.randomUUID(),
+      referenceId: input.client_reference,
       amount: input.amount,
       currency: fee.currency,
       method: input.payment_method,
@@ -113,7 +141,7 @@ Deno.serve(async (request) => {
       p_amount: result.amount,
       p_currency: result.currency,
       p_fee_record_id: fee.id,
-      p_raw_payload: result.raw,
+      p_raw_payload: { client_reference: input.client_reference, provider_response: result.raw },
       p_is_mock: provider.isMock,
     })
     if (applyError) throw new HttpError(applyError.code === '42501' ? 403 : 500, applyError.message)

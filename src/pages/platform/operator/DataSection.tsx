@@ -42,7 +42,7 @@ const retentionPolicy: Array<{ id: string; data: string; window: string; note: s
   { id: 'ret-6', data: 'School data after closure', window: '90 days', note: 'Then removed unless a legal hold applies' },
 ]
 
-export default function DataSection({ onNotify, onNavigate, operator }: { onNotify: (message: string) => void; onNavigate?: (path: string) => void; operator: string }) {
+export default function DataSection({ onNotify, operator }: { onNotify: (message: string) => void; operator: string }) {
   const [jobs, setJobs] = useState<DataJob[]>([...dataJobs])
   const [kind, setKind] = useState<(typeof kindOptions)[number]>('All')
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('All')
@@ -279,7 +279,6 @@ export default function DataSection({ onNotify, onNavigate, operator }: { onNoti
                 <Button variant="danger" size="sm" onClick={() => manageExportLink(selected, 'revoke')}>Revoke link</Button>
               </>
             )}
-            {onNavigate && <Button variant="ghost" size="sm" onClick={() => onNavigate('/platform/audit')}>Open audit logs</Button>}
           </>
         )}
         size="lg"

@@ -128,19 +128,19 @@ export default function App() {
           <Route path="operations/*" element={<PlatformWorkspace />} />
           <Route path="communications" element={<PlatformWorkspace />} />
           <Route path="operators" element={<PlatformWorkspace />} />
-          <Route path="permissions" element={<PlatformWorkspace />} />
           <Route path="features" element={<PlatformWorkspace />} />
-          <Route path="integrations" element={<PlatformWorkspace />} />
           <Route path="billing" element={<PlatformWorkspace />} />
           <Route path="data" element={<PlatformWorkspace />} />
-          <Route path="backups" element={<PlatformWorkspace />} />
           <Route path="activity" element={<PlatformWorkspace />} />
-          <Route path="audit" element={<PlatformWorkspace />} />
-          <Route path="security" element={<PlatformWorkspace />} />
-          <Route path="health" element={<PlatformWorkspace />} />
-          <Route path="maintenance" element={<PlatformWorkspace />} />
           <Route path="analytics" element={<PlatformWorkspace />} />
           <Route path="settings" element={<PlatformWorkspace />} />
+          <Route path="permissions" element={<Navigate to="/platform" replace />} />
+          <Route path="integrations" element={<Navigate to="/platform" replace />} />
+          <Route path="backups" element={<Navigate to="/platform" replace />} />
+          <Route path="audit" element={<Navigate to="/platform" replace />} />
+          <Route path="security" element={<Navigate to="/platform" replace />} />
+          <Route path="health" element={<Navigate to="/platform" replace />} />
+          <Route path="maintenance" element={<Navigate to="/platform" replace />} />
           <Route path="templates/*" element={<Navigate to="/platform" replace />} />
           {/* School applications run inside the same Operator Control Center
               shell as every other platform section, so they share its header,

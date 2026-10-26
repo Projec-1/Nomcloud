@@ -40,7 +40,7 @@ const audienceOptions = [
   'A single school',
 ] as const
 
-export default function CommunicationsSection({ onNotify, onNavigate, operator }: { onNotify: (message: string) => void; onNavigate?: (path: string) => void; operator: string }) {
+export default function CommunicationsSection({ onNotify, operator }: { onNotify: (message: string) => void; operator: string }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([...platformAnnouncements])
   const [status, setStatus] = useState<(typeof statusOptions)[number]>('All')
   const [announcementId, setAnnouncementId] = useState<string | null>(null)
@@ -262,7 +262,6 @@ export default function CommunicationsSection({ onNotify, onNavigate, operator }
             {selected.status !== 'Sent' && selected.status !== 'Draft' && <Button variant="accent" size="sm" onClick={() => sendNow(selected)}><PaperPlaneTilt className="h-4 w-4" /> Send now</Button>}
             {selected.failed > 0 && <Button variant="outline" size="sm" onClick={() => retryFailed(selected)}><RefreshCw className="h-4 w-4" /> Retry {selected.failed} undelivered</Button>}
             {selected.status === 'Draft' && <Button variant="danger" size="sm" onClick={() => deleteDraft(selected)}><Trash className="h-4 w-4" /> Delete draft</Button>}
-            {onNavigate && selected.failed > 0 && <Button variant="ghost" size="sm" onClick={() => onNavigate('/platform/integrations')}>Check the provider</Button>}
           </>
         )}
         size="lg"

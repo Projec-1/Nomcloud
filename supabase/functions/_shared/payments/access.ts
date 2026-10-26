@@ -94,7 +94,7 @@ export interface FeeContext {
 export async function loadPayableFee(clients: Clients, feeRecordId: string): Promise<FeeContext> {
   const { data: fee, error } = await clients.adminClient
     .from('fee_records')
-    .select('id, school_id, student_id, amount, amount_paid, currency')
+    .select('id, school_id, student_id, amount, currency')
     .eq('id', feeRecordId)
     .maybeSingle()
 
@@ -119,7 +119,13 @@ export async function loadPayableFee(clients: Clients, feeRecordId: string): Pro
   if (schoolError) throw new HttpError(500, schoolError.message)
 
   const amount = Number(fee.amount)
-  const amountPaid = Number(fee.amount_paid)
+  const { data: payments, error: paymentsError } = await clients.adminClient
+    .from('fee_payments')
+    .select('amount')
+    .eq('school_id', fee.school_id)
+    .eq('fee_record_id', fee.id)
+  if (paymentsError) throw new HttpError(500, paymentsError.message)
+  const amountPaid = (payments ?? []).reduce((sum, payment) => sum + Number(payment.amount), 0)
   return {
     id: fee.id,
     schoolId: fee.school_id,

@@ -23,9 +23,8 @@ import { downloadCsv, KpiTile, Panel, PrototypeNotice, SectionHeader, SampleTag 
  *
  * Everything it reports comes from records the platform actually loaded —
  * schools, students, contact requests, pending applications, operators and the
- * audit log. The only sampled figures are the two alert counts taken from the
- * health and security prototypes, and those are labelled as sample data rather
- * than presented as live monitoring.
+ * audit log. Billing alerts are marked as sample data rather than presented as
+ * live billing monitoring.
  */
 
 export interface OverviewAlert {
@@ -113,7 +112,7 @@ export default function OverviewSection({
     ...(alerts.length > 0
       ? [{
           id: 'alerts',
-          label: `${alerts.length} alert${alerts.length === 1 ? '' : 's'} across health, security and billing`,
+          label: `${alerts.length} alert${alerts.length === 1 ? '' : 's'} across school operations and billing`,
           detail: 'Open the action centre to assign and resolve them.',
           path: '/platform/actions',
           icon: AlertTriangle,
@@ -146,7 +145,6 @@ export default function OverviewSection({
     { label: 'Find a school', detail: `${schools.length} registered`, path: '/platform/schools', icon: Building2 },
     { label: 'Invite an operator', detail: `${operatorCount} with access`, path: '/platform/operators', icon: UserCircle },
     { label: 'Announce to schools', detail: 'Communications', path: '/platform/communications', icon: Megaphone },
-    { label: 'Check the audit log', detail: `${auditRows.length} events`, path: '/platform/audit', icon: Activity },
   ]
 
   return (
@@ -159,8 +157,8 @@ export default function OverviewSection({
       />
 
       <PrototypeNotice
-        scope="Trend, health and billing alerts"
-        detail="School, student, teacher, request and operator counts are read from the database. Alert counts marked as sample data come from the health, security and billing prototypes until those sources are connected."
+        scope="Billing alerts"
+        detail="School, student, teacher, request and operator counts are read from the database. Billing alerts marked as sample data are examples, not live billing monitoring."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -209,7 +207,7 @@ export default function OverviewSection({
 
           <Panel
             title="Alerts"
-            description="Health, security and billing signals that need a decision."
+            description="School operations and billing items that need a decision."
             action={<button onClick={() => navigate('/platform/actions')} className="text-xs font-semibold text-brand">Triage all <ArrowUpRight className="inline h-3.5 w-3.5" /></button>}
           >
             {alerts.length === 0 ? (
@@ -312,7 +310,6 @@ export default function OverviewSection({
                 { label: 'School applications', value: pendingApplicationCount, path: '/platform/applications' },
                 { label: 'Open contact requests', value: openRequests.length, path: '/platform/requests' },
                 { label: 'Schools needing attention', value: attentionSchools.length, path: '/platform/schools' },
-                { label: 'Audit events recorded', value: auditRows.length, path: '/platform/audit' },
               ].map((row) => (
                 <li key={row.label}>
                   <button onClick={() => navigate(row.path)} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-ink/[0.035] dark:hover:bg-white/[0.05]">
@@ -330,7 +327,6 @@ export default function OverviewSection({
         <Panel
           title="Recent platform activity"
           description="Read-only events from the audit log."
-          action={<button onClick={() => navigate('/platform/audit')} className="text-xs font-semibold text-brand">Audit logs <ArrowUpRight className="inline h-3.5 w-3.5" /></button>}
         >
           {auditRows.length ? (
             <div className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">

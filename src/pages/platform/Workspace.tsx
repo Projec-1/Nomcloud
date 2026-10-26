@@ -3,14 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Pulse as Activity,
   Warning as AlertTriangle,
-  ArrowUpRight,
   Buildings as Building2,
   Check,
   CaretRight as ChevronRight,
   ClipboardText as ClipboardCheck,
   Clock as Clock3,
   FileText,
-  Key as KeyRound,
   Layout as LayoutDashboard,
   LockKey as LockKeyhole,
   SignOut as LogOut,
@@ -18,19 +16,14 @@ import {
   DotsThree as MoreHorizontal,
   MagnifyingGlass as Search,
   Gear as Settings2,
-  Shield,
   Users,
   X,
-  Wrench,
   Eye,
   ChartBar as BarChart3,
-  Globe as Globe2,
   Prohibit as Ban,
   ArrowCounterClockwise as RotateCcw,
   Megaphone,
   Database,
-  HardDrives,
-  PlugsConnected,
   Sliders,
   CreditCard,
   UserCircle,
@@ -66,31 +59,18 @@ import SettingsSection from './operator/SettingsSection'
 import { SectionHeader } from './operator/PrototypeKit'
 import AnalyticsSection from './operator/AnalyticsSection'
 import ActivitySection from './operator/ActivitySection'
-import AuditSection from './operator/AuditSection'
-import HealthSection from './operator/HealthSection'
-import MaintenanceSection from './operator/MaintenanceSection'
-import SecuritySection from './operator/SecuritySection'
-import PermissionsSection from './operator/PermissionsSection'
 import OperatorsSection from './operator/OperatorsSection'
 import FeaturesSection from './operator/FeaturesSection'
-import IntegrationsSection from './operator/IntegrationsSection'
 import BillingSection from './operator/BillingSection'
-import BackupsSection from './operator/BackupsSection'
 import DataSection from './operator/DataSection'
 import PeopleSection from './operator/PeopleSection'
 import CommunicationsSection from './operator/CommunicationsSection'
-import { billingInvoices, billingPayments, healthIncidents, integrations, securitySignals, webhookEndpoints } from './operator/prototypeData'
+import { billingInvoices, billingPayments } from './operator/prototypeData'
 import OperationsView from './OperationsView'
-import IncidentCommand from './IncidentCommand'
-import { fetchPlatformCaseWorkload, type PlatformCase } from '@/services/platformOperationsService'
 
-// Alert counts the sidebar shows next to the sections that own them. They come
-// from the sample data those sections render, and they disappear when nothing
-// needs attention, so the badge always means "there is something to look at".
+// Alert counts the sidebar shows next to the sections that own them.
 const navBadges: Record<string, number | undefined> = {
-  'System Health': healthIncidents.filter((incident) => incident.status !== 'Resolved').length,
   Activity: 0,
-  Security: securitySignals.filter((signal) => signal.status === 'New' || signal.status === 'Investigating').length,
 }
 
 const navGroups = [
@@ -117,16 +97,11 @@ const navGroups = [
       { label: 'Operations Queue', path: '/platform/operations', icon: Briefcase },
       { label: 'Analytics', path: '/platform/analytics', icon: BarChart3 },
       { label: 'Activity', path: '/platform/activity', icon: Activity },
-      { label: 'Audit Logs', path: '/platform/audit', icon: FileText },
-      { label: 'System Health', path: '/platform/health', icon: Activity },
-      { label: 'Maintenance', path: '/platform/maintenance', icon: Wrench },
     ],
   },
   {
-    label: 'Security',
+    label: 'Administration',
     items: [
-      { label: 'Security', path: '/platform/security', icon: Shield },
-      { label: 'Permissions', path: '/platform/permissions', icon: KeyRound },
       { label: 'Operators', path: '/platform/operators', icon: Users },
     ],
   },
@@ -134,10 +109,8 @@ const navGroups = [
     label: 'Platform',
     items: [
       { label: 'Features', path: '/platform/features', icon: Sliders },
-      { label: 'Integrations', path: '/platform/integrations', icon: PlugsConnected },
       { label: 'Billing', path: '/platform/billing', icon: CreditCard },
       { label: 'Data', path: '/platform/data', icon: Database },
-      { label: 'Backups & Recovery', path: '/platform/backups', icon: HardDrives },
     ],
   },
   {
@@ -325,8 +298,7 @@ export default function PlatformWorkspace() {
   const totalTeachers = schoolRecords.reduce((sum, school) => sum + school.teachers, 0)
 
   // Overview alerts. Schools, requests and applications come from the
-  // database; the health, security, integration and billing signals come from
-  // the prototypes and are labelled as sample data wherever they are shown.
+  // database; billing signals are labelled as sample data wherever shown.
   const overviewAlerts = useMemo<OverviewAlert[]>(() => {
     const alerts: OverviewAlert[] = []
     if (pendingApplicationCount > 0) {
@@ -356,37 +328,6 @@ export default function PlatformWorkspace() {
         detail: 'Confirm each suspension still has a reason and an owner.',
         path: '/platform/schools',
         sample: false,
-      })
-    }
-    const incidents = healthIncidents.filter((incident) => incident.status !== 'Resolved')
-    if (incidents.length > 0) {
-      alerts.push({
-        id: 'alerts-health',
-        title: `${incidents.length} open incident${incidents.length === 1 ? '' : 's'}`,
-        detail: incidents.map((incident) => `${incident.id} ${incident.title}`).join(' · '),
-        path: '/platform/health',
-        sample: true,
-      })
-    }
-    const signals = securitySignals.filter((signal) => signal.status === 'New' || signal.status === 'Investigating')
-    if (signals.length > 0) {
-      alerts.push({
-        id: 'alerts-security',
-        title: `${signals.length} security signal${signals.length === 1 ? '' : 's'} unresolved`,
-        detail: signals.map((signal) => `${signal.id} ${signal.kind.toLowerCase()}`).join(' · '),
-        path: '/platform/security',
-        sample: true,
-      })
-    }
-    const integrationProblems = integrations.filter((item) => item.status !== 'Connected').length
-      + webhookEndpoints.filter((item) => item.status === 'Failing').length
-    if (integrationProblems > 0) {
-      alerts.push({
-        id: 'alerts-integrations',
-        title: `${integrationProblems} integration problem${integrationProblems === 1 ? '' : 's'}`,
-        detail: 'Providers that are degraded or disconnected, and webhooks that are failing.',
-        path: '/platform/integrations',
-        sample: true,
       })
     }
     const billingProblems = billingInvoices.filter((invoice) => invoice.status === 'Overdue').length
@@ -552,22 +493,15 @@ export default function PlatformWorkspace() {
           {section === 'Schools' && (platformRecordsLoading ? <div className="py-12 text-center"><InlineLoader label="Loading schools" state="searching" /></div> : <SchoolsView schools={filteredSchools} query={query} setQuery={setQuery} filter={schoolFilter} setFilter={setSchoolFilter} onSchool={setSchool} onNotify={() => navigate('/platform/applications')} />)}
           {section === 'School Applications' && <PlatformApprovalPanel />}
           {section === 'People' && <PeopleSection onNotify={notify} operator={displayName} />}
-          {section === 'Communications' && <CommunicationsSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
+          {section === 'Communications' && <CommunicationsSection onNotify={notify} operator={displayName} />}
           {section === 'Requests & Reviews' && <RequestsSection requests={requestRecords} operators={operatorRecords} work={requestWork} onWorkChange={setRequestWork} onResolve={updateRequest} onOpenSchool={(name) => { const match = schoolRecords.find((item) => item.name === name); if (match) setSchool(match); else notify('That school is not registered on the platform, so no record can be opened.') }} notify={notify} operator={displayName} />}
           {section === 'Operations Queue' && authUser && <OperationsView currentPath={currentPath} authUserId={authUser.id} schools={schoolRecords} operators={operatorRecords} navigate={navigate} notify={notify} />}
           {section === 'Operators' && (platformRecordsLoading ? <div className="py-12 text-center"><InlineLoader label="Loading operators" state="searching" /></div> : <OperatorsSection operators={operatorRecords} onNotify={notify} operator={displayName} />)}
-          {section === 'Permissions' && <PermissionsSection onNotify={notify} operator={displayName} />}
-          {section === 'Audit Logs' && (platformRecordsLoading ? <div className="py-12 text-center"><InlineLoader label="Loading audit logs" state="searching" /></div> : <AuditSection rows={auditEntries} notify={notify} onNavigate={navigate} operator={displayName} />)}
-          {section === 'Security' && <SecuritySection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'Maintenance' && <MaintenanceSection onNotify={notify} operator={displayName} />}
-          {section === 'Backups & Recovery' && <BackupsSection onNotify={notify} operator={displayName} />}
           {section === 'Analytics' && <AnalyticsSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
           {section === 'Activity' && <ActivitySection onNotify={notify} onNavigate={navigate} operator={displayName} />}
-          {section === 'System Health' && <SystemHealthWithIncidents onNotify={notify} onNavigate={navigate} operator={displayName} operators={operatorRecords} authUserId={authUser?.id ?? ''} />}
           {section === 'Features' && <FeaturesSection onNotify={notify} operator={displayName} />}
-          {section === 'Integrations' && <IntegrationsSection onNotify={notify} operator={displayName} />}
           {section === 'Billing' && <BillingSection onNotify={notify} operator={displayName} />}
-          {section === 'Data' && <DataSection onNotify={notify} onNavigate={navigate} operator={displayName} />}
+          {section === 'Data' && <DataSection onNotify={notify} operator={displayName} />}
           {section === 'Settings' && <SettingsSection onEmergency={() => setEmergencyOpen(true)} onSignOut={() => setSignOutOpen(true)} notify={notify} fullName={displayName} email={displayEmail} role={operatorRole} provider={(authUser?.app_metadata?.provider as string | undefined) ?? null} accountCreatedAt={authUser?.created_at ?? null} lastSignInAt={(authUser as { last_sign_in_at?: string } | null)?.last_sign_in_at ?? null} platform={{ schoolCount: schoolRecords.length, studentCount: totalStudents, teacherCount: totalTeachers, pendingApplications: pendingApplicationCount, operatorCount: activeOperators, requestCount: requestRecords.length, connected: !platformRecordsLoading && !platformRecordsError, error: platformRecordsError }} />}
         </div>
       </main>
@@ -677,57 +611,4 @@ function SchoolModal({ school, onClose, onAction, onStatusChange }: { school: Sc
 
 function RequestModal({ request, onClose, onAction, onDecision, onSchool }: { request: Request | null; onClose: () => void; onAction: (message: string) => void; onDecision: (id: string, status: RequestStatus, message: string) => void; onSchool: (name: string) => void }) {
   return <Modal open={Boolean(request)} onClose={onClose} size="lg" title={request?.type} description={request ? `${request.id} · ${request.school}` : ''} footer={request ? <><Button variant="outline" onClick={() => onDecision(request.id, 'In review', 'Changes requested from school')}>Request changes</Button><Button variant="danger" onClick={() => onDecision(request.id, 'Resolved', 'Request rejected')}>Reject</Button><Button variant="accent" onClick={() => onDecision(request.id, 'Resolved', 'Request approved')}>Approve</Button></> : null}>{request && <div className="space-y-5"><div className="rounded-2xl border border-brand/15 bg-brand/[0.06] p-4"><p className="text-sm font-semibold">{request.summary}</p><p className="mt-2 text-xs text-graphite">Submitted by {request.submittedBy} · {request.submitted}</p></div><div className="grid gap-4 sm:grid-cols-2"><div><p className="text-xs font-semibold text-graphite">School context</p><button onClick={() => onSchool(request.school)} className="mt-2 flex w-full items-center justify-between rounded-2xl border border-ink/10 p-4 text-left text-sm font-semibold hover:bg-ink/[0.03] dark:border-white/10 dark:hover:bg-white/[0.05]">Open {request.school}<Eye className="h-4 w-4 text-graphite" /></button></div><div><p className="text-xs font-semibold text-graphite">Current status</p><div className="mt-2 rounded-2xl border border-ink/10 p-4 dark:border-white/10"><Status value={request.status} /></div></div></div><div><p className="text-xs font-semibold text-graphite">Operator notes</p><textarea placeholder="Add context for the next operator…" className="input mt-2 min-h-24 resize-none" /></div><div className="rounded-2xl bg-ink/[0.035] p-4 text-sm dark:bg-white/[0.05]"><p className="font-semibold">Previous actions</p><p className="mt-2 text-xs text-graphite">No previous actions recorded. All decisions will be added to the audit log.</p></div></div>}</Modal>
-}
-
-function SystemHealthWithIncidents({
-  onNotify,
-  onNavigate,
-  operator,
-  operators,
-  authUserId,
-}: {
-  onNotify: (message: string) => void
-  onNavigate: (path: string) => void
-  operator: string
-  operators: PlatformOperatorRecord[]
-  authUserId: string
-}) {
-  const [cases, setCases] = useState<PlatformCase[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [refresh, setRefresh] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    fetchPlatformCaseWorkload()
-      .then((rows) => {
-        if (!cancelled) setCases(rows)
-      })
-      .catch((cause: unknown) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [refresh])
-
-  return (
-    <>
-      <HealthSection onNotify={onNotify} onNavigate={onNavigate} operator={operator} />
-      {error && (
-        <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-y border-red-500/30 p-4 text-sm text-red-800 dark:text-red-300">
-          <span>Could not load incident case context: {error}</span>
-          <Button size="sm" variant="outline" onClick={() => setRefresh((value) => value + 1)}>Retry</Button>
-        </div>
-      )}
-      {loading
-        ? <div className="py-6"><InlineLoader label="Loading incident context" state="searching" /></div>
-        : <IncidentCommand operators={operators} cases={cases} authUserId={authUserId} notify={onNotify} />}
-    </>
-  )
 }
