@@ -4,6 +4,7 @@ import { ThinkingOrb } from 'thinking-orbs'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
 import type { PlatformOperatorRecord } from '@/services/platformService'
+import { errorMessage } from '@/utils/errorMessage'
 import {
   addPlatformCaseEvent,
   createPlatformCase,
@@ -106,6 +107,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
@@ -133,7 +135,10 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
         if (!cancelled) setCases(rows)
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause))
+        if (!cancelled) {
+          setCases([])
+          setError(errorMessage(cause, 'Could not load operations cases.'))
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -146,16 +151,22 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
   useEffect(() => {
     if (!caseId) {
       setEvents([])
+      setDetailError(null)
       return
     }
     let cancelled = false
     setDetailLoading(true)
+    setDetailError(null)
+    setEvents([])
     fetchPlatformCaseEvents(caseId)
       .then((rows) => {
         if (!cancelled) setEvents(rows)
       })
       .catch((cause: unknown) => {
-        if (!cancelled) notify(`Could not load the investigation timeline: ${cause instanceof Error ? cause.message : String(cause)}`)
+        if (!cancelled) {
+          setEvents([])
+          setDetailError(errorMessage(cause, 'Could not load case history.'))
+        }
       })
       .finally(() => {
         if (!cancelled) setDetailLoading(false)
@@ -163,7 +174,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
     return () => {
       cancelled = true
     }
-  }, [caseId, refresh, notify])
+  }, [caseId, refresh])
 
   const selected = caseId ? cases.find((item) => item.id === caseId) : undefined
   useEffect(() => {
@@ -200,7 +211,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
       refreshCases()
       notify(message)
     } catch (cause: unknown) {
-      notify(`Case was not updated: ${cause instanceof Error ? cause.message : String(cause)}`)
+      notify(`Case was not updated: ${errorMessage(cause)}`)
     } finally {
       setBusy(false)
     }
@@ -216,7 +227,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
       refreshCases()
       notify('Private note added to the case history.')
     } catch (cause: unknown) {
-      notify(`Note was not saved: ${cause instanceof Error ? cause.message : String(cause)}`)
+      notify(`Note was not saved: ${errorMessage(cause)}`)
     } finally {
       setBusy(false)
     }
@@ -233,7 +244,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
       refreshCases()
       notify('Evidence reference added to the case history.')
     } catch (cause: unknown) {
-      notify(`Evidence reference was not saved: ${cause instanceof Error ? cause.message : String(cause)}`)
+      notify(`Evidence reference was not saved: ${errorMessage(cause)}`)
     } finally {
       setBusy(false)
     }
@@ -273,7 +284,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
                 <h2 className="font-semibold">Case history</h2>
                 {detailLoading && <span className="text-xs text-graphite">Refreshing history…</span>}
               </div>
-              {events.length ? (
+              {detailError ? <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-red-800 dark:text-red-300"><span>Could not load case history: {detailError}</span><Button size="sm" variant="outline" onClick={refreshCases}>Retry</Button></div> : events.length ? (
                 <ol className="mt-4 divide-y divide-ink/10 dark:divide-white/10">
                   {events.map((event) => (
                     <li key={event.id} className="grid gap-1 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-5">
@@ -288,7 +299,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
                     </li>
                   ))}
                 </ol>
-              ) : <p className="mt-4 text-sm text-graphite">No case history is recorded yet.</p>}
+              ) : !detailLoading && <p className="mt-4 text-sm text-graphite">No case history is recorded yet.</p>}
             </section>
 
             <section className={panelClass}>
@@ -366,16 +377,16 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
     <div>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div><h1 className="text-3xl font-semibold tracking-tight">Operations queue</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-graphite">Assign, investigate, escalate and resolve platform cases in one place.</p></div>
-        <Button variant="accent" onClick={() => setShowCreate((value) => !value)} icon={<Plus className="h-4 w-4" />}>{showCreate ? 'Close form' : 'New case'}</Button>
+        <Button variant="accent" disabled={loading || Boolean(error)} onClick={() => setShowCreate((value) => !value)} icon={<Plus className="h-4 w-4" />}>{showCreate ? 'Close form' : 'New case'}</Button>
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <Summary label="Open workload" value={loading ? '—' : String(activeCount)} />
-        <Summary label="Overdue" value={loading ? '—' : String(overdueCount)} alert={overdueCount > 0} />
-        <Summary label="Unassigned" value={loading ? '—' : String(unassignedCount)} />
+        <Summary label="Open workload" value={loading || error ? '—' : String(activeCount)} />
+        <Summary label="Overdue" value={loading || error ? '—' : String(overdueCount)} alert={!error && overdueCount > 0} />
+        <Summary label="Unassigned" value={loading || error ? '—' : String(unassignedCount)} />
       </div>
 
-      {showCreate && <NewCaseForm authUserId={authUserId} schools={schools} operators={operators} onCancel={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); refreshCases(); navigate(`/platform/operations/${id}`); notify('Case created.') }} onError={(message) => notify(message)} />}
+      {showCreate && !loading && !error && <NewCaseForm authUserId={authUserId} schools={schools} operators={operators} onCancel={() => setShowCreate(false)} onCreated={(id) => { setShowCreate(false); refreshCases(); navigate(`/platform/operations/${id}`); notify('Case created.') }} onError={(message) => notify(message)} />}
       {error && <QueueError error={error} retry={refreshCases} />}
       <div className="mb-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_repeat(5,minmax(0,1fr))]">
         <div className="relative min-w-0"><MagnifyingGlass className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" /><input aria-label="Search cases" className={`${fieldClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search cases…" /></div>
@@ -386,7 +397,7 @@ export default function OperationsView({ currentPath, authUserId, schools, opera
         <Select aria-label="Filter by assignment" className="min-h-11" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="all">All assignments</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option>{operators.filter((operator) => !operator.revokedAt).map((operator) => <option key={operator.id} value={operator.id}>{operator.fullName}</option>)}</Select>
       </div>
 
-      {loading ? <QueueLoading /> : visible.length ? (
+      {loading ? <QueueLoading /> : error ? null : visible.length ? (
         <div className="divide-y divide-ink/10 border-y border-ink/10 dark:divide-white/10 dark:border-white/10">
           {visible.map((item) => {
             const school = schools.find((record) => record.id === item.schoolId)
@@ -449,7 +460,7 @@ function NewCaseForm({ authUserId, schools, operators, onCancel, onCreated, onEr
       })
       onCreated(id)
     } catch (cause: unknown) {
-      onError(`Case was not created: ${cause instanceof Error ? cause.message : String(cause)}`)
+      onError(`Case was not created: ${errorMessage(cause)}`)
     } finally {
       setSaving(false)
     }

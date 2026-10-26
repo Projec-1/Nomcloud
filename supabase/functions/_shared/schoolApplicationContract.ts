@@ -101,8 +101,15 @@ export interface WorkflowResult {
   communication_id?: string;
   action_persisted?: boolean;
   delivery?:
-    | { state: "sent"; provider_message_id?: string }
-    | { state: "failed" | "queued"; error_code: string };
+    | {
+      state: "queued" | "accepted" | "delivered";
+      provider_message_id?: string;
+    }
+    | {
+      state: "failed" | "unknown";
+      error_code: string;
+      provider_message_id?: string;
+    };
 }
 
 export interface WorkflowResponse {

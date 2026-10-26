@@ -39,6 +39,8 @@ export interface PlatformIncident {
   id: string
   title: string
   description: string
+  detectionSource: 'operator' | 'automated_monitor'
+  monitorService: string | null
   severity: PlatformCaseSeverity
   status: 'investigating' | 'mitigating' | 'monitoring' | 'resolved'
   affectedServices: string[]
@@ -61,7 +63,21 @@ export interface PlatformIncidentUpdate {
 
 const caseColumns = 'id, title, case_type, status, priority, severity, description, school_id, assigned_operator_id, team, due_at, requires_approval, approval_status, source_contact_message_id, resolution, created_at, first_response_at, resolved_at'
 
+async function requireFeatureEnabled(
+  flagKey: 'operations_queue' | 'incident_command',
+  label: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('platform_feature_flags')
+    .select('enabled')
+    .eq('flag_key', flagKey)
+    .maybeSingle()
+  if (error) throw error
+  if (!data?.enabled) throw new Error(`${label} is disabled by a platform feature flag.`)
+}
+
 export async function fetchPlatformCases(): Promise<PlatformCase[]> {
+  await requireFeatureEnabled('operations_queue', 'Operations Queue')
   const { data, error } = await supabase
     .from('platform_cases')
     .select(caseColumns)
@@ -71,6 +87,7 @@ export async function fetchPlatformCases(): Promise<PlatformCase[]> {
 }
 
 export async function fetchPlatformCaseEvents(caseId: string): Promise<PlatformCaseEvent[]> {
+  await requireFeatureEnabled('operations_queue', 'Operations Queue')
   const { data, error } = await supabase
     .from('platform_case_events')
     .select('id, event_type, body, evidence_reference, created_at, profiles!platform_case_events_actor_id_fkey(full_name)')
@@ -105,6 +122,7 @@ export async function createPlatformCase(input: {
   team: string | null
   createdBy: string
 }): Promise<string> {
+  await requireFeatureEnabled('operations_queue', 'Operations Queue')
   const { data, error } = await supabase
     .from('platform_cases')
     .insert({
@@ -128,6 +146,7 @@ export async function updatePlatformCase(
   caseId: string,
   patch: Partial<Pick<PlatformCase, 'status' | 'priority' | 'severity' | 'assignedOperatorId' | 'team' | 'dueAt' | 'requiresApproval' | 'approvalStatus' | 'resolution'>>,
 ): Promise<void> {
+  await requireFeatureEnabled('operations_queue', 'Operations Queue')
   const payload: Record<string, unknown> = {}
   if (patch.status !== undefined) payload.status = patch.status
   if (patch.priority !== undefined) payload.priority = patch.priority
@@ -138,7 +157,7 @@ export async function updatePlatformCase(
   if (patch.requiresApproval !== undefined) payload.requires_approval = patch.requiresApproval
   if (patch.approvalStatus !== undefined) payload.approval_status = patch.approvalStatus
   if (patch.resolution !== undefined) payload.resolution = patch.resolution
-  const { error } = await supabase.from('platform_cases').update(payload).eq('id', caseId)
+  const { error } = await supabase.from('platform_cases').update(payload).eq('id', caseId).select('id').single()
   if (error) throw error
 }
 
@@ -148,6 +167,7 @@ export async function addPlatformCaseEvent(
   body: string,
   evidenceReference: string | null,
 ): Promise<void> {
+  await requireFeatureEnabled('operations_queue', 'Operations Queue')
   const { error } = await supabase.from('platform_case_events').insert({
     case_id: caseId,
     event_type: eventType,
@@ -158,15 +178,18 @@ export async function addPlatformCaseEvent(
 }
 
 export async function fetchPlatformIncidents(): Promise<PlatformIncident[]> {
+  await requireFeatureEnabled('incident_command', 'Incident Command')
   const { data, error } = await supabase
     .from('platform_incidents')
-    .select('id, title, description, severity, status, affected_services, commander_id, linked_case_id, postmortem, postmortem_reviewed_at, started_at, resolved_at, platform_incident_responders(operator_id)')
+    .select('id, title, description, detection_source, monitor_service, severity, status, affected_services, commander_id, linked_case_id, postmortem, postmortem_reviewed_at, started_at, resolved_at, platform_incident_responders(operator_id)')
     .order('started_at', { ascending: false })
   if (error) throw error
   return ((data ?? []) as {
     id: string
     title: string
     description: string
+    detection_source: PlatformIncident['detectionSource']
+    monitor_service: string | null
     severity: PlatformCaseSeverity
     status: PlatformIncident['status']
     affected_services: string[]
@@ -181,6 +204,8 @@ export async function fetchPlatformIncidents(): Promise<PlatformIncident[]> {
     id: row.id,
     title: row.title,
     description: row.description,
+    detectionSource: row.detection_source,
+    monitorService: row.monitor_service,
     severity: row.severity,
     status: row.status,
     affectedServices: row.affected_services,
@@ -195,6 +220,7 @@ export async function fetchPlatformIncidents(): Promise<PlatformIncident[]> {
 }
 
 export async function fetchPlatformIncidentUpdates(incidentId: string): Promise<PlatformIncidentUpdate[]> {
+  await requireFeatureEnabled('incident_command', 'Incident Command')
   const { data, error } = await supabase
     .from('platform_incident_updates')
     .select('id, update_type, body, created_at, profiles!platform_incident_updates_actor_id_fkey(full_name)')
@@ -225,6 +251,7 @@ export async function createPlatformIncident(input: {
   linkedCaseId: string | null
   createdBy: string
 }): Promise<string> {
+  await requireFeatureEnabled('incident_command', 'Incident Command')
   const { data, error } = await supabase
     .from('platform_incidents')
     .insert({
@@ -246,17 +273,19 @@ export async function updatePlatformIncident(
   incidentId: string,
   patch: Partial<Pick<PlatformIncident, 'status' | 'severity' | 'postmortem' | 'postmortemReviewedAt' | 'commanderId'>>,
 ): Promise<void> {
+  await requireFeatureEnabled('incident_command', 'Incident Command')
   const payload: Record<string, unknown> = {}
   if (patch.status !== undefined) payload.status = patch.status
   if (patch.severity !== undefined) payload.severity = patch.severity
   if (patch.postmortem !== undefined) payload.postmortem = patch.postmortem
   if (patch.postmortemReviewedAt !== undefined) payload.postmortem_reviewed_at = patch.postmortemReviewedAt
   if (patch.commanderId !== undefined) payload.commander_id = patch.commanderId
-  const { error } = await supabase.from('platform_incidents').update(payload).eq('id', incidentId)
+  const { error } = await supabase.from('platform_incidents').update(payload).eq('id', incidentId).select('id').single()
   if (error) throw error
 }
 
 export async function setPlatformIncidentResponders(incidentId: string, operatorIds: string[]): Promise<void> {
+  await requireFeatureEnabled('incident_command', 'Incident Command')
   const { error } = await supabase.rpc('set_platform_incident_responders', {
     p_incident_id: incidentId,
     p_operator_ids: operatorIds,
@@ -269,6 +298,7 @@ export async function addPlatformIncidentUpdate(
   updateType: PlatformIncidentUpdate['updateType'],
   body: string,
 ): Promise<void> {
+  await requireFeatureEnabled('incident_command', 'Incident Command')
   const { error } = await supabase.from('platform_incident_updates').insert({
     incident_id: incidentId,
     update_type: updateType,
@@ -278,11 +308,12 @@ export async function addPlatformIncidentUpdate(
 }
 
 export async function updatePlatformOperatorTeam(operatorId: string, team: string | null): Promise<void> {
-  const { error } = await supabase.from('platform_admins').update({ team }).eq('id', operatorId)
+  const { error } = await supabase.from('platform_admins').update({ team }).eq('id', operatorId).select('id').single()
   if (error) throw error
 }
 
 export async function fetchPlatformCaseWorkload(): Promise<PlatformCase[]> {
+  await requireFeatureEnabled('operations_queue', 'Operations Queue')
   const { data, error } = await supabase
     .from('platform_cases')
     .select(caseColumns)

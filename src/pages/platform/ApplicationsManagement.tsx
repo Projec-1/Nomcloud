@@ -30,12 +30,23 @@ import Modal from '@/components/ui/Modal'
 import Select from '@/components/ui/Select'
 import Textarea from '@/components/ui/Textarea'
 import { errorMessage } from '@/utils/errorMessage'
+import { edgeFunctionErrorMessage } from '@/utils/edgeFunctionError'
 import { SectionHeader } from './operator/PrototypeKit'
 
 type ApplicationStatus = 'pending' | 'awaiting_information' | 'approved' | 'rejected' | 'onboarding' | 'withdrawn'
 type ApplicationPriority = 'low' | 'normal' | 'high' | 'urgent'
 type StatusFilter = 'all' | ApplicationStatus
 type DocumentState = 'pending' | 'verified' | 'missing' | 'replacement_requested' | 'rejected'
+type EmailDeliveryState = 'queued' | 'accepted' | 'delivered' | 'failed' | 'unknown'
+
+const EMAIL_WORKFLOW_ENABLED = false
+const emailDeliveryLabel: Record<EmailDeliveryState, string> = {
+  queued: 'Queued',
+  accepted: 'Accepted by provider',
+  delivered: 'Delivery confirmed',
+  failed: 'Failed',
+  unknown: 'Status unknown',
+}
 
 interface ApplicationListState {
   search: string
@@ -113,7 +124,7 @@ interface ApplicationCommunication {
   direction: 'outbound' | 'inbound'
   subject: string
   body: string
-  status: 'queued' | 'sent' | 'failed'
+  status: EmailDeliveryState
   created_at: string
 }
 
@@ -151,7 +162,7 @@ interface WorkflowResult {
   error?: string
   error_code?: string
   action_persisted?: boolean
-  delivery?: { state: 'sent' | 'failed' | 'queued'; error_code?: string; provider_message_id?: string }
+  delivery?: { state: EmailDeliveryState; error_code?: string; provider_message_id?: string }
 }
 
 interface WorkflowResponse {
@@ -301,6 +312,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+function isEmailDeliveryState(value: unknown): value is EmailDeliveryState {
+  return value === 'queued' || value === 'accepted' || value === 'delivered'
+    || value === 'failed' || value === 'unknown'
+}
+
 function isApplicationStatus(value: unknown): value is ApplicationStatus {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(statusLabel, value)
 }
@@ -338,7 +354,7 @@ function workflowResults(value: unknown): WorkflowResponse {
     if (item.delivery !== undefined) {
       if (
         !isObject(item.delivery)
-        || (item.delivery.state !== 'sent' && item.delivery.state !== 'failed' && item.delivery.state !== 'queued')
+        || !isEmailDeliveryState(item.delivery.state)
         || (item.delivery.error_code !== undefined && typeof item.delivery.error_code !== 'string')
         || (item.delivery.provider_message_id !== undefined && typeof item.delivery.provider_message_id !== 'string')
       ) {
@@ -389,7 +405,7 @@ function singleWorkflowResult(value: unknown, applicationId: string) {
 
 function workflowResultMessage(result: WorkflowResult) {
   const deliveryState = result.delivery?.state
-  if (result.ok && (!deliveryState || deliveryState === 'sent')) return null
+  if (result.ok && (!deliveryState || deliveryState === 'delivered')) return null
   const detail = result.error || (deliveryState ? `Email ${deliveryState}.` : `${result.action} was not completed.`)
   if (result.action_persisted) {
     return `The application update was saved, but email status is ${deliveryState || 'unconfirmed'}: ${detail}`
@@ -413,7 +429,7 @@ function summarizeWorkflowResponses(
       if (!result.ok) {
         details.push(result.error || `${result.action} failed.`)
       }
-      if (result.delivery && result.delivery.state !== 'sent') {
+      if (result.delivery && result.delivery.state !== 'delivered') {
         details.push(`Email ${result.delivery.state}: ${result.delivery.error_code || 'delivery was not confirmed'}.`)
       }
       if (details.length) detailsById.set(result.application_id, details)
@@ -498,7 +514,7 @@ async function fetchApplicationDetail(
     direction: 'inbound' | 'outbound'
     subject: string
     body: string
-    delivery_state: 'queued' | 'sent' | 'failed'
+    delivery_state: EmailDeliveryState
     created_at: string
   }>
   const eventRows = (eventsResult.data ?? []) as Array<{
@@ -570,7 +586,7 @@ async function fetchApplicationDetail(
       actor_id: null,
       actor_name: 'Applicant communication',
       action: communication.direction === 'outbound' ? 'Applicant email' : 'Applicant reply',
-      summary: `${communication.subject} (${communication.delivery_state})`,
+      summary: `${communication.subject} (${emailDeliveryLabel[communication.delivery_state]})`,
       created_at: communication.created_at,
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -707,6 +723,26 @@ export default function ApplicationsManagement() {
 
     setIsPlatformAdmin(true)
     try {
+      const { data: reviewFlag, error: reviewFlagError } = await supabase
+        .from('platform_feature_flags')
+        .select('enabled')
+        .eq('flag_key', 'school_application_review')
+        .maybeSingle()
+      if (reviewFlagError) {
+        setLoadError(reviewFlagError.message)
+        setApplications([])
+        setSelectedIds([])
+        setLoading(false)
+        return
+      }
+      if (!reviewFlag?.enabled) {
+        setLoadError('School application review is disabled by a platform feature flag.')
+        setApplications([])
+        setSelectedIds([])
+        setLoading(false)
+        return
+      }
+
       const [applicationsResult, operatorResult] = await Promise.all([
         supabase
           .from('school_applications')
@@ -858,7 +894,7 @@ export default function ApplicationsManagement() {
     const { data, error } = await supabase.functions.invoke('manage-school-application', {
       body: { action, ...values },
     })
-    if (error) throw new Error(await getFunctionErrorMessage(error))
+    if (error) throw new Error(await getFunctionErrorMessage(error, 'manage-school-application'))
     return workflowResults(data)
   }
 
@@ -874,7 +910,7 @@ export default function ApplicationsManagement() {
       ? isApprovalOutcome(outcomeValue) ? outcomeValue : null
       : isApprovalOutcome(data) ? data : null
     if (!outcome) {
-      if (error) throw new Error(await getFunctionErrorMessage(error))
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'approve-school-application'))
       throw new Error('Approval returned an invalid result. Verify the application status before retrying.')
     }
 
@@ -938,6 +974,10 @@ export default function ApplicationsManagement() {
   const submitBulkAction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!pendingAction || selectedIds.length === 0) return
+    if (!EMAIL_WORKFLOW_ENABLED && (pendingAction.kind === 'reject' || pendingAction.kind === 'send_template')) {
+      setActionError('Applicant email actions are disabled until provider delivery verification is configured.')
+      return
+    }
     if ((pendingAction.kind === 'approve' || pendingAction.kind === 'reject') && !canDecideSelected) {
       setActionError('Only applications awaiting review or information can be approved or rejected.')
       return
@@ -1095,6 +1135,10 @@ export default function ApplicationsManagement() {
 
   const rejectOne = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!EMAIL_WORKFLOW_ENABLED) {
+      setActionError('Applicant email actions are disabled until provider delivery verification is configured.')
+      return
+    }
     if (!selectedApplication || !rejectionReason) return
     setBusy(true)
     setActionError(null)
@@ -1132,11 +1176,11 @@ export default function ApplicationsManagement() {
         body: { application_id: approvalResult.application_id, action: 'resend' },
       })
       if (error) {
-        setActionError(await getFunctionErrorMessage(error))
+        setActionError(await getFunctionErrorMessage(error, 'approve-school-application'))
       } else if (!isObject(data) || data.activation_email_sent !== true) {
         setActionError('The activation service returned an invalid resend result. Verify email history before retrying.')
       } else {
-        setResentNote(`Activation email sent again to ${approvalResult.email}.`)
+        setResentNote(`Supabase Auth accepted the activation invitation request for ${approvalResult.email}. Inbox delivery is not confirmed.`)
       }
     } catch (error) {
       setActionError(getErrorText(error))
@@ -1160,7 +1204,7 @@ export default function ApplicationsManagement() {
     )
   }
 
-  async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  async function getFunctionErrorMessage(error: unknown, functionName: string): Promise<string> {
     const context = (error as { context?: unknown } | null)?.context
     if (context instanceof Response) {
       const status = `HTTP ${context.status}`
@@ -1173,7 +1217,7 @@ export default function ApplicationsManagement() {
       }
       return `The application workflow service returned ${status}.`
     }
-    return getErrorText(error)
+    return edgeFunctionErrorMessage(error, functionName)
   }
 
   function ErrorNotice({ message, onRetry, onDismiss }: { message: string; onRetry?: () => void; onDismiss?: () => void }) {
@@ -1201,7 +1245,7 @@ export default function ApplicationsManagement() {
       <div className={`rounded-lg border p-4 ${result.activation_email_sent ? 'border-emerald-500/25 dark:border-emerald-300/30 bg-emerald-500/[0.06] dark:bg-emerald-300/5 text-emerald-700 dark:text-emerald-100' : 'border-red-500/25 dark:border-rose-300/30 bg-red-500/[0.06] dark:bg-rose-300/5 text-red-700 dark:text-rose-100'}`}>
         <h2 className="font-semibold">{result.school_name} is approved</h2>
         {result.activation_email_sent ? (
-          <p className="mt-1 text-sm">An activation link was sent to {result.email}. The administrator will choose their own password.</p>
+          <p className="mt-1 text-sm">Supabase Auth accepted the activation invitation for {result.email}. Inbox delivery is not confirmed; the administrator will choose their own password after receiving the link.</p>
         ) : (
           <p className="mt-1 text-sm">
             The school and administrator were created, but the activation email was not sent to {result.email}.
@@ -1230,7 +1274,7 @@ export default function ApplicationsManagement() {
         )}
         {summary.emailFailures.length > 0 && (
           <div className="text-sm text-amber-700 dark:text-amber-100">
-            <p>Activation emails were not sent; resend them after restoring email delivery:</p>
+            <p>Activation invitation requests were not accepted; retry them after restoring email service:</p>
             <ul className="mt-1 space-y-1">
               {summary.emailFailures.map((failure) => (
                 <li key={failure.applicationId}>
@@ -1253,7 +1297,7 @@ export default function ApplicationsManagement() {
           </div>
         )}
         {summary.failures.length === 0 && summary.emailFailures.length === 0 && summary.onboardingFailures.length === 0 && (
-          <p className="text-sm text-emerald-700 dark:text-emerald-100">All activation emails were sent successfully.</p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-100">Supabase Auth accepted all activation invitation requests. Inbox delivery is not confirmed.</p>
         )}
       </section>
     )
@@ -1394,6 +1438,10 @@ export default function ApplicationsManagement() {
       successMessage: string,
     ) => {
       if (!application) return false
+      if (!EMAIL_WORKFLOW_ENABLED && ['request_information', 'reject', 'send_email', 'send_template'].includes(action)) {
+        setDetailError('Applicant email actions are disabled until provider delivery verification is configured.')
+        return false
+      }
       setLocalBusy(true)
       setDetailError(null)
       setActionError(null)
@@ -1430,6 +1478,10 @@ export default function ApplicationsManagement() {
 
     const submitEmail = async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
+      if (!EMAIL_WORKFLOW_ENABLED) {
+        setDetailError('Applicant email actions are disabled until provider delivery verification is configured.')
+        return
+      }
       if (!emailSubject.trim() || !emailBody.trim()) return
       await runDetailAction(
         'send_email',
@@ -1440,6 +1492,10 @@ export default function ApplicationsManagement() {
 
     const submitRequest = async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
+      if (!EMAIL_WORKFLOW_ENABLED) {
+        setDetailError('Applicant email actions are disabled until provider delivery verification is configured.')
+        return
+      }
       if (!requestMessage.trim() || !requestDueDate) return
       if (!application) return
       setLocalBusy(true)
@@ -1837,11 +1893,11 @@ export default function ApplicationsManagement() {
                   <li key={item.id} className="py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-ink dark:text-white">{item.subject}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-xs ${item.status === 'failed' ? 'border-red-500/25 dark:border-rose-300/30 text-red-700 dark:text-rose-100' : item.status === 'sent' ? 'border-emerald-500/25 dark:border-emerald-300/30 text-emerald-700 dark:text-emerald-100' : 'border-ink/15 dark:border-white/15 text-ink dark:text-slate-200'}`}>
-                        {item.status === 'sent' ? 'Accepted by provider' : item.status === 'failed' ? 'Failed' : 'Queued'}
+                      <span className={`rounded-full border px-2 py-0.5 text-xs ${item.status === 'failed' ? 'border-red-500/25 dark:border-rose-300/30 text-red-700 dark:text-rose-100' : item.status === 'delivered' ? 'border-emerald-500/25 dark:border-emerald-300/30 text-emerald-700 dark:text-emerald-100' : item.status === 'unknown' ? 'border-amber-500/25 dark:border-amber-300/30 text-amber-700 dark:text-amber-100' : 'border-ink/15 dark:border-white/15 text-ink dark:text-slate-200'}`}>
+                        {emailDeliveryLabel[item.status]}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-graphite dark:text-slate-400">{item.direction === 'outbound' ? 'Sent' : 'Received'} · {formatDateTime(item.created_at)}</p>
+                    <p className="mt-1 text-xs text-graphite dark:text-slate-400">{item.direction === 'outbound' ? 'Outbound' : 'Received'} · {formatDateTime(item.created_at)}</p>
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink dark:text-slate-200">{item.body}</p>
                   </li>
                 )) : <li className="py-4 text-sm text-graphite dark:text-slate-300">No applicant emails are recorded yet.</li>}
@@ -1868,6 +1924,7 @@ export default function ApplicationsManagement() {
               <div>
                 <h2 className="text-base font-semibold text-ink dark:text-white">Review actions</h2>
                 <p className="mt-1 text-xs text-graphite dark:text-slate-300">Changes are recorded in the application history.</p>
+                {!EMAIL_WORKFLOW_ENABLED && <p className="mt-2 text-xs text-amber-700 dark:text-amber-200">Rejection and applicant-email actions are disabled until provider delivery verification is configured.</p>}
               </div>
               {application.status === 'pending' && (
                 <div className="space-y-3 border-t border-ink/10 dark:border-white/10 pt-4">
@@ -1875,7 +1932,7 @@ export default function ApplicationsManagement() {
                   <Button className="w-full" variant="accent" loading={approvingId === application.id} disabled={!shortcodes[application.id]?.trim()} onClick={() => setConfirmApprove(true)}>
                     <Check className="h-4 w-4" /> Approve and start onboarding
                   </Button>
-                  <Button className="w-full" variant="outline" onClick={onReject}>Reject application</Button>
+                  <Button className="w-full" variant="outline" disabled={!EMAIL_WORKFLOW_ENABLED} onClick={onReject}>Reject application</Button>
                 </div>
               )}
               {application.status === 'awaiting_information' && (
@@ -1884,7 +1941,7 @@ export default function ApplicationsManagement() {
                   <Button className="w-full" variant="accent" loading={approvingId === application.id} disabled={!shortcodes[application.id]?.trim()} onClick={() => setConfirmApprove(true)}>
                     <Check className="h-4 w-4" /> Approve and start onboarding
                   </Button>
-                  <Button className="w-full" variant="outline" onClick={onReject}>Reject application</Button>
+                  <Button className="w-full" variant="outline" disabled={!EMAIL_WORKFLOW_ENABLED} onClick={onReject}>Reject application</Button>
                 </div>
               )}
               {application.status === 'rejected' && (
@@ -1913,9 +1970,10 @@ export default function ApplicationsManagement() {
                   )}
                   <Input label="Response deadline" type="date" value={requestDueDate} onChange={(event) => setRequestDueDate(event.target.value)} required />
                   <Textarea label="Message to applicant" value={requestMessage} onChange={(event) => setRequestMessage(event.target.value)} rows={3} required />
-                  <Button type="submit" className="w-full" variant="outline" loading={localBusy} disabled={!requestMessage.trim() || !requestDueDate}>
+                  <Button type="submit" className="w-full" variant="outline" loading={localBusy} disabled={!EMAIL_WORKFLOW_ENABLED || !requestMessage.trim() || !requestDueDate}>
                     <PaperPlaneTilt className="h-4 w-4" /> Request information
                   </Button>
+                  {!EMAIL_WORKFLOW_ENABLED && <p className="text-xs text-amber-700 dark:text-amber-200">Email is unavailable until provider delivery verification is configured.</p>}
                 </form>
               )}
             </section>
@@ -1961,9 +2019,10 @@ export default function ApplicationsManagement() {
                 </Select>
                 <Input label="Subject" value={emailSubject} onChange={(event) => setEmailSubject(event.target.value)} required />
                 <Textarea label="Message" value={emailBody} onChange={(event) => setEmailBody(event.target.value)} rows={4} required />
-                <Button type="submit" variant="outline" className="w-full" loading={localBusy} disabled={!emailSubject.trim() || !emailBody.trim()}>
+                <Button type="submit" variant="outline" className="w-full" loading={localBusy} disabled={!EMAIL_WORKFLOW_ENABLED || !emailSubject.trim() || !emailBody.trim()}>
                   <EnvelopeSimple className="h-4 w-4" /> Send email
                 </Button>
+                {!EMAIL_WORKFLOW_ENABLED && <p className="text-xs text-amber-700 dark:text-amber-200">Email is unavailable until provider delivery verification is configured.</p>}
               </form>
             </section>
 
@@ -2175,13 +2234,13 @@ export default function ApplicationsManagement() {
         <div className="sticky top-3 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-brand/40 bg-[var(--nc-surface)] p-3" aria-label={`${selectedIds.length} applications selected`}>
           <span className="mr-auto px-1 text-sm font-semibold text-ink dark:text-white">{selectedIds.length} selected</span>
           <Button size="sm" className="min-h-11" variant="outline" disabled={!canEditSelected} onClick={() => setPendingAction({ kind: 'assign_reviewer' })} icon={<Users className="h-4 w-4" />}>Assign reviewer</Button>
-          <Button size="sm" className="min-h-11" variant="outline" disabled={!canEditSelected} onClick={() => {
+          <Button size="sm" className="min-h-11" variant="outline" disabled={!EMAIL_WORKFLOW_ENABLED || !canEditSelected} onClick={() => {
             setTemplate('documents_needed')
             setPendingAction({ kind: 'send_template' })
           }} icon={<EnvelopeSimple className="h-4 w-4" />}>Send template</Button>
           <Button size="sm" className="min-h-11" variant="outline" onClick={() => exportPermittedData(selectedApplications)} icon={<DownloadSimple className="h-4 w-4" />}>Export permitted data</Button>
           <Button size="sm" className="min-h-11" variant="outline" disabled={!canEditSelected} onClick={() => setPendingAction({ kind: 'change_priority' })} icon={<Flag className="h-4 w-4" />}>Change priority</Button>
-          <Button size="sm" className="min-h-11" variant="outline" disabled={!canDecideSelected} onClick={() => setPendingAction({ kind: 'reject' })} icon={<X className="h-4 w-4" />}>Reject selected</Button>
+          <Button size="sm" className="min-h-11" variant="outline" disabled={!EMAIL_WORKFLOW_ENABLED || !canDecideSelected} onClick={() => setPendingAction({ kind: 'reject' })} icon={<X className="h-4 w-4" />}>Reject selected</Button>
           <Button size="sm" className="min-h-11" variant="accent" disabled={!canDecideSelected} onClick={() => setPendingAction({ kind: 'approve' })} icon={<Check className="h-4 w-4" />}>Approve selected</Button>
           {allSelectedArchived
             ? <Button size="sm" className="min-h-11" variant="outline" onClick={() => setPendingAction({ kind: 'unarchive' })}>Restore from archive</Button>
@@ -2405,6 +2464,7 @@ export default function ApplicationsManagement() {
                 loading={busy}
                 disabled={
                   ((pendingAction.kind === 'reject' || pendingAction.kind === 'approve') && !canDecideSelected) ||
+                  (!EMAIL_WORKFLOW_ENABLED && (pendingAction.kind === 'reject' || pendingAction.kind === 'send_template')) ||
                   (pendingAction.kind === 'reject' && !rejectionReason) ||
                   (pendingAction.kind === 'approve' && selectedApplications.some((application) => !shortcodes[application.id]?.trim()))
                 }

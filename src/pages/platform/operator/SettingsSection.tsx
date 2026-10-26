@@ -41,6 +41,7 @@ interface NotificationPrefs {
   newApplication: boolean
   newRequest: boolean
   billingFailure: boolean
+  securityAlert: boolean
   weeklyDigest: boolean
 }
 
@@ -48,6 +49,7 @@ const DEFAULT_PREFS: NotificationPrefs = {
   newApplication: true,
   newRequest: true,
   billingFailure: true,
+  securityAlert: true,
   weeklyDigest: false,
 }
 
@@ -66,6 +68,7 @@ const NOTIFY_OPTIONS: Array<{ key: keyof NotificationPrefs; label: string; detai
   { key: 'newApplication', label: 'New school applications', detail: 'When a school submits an application for review.' },
   { key: 'newRequest', label: 'New contact requests', detail: 'When the public contact form produces a request.' },
   { key: 'billingFailure', label: 'Failed payments', detail: 'When an invoice goes overdue or a payment fails.' },
+  { key: 'securityAlert', label: 'Security alerts', detail: 'When a high severity signal is raised against the platform.' },
   { key: 'weeklyDigest', label: 'Weekly digest', detail: 'A summary of platform activity every Monday.' },
 ]
 
@@ -276,7 +279,7 @@ export default function SettingsSection({
               These switches are saved on this device and shown here so the preference is ready, but no email or in-app notification is sent from them until the notification service is connected.
             </Callout>
             <p className="mt-4 text-sm text-graphite">
-              Schools are notified through the Communications screen, which records what was sent and to whom.
+              School-scoped communications are separate from these device-local operator preferences.
             </p>
             <div className="mt-4"><Pill label={`${enabledCount} preferences saved`} tone="info" /></div>
           </Panel>
@@ -333,8 +336,11 @@ export default function SettingsSection({
             <ul className="space-y-3 text-sm text-graphite">
               <li className="flex gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> Platform access is verified on the database, not only in this interface.</li>
               <li className="flex gap-3"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> Operator grants and revocations are written to <span className="font-mono text-xs">platform_admins</span>.</li>
-              <li className="flex gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" /> Multi-factor authentication is not enforced for operators yet. Configure authentication requirements in Supabase.</li>
+              <li className="flex gap-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" /> Current-account MFA status is available in Security; cross-account status and platform-wide security monitoring are unavailable.</li>
             </ul>
+            <div className="mt-4">
+              <Button variant="outline" size="sm" disabled>Live security checks unavailable</Button>
+            </div>
           </Panel>
         </div>
       )}
@@ -360,7 +366,7 @@ export default function SettingsSection({
               Nom Cloud does not store per-operator sign-in history, so no other devices are listed. Sign-in events appear in the audit log once a session service is connected.
             </Callout>
             <p className="mt-4 text-sm text-graphite">
-              Signing out here ends this session only. Revoking another operator's access is done from the Operators screen, and needs founder approval.
+              Signing out here ends this session only. This client does not provide a cross-device or other-operator revocation action.
             </p>
           </Panel>
         </div>
@@ -371,10 +377,10 @@ export default function SettingsSection({
           <Panel title="Platform configuration" description="Live counts read from the database for this role.">
             <div className="grid gap-3 sm:grid-cols-2">
               {[
-                { icon: Buildings, label: 'Registered schools', value: platform.schoolCount.toLocaleString() },
-                { icon: Users, label: 'Platform operators', value: platform.operatorCount.toLocaleString() },
-                { icon: UserCircle, label: 'Students and teachers', value: `${platform.studentCount.toLocaleString()} / ${platform.teacherCount.toLocaleString()}` },
-                { icon: Bell, label: 'Contact requests', value: platform.requestCount.toLocaleString() },
+                { icon: Buildings, label: 'Registered schools', value: platform.error ? 'Not available' : !platform.connected ? '…' : platform.schoolCount.toLocaleString() },
+                { icon: Users, label: 'Platform operators', value: platform.error ? 'Not available' : !platform.connected ? '…' : platform.operatorCount.toLocaleString() },
+                { icon: UserCircle, label: 'Students and teachers', value: platform.error ? 'Not available' : !platform.connected ? '…' : `${platform.studentCount.toLocaleString()} / ${platform.teacherCount.toLocaleString()}` },
+                { icon: Bell, label: 'Contact requests', value: platform.error ? 'Not available' : !platform.connected ? '…' : platform.requestCount.toLocaleString() },
               ].map((item) => {
                 const Icon = item.icon
                 return (
@@ -390,14 +396,19 @@ export default function SettingsSection({
               <span className="text-sm font-semibold">
                 {platform.connected ? 'Platform data connected' : platform.error ? 'Platform data unavailable' : 'Checking platform records'}
               </span>
-              <span className="ml-auto text-xs text-graphite">{platform.pendingApplications} applications pending</span>
+              <span className="ml-auto text-xs text-graphite">{platform.error ? 'Application count unavailable' : !platform.connected ? 'Checking application count' : `${platform.pendingApplications} applications pending`}</span>
             </div>
           </Panel>
-          <Panel title="Platform configuration" description="Features are managed in Nom Cloud; infrastructure is managed in Supabase.">
+          <Panel title="Where platform settings live" description="So nothing is changed twice.">
             <ul className="space-y-3 text-sm text-graphite">
+              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Maintenance mode and release windows: <span className="font-semibold text-ink dark:text-white">Maintenance</span></li>
               <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Feature availability and rollouts: <span className="font-semibold text-ink dark:text-white">Features</span></li>
-              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Database, authentication, access policies, backups and infrastructure: <span className="font-semibold text-ink dark:text-white">Supabase Dashboard</span></li>
+              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> What each operator role may do: <span className="font-semibold text-ink dark:text-white">Permissions</span></li>
+              <li className="flex gap-3"><SettingsIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" /> Providers, keys and webhooks: <span className="font-semibold text-ink dark:text-white">Integrations</span></li>
             </ul>
+            <Restrict>
+              These sections explain where controls would live, but their backends are not connected and no platform setting can be changed from this summary.
+            </Restrict>
           </Panel>
         </div>
       )}

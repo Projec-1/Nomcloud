@@ -1,11 +1,12 @@
 export type ApplicantEmailResult =
-  | { sent: true; providerMessageId?: string }
+  | { state: "accepted"; providerMessageId: string }
   | {
-    sent: false;
+    state: "failed" | "unknown";
     errorCode:
       | "provider_unconfigured"
       | "provider_rejected"
-      | "provider_unavailable";
+      | "provider_unavailable"
+      | "provider_response_invalid";
   };
 
 export async function sendApplicantEmail(
@@ -19,7 +20,7 @@ export async function sendApplicantEmail(
   fetcher: typeof fetch = fetch,
 ): Promise<ApplicantEmailResult> {
   if (!options.apiKey || !options.from) {
-    return { sent: false, errorCode: "provider_unconfigured" };
+    return { state: "failed", errorCode: "provider_unconfigured" };
   }
 
   try {
@@ -37,15 +38,21 @@ export async function sendApplicantEmail(
       }),
     });
 
-    if (!response.ok) return { sent: false, errorCode: "provider_rejected" };
-    const result = await response.json().catch(() => ({})) as { id?: unknown };
+    if (response.status >= 500) {
+      return { state: "unknown", errorCode: "provider_unavailable" };
+    }
+    if (!response.ok) return { state: "failed", errorCode: "provider_rejected" };
+    const result = await response.json().catch(() => null) as
+      | { id?: unknown }
+      | null;
+    if (!result || typeof result.id !== "string" || !result.id.trim()) {
+      return { state: "unknown", errorCode: "provider_response_invalid" };
+    }
     return {
-      sent: true,
-      ...(typeof result.id === "string"
-        ? { providerMessageId: result.id }
-        : {}),
+      state: "accepted",
+      providerMessageId: result.id,
     };
   } catch {
-    return { sent: false, errorCode: "provider_unavailable" };
+    return { state: "unknown", errorCode: "provider_unavailable" };
   }
 }

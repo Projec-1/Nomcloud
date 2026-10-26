@@ -150,7 +150,7 @@ Two amendments changed this plan from its original form:
 
 | Timestamp | Scope | What it adds | Status |
 |---|---|---|---|
-| `20261011000001_platform_operations` | Platform operations | Persistent operator cases and append-only case history, incident command/response logs, contact-enquiry synchronization, operator team assignments, platform-admin-only RLS, and audit-log triggers. No student records are copied into case context. | Prepared in the repository; apply to Supabase before using the new Operator Center workflow. |
+| `20261011000002_platform_operations` | Platform operations | Persistent operator cases and append-only case history, incident command/response logs, contact-enquiry synchronization, operator team assignments, platform-admin-only RLS, and audit-log triggers. No student records are copied into case context. | Prepared in the repository; apply to Supabase before using the new Operator Center workflow. |
 
 ## Outstanding, carried across migrations
 

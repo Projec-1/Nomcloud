@@ -76,21 +76,69 @@ create table public.school_application_communications (
   subject text not null,
   body text not null,
   delivery_state text not null default 'queued'
-    check (delivery_state in ('queued', 'sent', 'failed')),
+    check (delivery_state in ('queued', 'accepted', 'delivered', 'failed', 'unknown')),
   provider_message_id text,
+  provider_accepted_at timestamptz,
   delivery_error_code text
-    check (delivery_error_code is null or delivery_error_code in ('provider_unconfigured', 'provider_rejected', 'provider_unavailable')),
+    check (delivery_error_code is null or delivery_error_code in (
+      'provider_unconfigured',
+      'provider_rejected',
+      'provider_unavailable',
+      'provider_response_invalid'
+    )),
   created_at timestamptz not null default now(),
   delivered_at timestamptz,
   constraint school_application_communications_delivery_consistency check (
-    (delivery_state = 'sent' and delivered_at is not null and delivery_error_code is null)
-    or (delivery_state = 'failed' and delivered_at is null and delivery_error_code is not null)
-    or (delivery_state = 'queued' and delivered_at is null and delivery_error_code is null)
+    (
+      delivery_state = 'queued'
+      and provider_accepted_at is null
+      and delivered_at is null
+      and provider_message_id is null
+      and delivery_error_code is null
+    )
+    or (
+      delivery_state = 'accepted'
+      and provider_accepted_at is not null
+      and delivered_at is null
+      and provider_message_id is not null
+      and delivery_error_code is null
+    )
+    or (
+      delivery_state = 'delivered'
+      and provider_accepted_at is not null
+      and delivered_at is not null
+      and provider_message_id is not null
+      and delivery_error_code is null
+    )
+    or (
+      delivery_state = 'failed'
+      and delivered_at is null
+      and delivery_error_code is not null
+    )
+    or (
+      delivery_state = 'unknown'
+      and delivered_at is null
+      and delivery_error_code in ('provider_unavailable', 'provider_response_invalid')
+    )
   )
 );
 
 comment on table public.school_application_communications is
-  'Private applicant communication history with explicit delivery state. A queued or failed row is not a successful delivery.';
+  'Private applicant communication history. Accepted means the provider accepted the request, not that delivery was confirmed. Delivered is reserved for a verified provider receipt; unknown means the request outcome could not be confirmed.';
+
+create table public.school_application_email_provider_events (
+  provider_event_id text primary key
+    check (length(btrim(provider_event_id)) between 1 and 200),
+  communication_id uuid not null
+    references public.school_application_communications (id) on delete cascade,
+  delivery_state text not null
+    check (delivery_state in ('accepted', 'delivered', 'failed', 'unknown')),
+  provider_message_id text,
+  recorded_at timestamptz not null default now()
+);
+
+comment on table public.school_application_email_provider_events is
+  'Deduplicated provider event identifiers and normalized states. Raw webhook payloads and applicant data are not stored.';
 
 create table public.school_application_events (
   id uuid primary key default gen_random_uuid(),
@@ -117,6 +165,7 @@ create index school_application_events_application_idx
 alter table public.school_application_notes enable row level security;
 alter table public.school_application_document_events enable row level security;
 alter table public.school_application_communications enable row level security;
+alter table public.school_application_email_provider_events enable row level security;
 alter table public.school_application_events enable row level security;
 
 create policy school_application_notes_platform_admin_read
@@ -141,6 +190,7 @@ grant select on public.school_applications to authenticated;
 revoke all on public.school_application_notes from public, anon, authenticated, service_role;
 revoke all on public.school_application_document_events from public, anon, authenticated, service_role;
 revoke all on public.school_application_communications from public, anon, authenticated, service_role;
+revoke all on public.school_application_email_provider_events from public, anon, authenticated, service_role;
 revoke all on public.school_application_events from public, anon, authenticated, service_role;
 grant select on public.school_application_notes to authenticated;
 grant select on public.school_application_document_events to authenticated;
@@ -210,10 +260,8 @@ declare
   v_application public.school_applications%rowtype;
   v_actor uuid := auth.uid();
   v_assignee uuid;
-  v_communication_id uuid;
   v_mentions uuid[] := '{}'::uuid[];
   v_item record;
-  v_reason text;
   v_action_at timestamptz;
 begin
   if v_actor is null or not exists (
@@ -225,6 +273,9 @@ begin
   if p_application_id is null or jsonb_typeof(coalesce(p_payload, '{}'::jsonb)) <> 'object' then
     raise exception 'Application id and an object payload are required' using errcode = '22023';
   end if;
+  if p_action in ('request_information', 'reject', 'send_email', 'send_template') then
+    raise exception 'Applicant email delivery is not enabled' using errcode = '55000';
+  end if;
 
   select * into v_application
   from public.school_applications
@@ -235,45 +286,6 @@ begin
   end if;
 
   case p_action
-    when 'request_information' then
-      if v_application.status not in ('pending', 'awaiting_information') then
-        raise exception 'Application cannot be asked for information in its current status' using errcode = '55000';
-      end if;
-      if length(btrim(coalesce(p_payload->>'subject', ''))) not between 1 and 200
-         or length(btrim(coalesce(p_payload->>'body', ''))) not between 1 and 10000 then
-        raise exception 'A subject and message body are required' using errcode = '22023';
-      end if;
-      update public.school_applications
-      set status = 'awaiting_information'
-      where id = p_application_id;
-      insert into public.school_application_communications (
-        application_id, actor_id, subject, body
-      ) values (
-        p_application_id, v_actor, btrim(p_payload->>'subject'), btrim(p_payload->>'body')
-      ) returning id into v_communication_id;
-
-    when 'reject' then
-      if v_application.status not in ('pending', 'awaiting_information') then
-        raise exception 'Application cannot be rejected in its current status' using errcode = '55000';
-      end if;
-      v_reason := btrim(coalesce(p_payload->>'reason', ''));
-      if length(v_reason) not between 1 and 2000
-         or length(btrim(coalesce(p_payload->>'subject', ''))) not between 1 and 200
-         or length(btrim(coalesce(p_payload->>'body', ''))) not between 1 and 10000 then
-        raise exception 'A rejection reason, subject and message body are required' using errcode = '22023';
-      end if;
-      update public.school_applications
-      set status = 'rejected',
-          rejection_reason = v_reason,
-          reviewed_by = v_actor,
-          reviewed_at = now()
-      where id = p_application_id;
-      insert into public.school_application_communications (
-        application_id, actor_id, subject, body
-      ) values (
-        p_application_id, v_actor, btrim(p_payload->>'subject'), btrim(p_payload->>'body')
-      ) returning id into v_communication_id;
-
     when 'reopen' then
       if v_application.status not in ('rejected', 'awaiting_information') then
         raise exception 'Only rejected or awaiting-information applications can be reopened' using errcode = '55000';
@@ -398,28 +410,6 @@ begin
       set status = 'onboarding'
       where id = p_application_id;
 
-    when 'send_email' then
-      if length(btrim(coalesce(p_payload->>'subject', ''))) not between 1 and 200
-         or length(btrim(coalesce(p_payload->>'body', ''))) not between 1 and 10000 then
-        raise exception 'A subject and message body are required' using errcode = '22023';
-      end if;
-      insert into public.school_application_communications (
-        application_id, actor_id, subject, body
-      ) values (
-        p_application_id, v_actor, btrim(p_payload->>'subject'), btrim(p_payload->>'body')
-      ) returning id into v_communication_id;
-
-    when 'send_template' then
-      if length(btrim(coalesce(p_payload->>'subject', ''))) not between 1 and 200
-         or length(btrim(coalesce(p_payload->>'body', ''))) not between 1 and 10000 then
-        raise exception 'A resolved template subject and message body are required' using errcode = '22023';
-      end if;
-      insert into public.school_application_communications (
-        application_id, actor_id, subject, body
-      ) values (
-        p_application_id, v_actor, btrim(p_payload->>'subject'), btrim(p_payload->>'body')
-      ) returning id into v_communication_id;
-
     when 'archive' then
       update public.school_applications
       set archived_at = now()
@@ -489,20 +479,21 @@ begin
     'application_id', p_application_id,
     'action', p_action,
     'status', (select status::text from public.school_applications where id = p_application_id),
-    'updated_at', v_action_at,
-    'communication_id', v_communication_id
+    'updated_at', v_action_at
   ));
 end;
 $$;
 
 comment on function public.manage_school_application(uuid, text, jsonb) is
-  'Performs platform-admin-only school application workflow actions. Duplicate and contact-mismatch flags are reviewer-entered signals only and never change application status.';
+  'Performs platform-admin-only school application workflow actions. Applicant email actions remain disabled until server-verified provider delivery is configured. Duplicate and contact-mismatch flags are reviewer-entered signals only and never change application status.';
 
+drop function if exists public.record_school_application_email_delivery(uuid, text, text, text);
 create or replace function public.record_school_application_email_delivery(
   p_communication_id uuid,
   p_delivery_state text,
-  p_provider_message_id text default null,
-  p_error_code text default null
+  p_provider_message_id text,
+  p_error_code text,
+  p_provider_event_id text
 )
 returns jsonb
 language plpgsql
@@ -510,21 +501,32 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_actor uuid := auth.uid();
   v_row public.school_application_communications%rowtype;
+  v_existing_communication_id uuid;
+  v_existing_state text;
+  v_existing_message_id text;
+  v_inserted integer;
+  v_message_id text;
 begin
-  if v_actor is null or not exists (
-    select 1 from public.platform_admins
-    where user_id = v_actor and revoked_at is null
-  ) then
-    raise exception 'Unrevoked platform-admin authority is required' using errcode = '42501';
+  if auth.role() is distinct from 'service_role' then
+    raise exception 'Trusted server execution is required' using errcode = '42501';
   end if;
-  if p_delivery_state is null or p_delivery_state not in ('sent', 'failed') then
-    raise exception 'Delivery state must be sent or failed' using errcode = '22023';
+  if p_delivery_state is null
+     or p_delivery_state not in ('accepted', 'delivered', 'failed', 'unknown') then
+    raise exception 'Unsupported provider delivery state' using errcode = '22023';
   end if;
-  if (p_delivery_state = 'sent' and p_error_code is not null)
-     or (p_delivery_state = 'failed' and (p_error_code is null or p_error_code not in ('provider_unconfigured', 'provider_rejected', 'provider_unavailable'))) then
-    raise exception 'Delivery state and error code are inconsistent' using errcode = '22023';
+  if (p_delivery_state in ('accepted', 'delivered')
+      and (nullif(btrim(p_provider_message_id), '') is null or p_error_code is not null))
+     or (p_delivery_state = 'delivered'
+         and nullif(btrim(p_provider_event_id), '') is null)
+     or (p_delivery_state = 'failed'
+         and p_error_code not in ('provider_unconfigured', 'provider_rejected', 'provider_response_invalid'))
+     or (p_delivery_state = 'unknown'
+         and p_error_code not in ('provider_unavailable', 'provider_response_invalid'))
+     or (p_delivery_state in ('failed', 'unknown') and p_error_code is null)
+     or (p_provider_event_id is not null
+         and length(btrim(p_provider_event_id)) not between 1 and 200) then
+    raise exception 'Provider state, event, and error details are inconsistent' using errcode = '22023';
   end if;
 
   select * into v_row
@@ -534,33 +536,89 @@ begin
   if not found then
     raise exception 'Communication not found' using errcode = 'P0002';
   end if;
-  if v_row.delivery_state <> 'queued' then
-    if v_row.delivery_state = p_delivery_state then
-      return jsonb_build_object('communication_id', v_row.id, 'delivery_state', v_row.delivery_state);
+
+  if p_provider_event_id is not null then
+    insert into public.school_application_email_provider_events (
+      provider_event_id, communication_id, delivery_state, provider_message_id
+    ) values (
+      p_provider_event_id, v_row.id, p_delivery_state, p_provider_message_id
+    )
+    on conflict (provider_event_id) do nothing;
+    get diagnostics v_inserted = row_count;
+    if v_inserted = 0 then
+      select communication_id, delivery_state, provider_message_id
+        into v_existing_communication_id, v_existing_state, v_existing_message_id
+        from public.school_application_email_provider_events
+       where provider_event_id = p_provider_event_id;
+      if v_existing_communication_id is distinct from v_row.id then
+        raise exception 'Provider event was already used for another communication' using errcode = '23505';
+      end if;
+      if v_existing_state is distinct from p_delivery_state
+         or v_existing_message_id is distinct from p_provider_message_id then
+        raise exception 'Provider event retry does not match its recorded result' using errcode = '22023';
+      end if;
+      return jsonb_build_object(
+        'communication_id', v_row.id,
+        'delivery_state', v_row.delivery_state,
+        'duplicate', true
+      );
     end if;
-    raise exception 'Communication delivery has already been finalized' using errcode = '55000';
   end if;
 
+  if v_row.provider_message_id is not null
+     and p_provider_message_id is not null
+     and v_row.provider_message_id is distinct from p_provider_message_id then
+    raise exception 'Provider message does not match communication' using errcode = '22023';
+  end if;
+  if v_row.delivery_state = p_delivery_state then
+    return jsonb_build_object(
+      'communication_id', v_row.id,
+      'delivery_state', v_row.delivery_state,
+      'duplicate', true
+    );
+  end if;
+  if v_row.delivery_state in ('delivered', 'failed')
+     and v_row.delivery_state is distinct from p_delivery_state then
+    raise exception 'Finalized communication delivery cannot change state' using errcode = '55000';
+  end if;
+  if v_row.delivery_state = 'accepted'
+     and p_delivery_state not in ('accepted', 'delivered', 'failed', 'unknown') then
+    raise exception 'Invalid communication delivery transition' using errcode = '55000';
+  end if;
+
+  v_message_id := coalesce(p_provider_message_id, v_row.provider_message_id);
   update public.school_application_communications
   set delivery_state = p_delivery_state,
-      provider_message_id = case when p_delivery_state = 'sent' then p_provider_message_id else null end,
+      provider_message_id = v_message_id,
+      provider_accepted_at = case
+        when p_delivery_state in ('accepted', 'delivered')
+          then coalesce(provider_accepted_at, now())
+        else provider_accepted_at
+      end,
       delivery_error_code = p_error_code,
-      delivered_at = case when p_delivery_state = 'sent' then now() else null end
+      delivered_at = case
+        when p_delivery_state = 'delivered' then coalesce(delivered_at, now())
+        else null
+      end
   where id = p_communication_id;
 
   insert into public.school_application_events (application_id, actor_id, event_type)
   values (
     v_row.application_id,
-    v_actor,
-    case when p_delivery_state = 'sent' then 'communication_sent' else 'communication_failed' end
+    null,
+    'communication_' || p_delivery_state
   );
 
-  return jsonb_build_object('communication_id', p_communication_id, 'delivery_state', p_delivery_state);
+  return jsonb_build_object(
+    'communication_id', p_communication_id,
+    'delivery_state', p_delivery_state,
+    'duplicate', false
+  );
 end;
 $$;
 
 revoke all on function public.record_school_application_status_event() from public, anon, authenticated, service_role;
 revoke all on function public.manage_school_application(uuid, text, jsonb) from public, anon, service_role;
-revoke all on function public.record_school_application_email_delivery(uuid, text, text, text) from public, anon, service_role;
+revoke all on function public.record_school_application_email_delivery(uuid, text, text, text, text) from public, anon, authenticated, service_role;
 grant execute on function public.manage_school_application(uuid, text, jsonb) to authenticated;
-grant execute on function public.record_school_application_email_delivery(uuid, text, text, text) to authenticated;
+grant execute on function public.record_school_application_email_delivery(uuid, text, text, text, text) to service_role;

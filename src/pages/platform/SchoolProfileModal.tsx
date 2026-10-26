@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Buildings, Clock, FileText, MapPin, Shield, Users } from '@phosphor-icons/react'
 import Button from '@/components/ui/Button'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Modal from '@/components/ui/Modal'
 import type { Request, School, SchoolStatus } from './types'
 import type { PlatformAuditRecord } from '@/services/platformService'
@@ -12,6 +13,7 @@ const profileTabs = [
   'Activity',
   'Requests',
   'Records',
+  'Permissions',
   'Audit History',
 ]
 
@@ -28,10 +30,10 @@ interface SchoolProfileModalProps {
   school: School | null
   requests: Request[]
   auditEntries: PlatformAuditRecord[]
-  busy: boolean
   onClose: () => void
   onOpenRequest: (request: Request) => void
-  onStatusChange: (id: string, status: SchoolStatus, message: string) => void
+  onStatusChange: (id: string, status: SchoolStatus, message: string) => Promise<void>
+  statusChangePending: boolean
 }
 
 function StatusBadge({ status }: { status: SchoolStatus }) {
@@ -55,12 +57,13 @@ export default function SchoolProfileModal({
   school,
   requests,
   auditEntries,
-  busy,
   onClose,
   onOpenRequest,
   onStatusChange,
+  statusChangePending,
 }: SchoolProfileModalProps) {
   const [tab, setTab] = useState('Overview')
+  const [pendingStatus, setPendingStatus] = useState<SchoolStatus | null>(null)
 
   useEffect(() => {
     if (school) setTab('Overview')
@@ -71,23 +74,22 @@ export default function SchoolProfileModal({
   const schoolRequests = requests.filter((request) => request.school === school.name)
   const schoolActivity = auditEntries.filter((entry) => entry.schoolId === school.id)
 
+  const statusMessage = pendingStatus === 'Suspended' ? 'School suspended' : 'School reactivated'
   const footer = (
     <>
       {school.status === 'Suspended' ? (
         <Button
           variant="accent"
-          loading={busy}
-          disabled={busy}
-          onClick={() => onStatusChange(school.id, 'Active', 'School reactivated')}
+          onClick={() => setPendingStatus('Active')}
+          disabled={statusChangePending}
         >
           Reactivate school
         </Button>
       ) : school.status === 'Active' || school.status === 'Under review' ? (
         <Button
           variant="danger"
-          loading={busy}
-          disabled={busy}
-          onClick={() => onStatusChange(school.id, 'Suspended', 'School suspended')}
+          onClick={() => setPendingStatus('Suspended')}
+          disabled={statusChangePending}
         >
           Suspend school
         </Button>
@@ -98,7 +100,7 @@ export default function SchoolProfileModal({
   return (
     <Modal
       open
-      onClose={() => { if (!busy) onClose() }}
+      onClose={onClose}
       size="xl"
       title={school.name}
       description={`${school.code ?? school.id} · ${school.location}`}
@@ -284,7 +286,42 @@ export default function SchoolProfileModal({
           </section>
         )}
 
+        {tab === 'Permissions' && (
+          <section aria-labelledby="school-permissions-heading">
+            <h2 id="school-permissions-heading" className="font-semibold">School access model</h2>
+            <p className="mt-1 text-sm text-graphite">Defined role scopes for Nom Cloud schools; this is policy documentation, not a directory of this school’s current grants.</p>
+            <div className="mt-3 divide-y divide-ink/10 dark:divide-white/10">
+              {[
+                ['Administrator', 'Manage school settings, staff, and records'],
+                ['Teacher', 'Access assigned classes and teaching records'],
+                ['Parent or guardian', 'View linked children and school updates'],
+              ].map(([role, scope]) => (
+                <div key={role} className="flex min-h-16 items-start gap-3 py-3">
+                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{role}</span>
+                    <span className="mt-1 block text-xs text-graphite">{scope}</span>
+                  </span>
+                  <span className="text-xs text-graphite">Role scope</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
+      <ConfirmDialog
+        open={pendingStatus !== null}
+        title={pendingStatus === 'Suspended' ? 'Suspend this school?' : 'Reactivate this school?'}
+        description={pendingStatus === 'Suspended' ? 'This changes the school account status in the platform database. Confirm only when you are authorized to make this access change.' : 'This changes the school account status in the platform database and restores the account from suspension.'}
+        confirmLabel={pendingStatus === 'Suspended' ? 'Suspend school' : 'Reactivate school'}
+        danger={pendingStatus === 'Suspended'}
+        loading={statusChangePending}
+        onCancel={() => { if (!statusChangePending) setPendingStatus(null) }}
+        onConfirm={() => {
+          if (!pendingStatus) return
+          void onStatusChange(school.id, pendingStatus, statusMessage).finally(() => setPendingStatus(null))
+        }}
+      />
     </Modal>
   )
 }

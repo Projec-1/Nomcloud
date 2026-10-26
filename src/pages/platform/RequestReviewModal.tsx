@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Buildings, Clock, User, WarningCircle } from '@phosphor-icons/react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -24,8 +23,6 @@ interface RequestReviewModalProps {
   schools: School[]
   onClose: () => void
   onDecision: (id: string, status: RequestStatus, message: string) => void
-  decisionBusy: string | null
-  onNoteSaved: (message: string) => void
   onOpenSchool: (school: School) => void
 }
 
@@ -34,83 +31,22 @@ export default function RequestReviewModal({
   schools,
   onClose,
   onDecision,
-  decisionBusy,
-  onNoteSaved,
   onOpenSchool,
 }: RequestReviewModalProps) {
-  const [draftNote, setDraftNote] = useState('')
-  const [notesByRequest, setNotesByRequest] = useState<Record<string, string[]>>({})
-
-  useEffect(() => {
-    setDraftNote('')
-  }, [request?.id])
-
   const school = request ? schools.find((item) => item.name === request.school) : undefined
-  const notes = request ? notesByRequest[request.id] ?? [] : []
-
-  const saveNote = () => {
-    if (!request) return
-    const note = draftNote.trim()
-    if (!note) return
-
-    setNotesByRequest((current) => ({
-      ...current,
-      [request.id]: [...(current[request.id] ?? []), note],
-    }))
-    setDraftNote('')
-    onNoteSaved('Note is visible only while this review remains open; no notes table exists yet.')
-  }
 
   const footer = request
     ? request.source === 'contact-message'
       ? request.status === 'Resolved'
         ? null
-        : <Button variant="accent" loading={decisionBusy === 'Contact message marked handled'} disabled={decisionBusy !== null} onClick={() => onDecision(request.id, 'Resolved', 'Contact message marked handled')}>Mark handled</Button>
-    : request.status === 'Resolved'
-      ? (
-        <Button
-          variant="outline"
-          loading={decisionBusy === 'Request reopened'}
-          disabled={decisionBusy !== null}
-          onClick={() => onDecision(request.id, 'Open', 'Request reopened')}
-        >
-          Reopen request
-        </Button>
-      )
-      : (
-        <>
-          <Button
-            variant="outline"
-            loading={decisionBusy === 'Changes requested from school'}
-            disabled={decisionBusy !== null}
-            onClick={() => onDecision(request.id, 'In review', 'Changes requested from school')}
-          >
-            Request changes
-          </Button>
-          <Button
-            variant="danger"
-            loading={decisionBusy === 'Request rejected'}
-            disabled={decisionBusy !== null}
-            onClick={() => onDecision(request.id, 'Resolved', 'Request rejected')}
-          >
-            Reject
-          </Button>
-          <Button
-            variant="accent"
-            loading={decisionBusy === 'Request approved'}
-            disabled={decisionBusy !== null}
-            onClick={() => onDecision(request.id, 'Resolved', 'Request approved')}
-          >
-            Approve
-          </Button>
-        </>
-      )
+        : <Button variant="accent" onClick={() => onDecision(request.id, 'Resolved', 'Contact message marked handled')}>Mark handled</Button>
+    : null
     : null
 
   return (
     <Modal
       open={Boolean(request)}
-      onClose={() => { if (!decisionBusy) onClose() }}
+      onClose={onClose}
       size="xl"
       title={request?.type ?? 'Request review'}
       description={request ? `${request.id} · ${request.school}` : ''}
@@ -223,36 +159,10 @@ export default function RequestReviewModal({
             )}
           </section>
 
-          <section aria-labelledby="operator-notes-heading" className="border-t border-ink/10 pt-5 dark:border-white/10">
-            <h2 id="operator-notes-heading" className="font-semibold">Operator notes</h2>
-            {notes.length > 0 && (
-              <ol className="mt-2 space-y-2">
-                {notes.map((note, index) => (
-                  <li key={`${request.id}-note-${index}`} className="text-sm leading-relaxed text-graphite">
-                    {note}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <label htmlFor={`operator-note-${request.id}`} className="mt-3 block text-sm font-medium">
-              Add a private note
-            </label>
-            <textarea
-              id={`operator-note-${request.id}`}
-              value={draftNote}
-              onChange={(event) => setDraftNote(event.target.value)}
-              placeholder="Add context for the next operator"
-              className="input mt-2 min-h-24 resize-y"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              disabled={!draftNote.trim()}
-              onClick={saveNote}
-            >
-              Save note
-            </Button>
+          <section className="border-t border-ink/10 pt-5 text-sm text-graphite dark:border-white/10">
+            {request.source === 'contact-message'
+              ? 'Mark handled is the only available update. It changes the stored handled status; decisions, replies, assignments, and private notes do not yet have a durable backend.'
+              : 'No action is available for this request type until its server-side workflow is connected.'}
           </section>
         </div>
       )}

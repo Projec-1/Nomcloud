@@ -1,316 +1,43 @@
-import { useMemo, useState } from 'react'
-import { ArrowUpRight, Buildings as Building2, CalendarPlus, CaretRight as ChevronRight, CreditCard, GraduationCap, Users } from '@phosphor-icons/react'
-import Button from '@/components/ui/Button'
-import Switch from '@/components/ui/Switch'
-import { formatCurrency } from '@/utils/format'
-import {
-  ActionDialog,
-  ActionLogPanel,
-  BarSeries,
-  DataTable,
-  DetailModal,
-  DistributionBar,
-  ExportButton,
-  FilterChips,
-  KpiTile,
-  MetaList,
-  Panel,
-  Pill,
-  PrototypeNotice,
-  SectionHeader,
-  Sparkline,
-  VerificationPanel,
-  downloadCsv,
-  useActionLog,
-  relativeDays,
-  type ActionRequest,
-  type Column,
-} from './PrototypeKit'
-import { analyticsSeries, analyticsSnapshot, reportSchedules, trendLabels, trendWindows, windowSize, type ReportSchedule, type TrendWindow } from './prototypeData'
+import { ChartLine, ClipboardText, GraduationCap, Users } from '@phosphor-icons/react'
+import type { Request, School } from '@/pages/platform/types'
+import { KpiTile, Panel, SectionHeader } from './PrototypeKit'
 
-interface RegionRow {
-  region: string
-  schools: number
-  students: number
-  mrr: number
-}
+export default function AnalyticsSection({
+  schools,
+  requests,
+  pendingApplicationCount,
+  operatorCount,
+  loading,
+}: {
+  schools: School[]
+  requests: Request[]
+  pendingApplicationCount: number
+  operatorCount: number
+  loading: boolean
+}) {
+  const studentCount = schools.reduce((total, school) => total + (school.students ?? 0), 0)
+  const teacherCount = schools.reduce((total, school) => total + (school.teachers ?? 0), 0)
+  const activeSchoolCount = schools.filter((school) => school.status === 'Active').length
+  const pendingRequestCount = requests.filter((request) => request.status === 'Open').length
 
-function slice<T>(values: T[], window: TrendWindow): T[] {
-  return values.slice(-windowSize(window))
-}
-
-function changeFor(values: number[], window: TrendWindow): { start: number; end: number; delta: number; percent: number } {
-  const current = slice(values, window)
-  const size = current.length
-  const index = values.length - size
-  const previous = values.slice(Math.max(0, index - size), index)
-  const end = current[current.length - 1] ?? 0
-  const start = current[0] ?? 0
-  const baseline = previous.length ? previous[previous.length - 1] ?? start : start
-  const delta = end - baseline
-  return { start, end, delta, percent: baseline === 0 ? 0 : delta / baseline }
-}
-
-export default function AnalyticsSection({ onNotify, onNavigate, operator }: { onNotify: (message: string) => void; onNavigate?: (path: string) => void; operator: string }) {
-  const [window, setWindow] = useState<TrendWindow>('Last 30 days')
-  const [region, setRegion] = useState<RegionRow | null>(null)
-  const [schedules, setSchedules] = useState<ReportSchedule[]>(reportSchedules)
-  const [request, setRequest] = useState<ActionRequest | null>(null)
-  const [verified, setVerified] = useState<Array<{ label: string; value: string; ok?: boolean }> | null>(null)
-  const { entries, record } = useActionLog(operator)
-
-  const metrics = useMemo(() => ({
-    schools: changeFor(analyticsSeries.schools, window),
-    students: changeFor(analyticsSeries.students, window),
-    teachers: changeFor(analyticsSeries.teachers, window),
-    mrr: changeFor(analyticsSeries.mrr, window),
-  }), [window])
-
-  const labels = slice(trendLabels, window)
-  const trendRows = [
-    ['Registered schools', metrics.schools],
-    ['Active students', metrics.students],
-    ['Teachers', metrics.teachers],
-    ['Monthly recurring revenue', metrics.mrr],
-  ] as const
-
-  const exportReport = () => {
-    downloadCsv('platform-analytics.csv', [
-      ['Metric', 'Value', 'Change in period'],
-      ['Registered schools', metrics.schools.end, `${metrics.schools.delta >= 0 ? '+' : ''}${metrics.schools.delta}`],
-      ['Active students', metrics.students.end, `${metrics.students.delta >= 0 ? '+' : ''}${metrics.students.delta}`],
-      ['Teachers', metrics.teachers.end, `${metrics.teachers.delta >= 0 ? '+' : ''}${metrics.teachers.delta}`],
-      ['Monthly recurring revenue', metrics.mrr.end, `${metrics.mrr.delta >= 0 ? '+' : ''}${formatCurrency(metrics.mrr.delta)}`],
-      [],
-      ['Plans', 'Schools', 'MRR'],
-      ...analyticsSnapshot.planDistribution.map((plan) => [plan.plan, plan.schools, plan.mrr]),
-      [],
-      ['Region', 'Schools', 'Students', 'MRR'],
-      ...analyticsSnapshot.regions.map((row) => [row.region, row.schools, row.students, row.mrr]),
-    ])
-    onNotify(`Analytics report exported for ${window.toLowerCase()}.`)
-  }
-
-  const scheduleReport = () => {
-    setRequest({
-      title: 'Schedule this report',
-      target: `${window} · network summary`,
-      description: 'The report is generated on the schedule and emailed to the people you choose. Figures are the same ones shown on this screen, so the recipient sees what you see.',
-      confirmLabel: 'Schedule report',
-      requiresReason: true,
-      reasonLabel: 'Who is this for, and what decision does it support?',
-      options: [{ key: 'exceptions', label: 'Include a section listing the schools that need attention' }],
-    onConfirm: ({ reason, options }) => {
-        const schedule: ReportSchedule = {
-          id: `RS-${Math.floor(32 + Math.random() * 20)}`,
-          name: `Network summary · ${window.toLowerCase()}`,
-          frequency: window === 'Last 7 days' ? 'Weekly, on Monday' : 'Monthly, on the 1st',
-          recipients: 'Founders and operations',
-          format: options.exceptions ? 'PDF + CSV with exceptions' : 'PDF + CSV',
-          enabled: true,
-          lastSentAt: null,
-          owner: operator,
-        }
-        setSchedules((current) => [schedule, ...current])
-        record({
-          action: 'Scheduled a recurring report',
-          target: `${schedule.id} · ${schedule.name}`,
-          reason,
-          before: 'Not scheduled',
-          after: `${schedule.frequency} to ${schedule.recipients}`,
-          result: 'Applied',
-          options: options.exceptions ? ['Includes the exceptions section'] : [],
-        })
-        setVerified([
-          { label: 'Report', value: schedule.name },
-          { label: 'Frequency', value: schedule.frequency },
-          { label: 'Recipients', value: schedule.recipients },
-          { label: 'First delivery', value: 'At the next scheduled run' },
-          { label: 'Included in the report', value: options.exceptions ? 'Exceptions section included' : 'Headline figures only' },
-        ])
-        onNotify(`${schedule.name} scheduled.`)
-      },
-    })
-  }
-
-  const toggleSchedule = (schedule: ReportSchedule) => {
-    setSchedules((current) => current.map((item) => item.id === schedule.id ? { ...item, enabled: !item.enabled } : item))
-    record({
-      action: schedule.enabled ? 'Paused a recurring report' : 'Resumed a recurring report',
-      target: `${schedule.id} · ${schedule.name}`,
-      reason: 'Delivery reviewed: this report is not needed on its current schedule.',
-      before: schedule.enabled ? 'Enabled' : 'Paused',
-      after: schedule.enabled ? 'Paused' : 'Enabled',
-      result: 'Applied',
-    })
-    setVerified([
-      { label: 'Report', value: schedule.name },
-      { label: 'Schedule', value: schedule.frequency },
-      { label: 'State', value: schedule.enabled ? 'Enabled → Paused' : 'Paused → Enabled' },
-      { label: 'Recipients', value: schedule.enabled ? 'Will not receive it while paused' : schedule.recipients },
-    ])
-  }
-
-  const regionColumns: Array<Column<RegionRow>> = [
-    { key: 'region', label: 'Region', width: 'minmax(0,1.2fr)', render: (row) => <span className="font-semibold">{row.region}</span> },
-    { key: 'schools', label: 'Schools', render: (row) => <span>{row.schools}</span> },
-    { key: 'students', label: 'Students', render: (row) => <span>{row.students.toLocaleString()}</span> },
-    { key: 'mrr', label: 'Monthly revenue', render: (row) => <span className="font-medium">{formatCurrency(row.mrr)}</span> },
-    { key: 'share', label: 'Share of network', render: (row) => <span className="text-graphite">{Math.round((row.students / analyticsSnapshot.people.students) * 100)}% of students</span> },
-  ]
-
-  return (
-    <>
-      <SectionHeader
-        eyebrow="Platform intelligence"
-        title="Analytics"
-        description="Growth, adoption and subscription health across the Nom Cloud network, with the numbers behind every figure."
-        action={<ExportButton onClick={exportReport} label="Export report" />}
-      />
-      <PrototypeNotice
-        scope="Analytics"
-        detail="No aggregate or reporting tables exist yet, so every figure here comes from built-in sample data. The live counts it summarises — schools, students, teachers — are already visible in the Overview and Schools sections, which read the real records."
-      />
-
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <FilterChips options={trendWindows} value={window} onChange={setWindow} label="Comparison period" />
-        <span className="text-xs text-graphite">Compared with the previous period of the same length.</span>
-        <Button variant="outline" size="sm" onClick={scheduleReport}><CalendarPlus className="h-4 w-4" /> Schedule this report</Button>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiTile label="Registered schools" value={metrics.schools.end.toLocaleString()} detail={`${analyticsSnapshot.schools.active} active · ${analyticsSnapshot.schools.trialing} trialing · ${analyticsSnapshot.schools.suspended} suspended`} icon={Building2} />
-        <KpiTile label="Active students" value={metrics.students.end.toLocaleString()} detail={`${metrics.students.delta >= 0 ? '+' : ''}${metrics.students.delta.toLocaleString()} in ${window.toLowerCase()}`} icon={GraduationCap} />
-        <KpiTile label="Monthly recurring revenue" value={formatCurrency(metrics.mrr.end)} detail={`${metrics.mrr.percent >= 0 ? '+' : ''}${(metrics.mrr.percent * 100).toFixed(1)}% vs previous period`} icon={CreditCard} />
-        <KpiTile label="Payments needing attention" value={`${analyticsSnapshot.revenue.failedPayments} failed`} detail={`${analyticsSnapshot.revenue.overdueSubscriptions} overdue subscriptions · ${formatCurrency(analyticsSnapshot.revenue.collectedThisMonth)} collected this month`} icon={Users} tone="warning" />
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.3fr_1fr]">
-        <Panel
-          title="Growth trend"
-          description={`Registered schools and active students over ${window.toLowerCase()}.`}
-          action={onNavigate && <button onClick={() => onNavigate('/platform/schools')} className="text-xs font-semibold text-brand">Open schools <ChevronRight className="inline h-3.5 w-3.5" /></button>}
-        >
-          <p className="text-sm text-graphite">Registered schools</p>
-          <Sparkline points={slice(analyticsSeries.schools, window)} />
-          <p className="mt-3 text-sm text-graphite">Monthly recurring revenue</p>
-          <Sparkline points={slice(analyticsSeries.mrr, window)} />
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-ink/[0.07] text-[10px] font-bold uppercase tracking-[0.15em] text-graphite dark:border-white/[0.08]">
-                  <th className="py-2">Metric</th>
-                  <th className="py-2">Start of period</th>
-                  <th className="py-2">Now</th>
-                  <th className="py-2">Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trendRows.map(([label, metric]) => (
-                  <tr key={label} className="border-b border-ink/[0.06] last:border-0 dark:border-white/[0.08]">
-                    <td className="py-2.5 font-medium">{label}</td>
-                    <td className="py-2.5 text-graphite">{label === 'Monthly recurring revenue' ? formatCurrency(metric.start) : metric.start.toLocaleString()}</td>
-                    <td className="py-2.5 font-semibold">{label === 'Monthly recurring revenue' ? formatCurrency(metric.end) : metric.end.toLocaleString()}</td>
-                    <td className="py-2.5">
-                      <Pill label={`${metric.delta >= 0 ? '+' : ''}${label === 'Monthly recurring revenue' ? formatCurrency(metric.delta) : metric.delta.toLocaleString()}`} tone={metric.delta >= 0 ? 'success' : 'danger'} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-
-        <div className="space-y-6">
-          <Panel title="Plan distribution" description="Where the revenue comes from and how the network is split.">
-            <DistributionBar segments={analyticsSnapshot.planDistribution.map((plan) => ({ label: plan.plan, value: plan.schools }))} />
-            <ul className="mt-5 space-y-3 text-sm">
-              {analyticsSnapshot.planDistribution.map((plan) => (
-                <li key={plan.plan} className="flex items-center justify-between gap-3 border-b border-ink/[0.06] pb-3 last:border-0 last:pb-0 dark:border-white/[0.08]">
-                  <span className="font-medium">{plan.plan}</span>
-                  <span className="text-graphite">{plan.schools} schools</span>
-                  <span className="font-semibold">{formatCurrency(plan.mrr)}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-
-          <Panel title="School lifecycle" description="Activation is measured from application approval to the first recorded attendance.">
-            <BarSeries
-              data={[
-                { label: 'Activation rate', value: Math.round(analyticsSnapshot.lifecycle.activation * 100) },
-                { label: 'Retention (90 days)', value: Math.round(analyticsSnapshot.lifecycle.retention90 * 100) },
-                { label: 'Churn (monthly)', value: Math.round(analyticsSnapshot.lifecycle.churn * 100) },
-              ]}
-              formatValue={(value) => `${value}%`}
-            />
-            <p className="mt-3 text-xs text-graphite">Average onboarding time is {analyticsSnapshot.lifecycle.onboardingDays} days.</p>
-          </Panel>
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <Panel title="Regional distribution" description="Select a region to see what makes up its share of the network.">
-          <DataTable columns={regionColumns} rows={analyticsSnapshot.regions} rowKey={(row) => row.region} onRow={setRegion} />
-        </Panel>
-      </div>
-
-      <DetailModal
-        open={Boolean(region)}
-        onClose={() => setRegion(null)}
-        title={region ? `${region.region}` : ''}
-        description="Regional breakdown from the analytics sample data"
-        meta={region ? [
-          ['Schools', region.schools.toString()],
-          ['Students', region.students.toLocaleString()],
-          ['Monthly revenue', formatCurrency(region.mrr)],
-          ['Revenue per student', formatCurrency(region.students ? Math.round(region.mrr / region.students) : 0)],
-          ['Share of students', `${Math.round((region.students / analyticsSnapshot.people.students) * 100)}%`],
-          ['Average school size', Math.round(region.students / region.schools).toLocaleString()],
-        ] : []}
-        size="md"
-        footer={<ExportButton onClick={() => region && downloadCsv(`analytics-${region.region.toLowerCase()}.csv`, [['Region', 'Schools', 'Students', 'MRR'], [region.region, region.schools, region.students, region.mrr]])} label="Export region" />}
-      >
-        <MetaList
-          columns={1}
-          items={[
-            ['What the sample data shows', `${region?.schools ?? 0} schools contributing ${formatCurrency(region?.mrr ?? 0)} of ${formatCurrency(analyticsSnapshot.revenue.mrr)} monthly recurring revenue.`],
-            ['What the backend will need', 'A reporting view per region, grouped from the schools and memberships tables. Nothing here is measured today.'],
-          ]}
-        />
-        <p className="flex items-center gap-2 text-xs text-graphite">
-          <ArrowUpRight className="h-3.5 w-3.5" /> Region-level figures are sample data, not a measurement.
-        </p>
-      </DetailModal>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.3fr_1fr]">
-        <Panel title="Report delivery" description="Recurring reports generated from this screen, and who receives them." action={<ExportButton onClick={() => downloadCsv('scheduled-reports.csv', [['Report', 'Frequency', 'Recipients', 'Format', 'State', 'Last sent', 'Owner'], ...schedules.map((schedule) => [schedule.name, schedule.frequency, schedule.recipients, schedule.format, schedule.enabled ? 'Enabled' : 'Paused', schedule.lastSentAt ?? 'Never sent', schedule.owner])])} label="Export schedules" />}>
-          <ul className="space-y-2">
-            {schedules.map((schedule) => (
-              <li key={schedule.id} className="rounded-xl bg-ink/[0.035] p-3 dark:bg-white/[0.05]">
-                <Switch
-                  checked={schedule.enabled}
-                  onChange={() => toggleSchedule(schedule)}
-                  label={schedule.name}
-                  description={`${schedule.frequency} · ${schedule.recipients} · ${schedule.format}${schedule.lastSentAt ? ` · last sent ${relativeDays(schedule.lastSentAt)}` : ' · never sent yet'}`}
-                />
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-xs text-graphite">Schedules are sample data. Delivery needs a report service and an email provider, neither of which exists yet.</p>
-        </Panel>
-
-        <div className="space-y-6">
-          <ActionLogPanel entries={entries} description="Reporting decisions from this session." />
-          {verified && <VerificationPanel title="Result of the last action" checks={verified} note="Verification reads the schedule list back. A real delivery would also be confirmed by the email provider." />}
-        </div>
-      </div>
-
-      <ActionDialog request={request} onClose={() => setRequest(null)} actor={operator} />
-
-      <p className="mt-6 text-xs text-graphite">
-        {labels.length} days of trend data are shown. Figures marked as sample data are stable sample values, not measurements.
-      </p>
-    </>
-  )
+  return <>
+    <SectionHeader eyebrow="Network reporting" title="Analytics" description="A current snapshot derived from records available to this workspace; no historical trend is implied." />
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <KpiTile label="Schools loaded" value={loading ? '…' : schools.length.toLocaleString()} detail={loading ? 'Loading school records' : `${activeSchoolCount.toLocaleString()} marked active`} icon={GraduationCap} />
+      <KpiTile label="Students in loaded records" value={loading ? '…' : studentCount.toLocaleString()} detail="Current school-record totals" icon={Users} />
+      <KpiTile label="Pending requests loaded" value={loading ? '…' : pendingRequestCount.toLocaleString()} detail="Latest request records returned" icon={ClipboardText} />
+      <KpiTile label="Pending applications" value={loading ? '…' : pendingApplicationCount.toLocaleString()} detail="Count query from application workflow" icon={ChartLine} />
+    </div>
+    <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <Panel title="Current school snapshot" description="Counts are calculated from the school rows loaded for this view.">
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <div><dt className="text-xs font-semibold uppercase tracking-wide text-graphite">Teachers in loaded records</dt><dd className="mt-1 text-xl font-bold">{loading ? '…' : teacherCount.toLocaleString()}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase tracking-wide text-graphite">Operators loaded</dt><dd className="mt-1 text-xl font-bold">{loading ? '…' : operatorCount.toLocaleString()}</dd></div>
+        </dl>
+      </Panel>
+      <Panel title="Reporting limits" description="These source records do not provide historical analytics.">
+        <p className="text-sm leading-6 text-graphite">Retention, revenue, churn, adoption-over-time, and product-usage metrics remain unavailable. Request totals reflect only the latest records returned by the workspace query; school and operator totals are loaded rows, not a versioned reporting snapshot.</p>
+      </Panel>
+    </div>
+  </>
 }

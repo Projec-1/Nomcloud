@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { MembershipRole } from '@/types/auth'
+import { edgeFunctionErrorMessage } from '@/utils/edgeFunctionError'
 
 // ---------------------------------------------------------------------------
 // Invitations, as the interface sees them.
@@ -72,7 +73,11 @@ export async function sendInvitation(input: {
         // fall through to the generic message below
       }
     }
-    return { status: 'failed', reason: 'database', message: 'The invitation could not be sent. Please try again.' }
+    return {
+      status: 'failed',
+      reason: 'database',
+      message: edgeFunctionErrorMessage(error, 'send-invitation'),
+    }
   }
 
   return data as InviteOutcome

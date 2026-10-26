@@ -16,15 +16,14 @@ import Button from '@/components/ui/Button'
 import { InlineLoader, Skeleton } from '@/components/ui/Loader'
 import Status from '@/pages/platform/StatusPill'
 import type { Request, School } from '@/pages/platform/types'
-import { downloadCsv, KpiTile, Panel, PrototypeNotice, SectionHeader, SampleTag } from './PrototypeKit'
+import { downloadCsv, KpiTile, Panel, SectionHeader } from './PrototypeKit'
 
 /**
  * Overview: the screen an operator lands on.
  *
  * Everything it reports comes from records the platform actually loaded —
  * schools, students, contact requests, pending applications, operators and the
- * audit log. Billing alerts are marked as sample data rather than presented as
- * live billing monitoring.
+ * audit log. No unavailable operational data is estimated or shown here.
  */
 
 export interface OverviewAlert {
@@ -32,7 +31,6 @@ export interface OverviewAlert {
   title: string
   detail: string
   path: string
-  sample: boolean
 }
 
 interface OverviewSectionProps {
@@ -93,7 +91,7 @@ export default function OverviewSection({
       ? [{
           id: 'requests',
           label: `${openRequests.length} contact request${openRequests.length === 1 ? '' : 's'} unanswered`,
-          detail: 'Assigned reviewers can reply, escalate or close each one.',
+          detail: 'Open the request to review its details; the supported action is marking it handled. This count covers the newest 500 loaded messages.',
           path: '/platform/requests',
           icon: ClipboardCheck,
           tone: 'info' as const,
@@ -112,8 +110,8 @@ export default function OverviewSection({
     ...(alerts.length > 0
       ? [{
           id: 'alerts',
-          label: `${alerts.length} alert${alerts.length === 1 ? '' : 's'} across school operations and billing`,
-          detail: 'Open the action centre to assign and resolve them.',
+          label: `${alerts.length} platform record${alerts.length === 1 ? '' : 's'} needing attention`,
+          detail: 'Open the action center to review the associated record.',
           path: '/platform/actions',
           icon: AlertTriangle,
           tone: 'danger' as const,
@@ -131,7 +129,7 @@ export default function OverviewSection({
       ['KPI', 'Registered schools', schools.length, `${activeSchools} active`],
       ['KPI', 'Active students', totalStudents, 'Across registered schools'],
       ['KPI', 'Teachers', totalTeachers, 'Across registered schools'],
-      ['KPI', 'Open requests', openRequests.length, `${pendingApplicationCount} school applications pending`],
+      ['KPI', 'Open requests', openRequests.length, `Among ${requests.length} newest messages loaded; ${pendingApplicationCount} school applications pending`],
       ['KPI', 'Operators with platform access', operatorCount, 'From platform_admins'],
       ...schools.map((school) => ['School', school.name, school.status, `${school.code ?? school.id} · ${school.plan} · ${school.students} students`]),
       ...requests.map((request) => ['Request', request.id, request.status, `${request.type} · ${request.school}`]),
@@ -141,10 +139,11 @@ export default function OverviewSection({
 
   const quickActions: Array<{ label: string; detail: string; path: string; icon: typeof Activity }> = [
     { label: 'Review applications', detail: `${pendingApplicationCount} pending`, path: '/platform/applications', icon: FileText },
-    { label: 'Open request queue', detail: `${openRequests.length} open`, path: '/platform/requests', icon: ClipboardCheck },
+    { label: 'Open request queue', detail: `${openRequests.length} open in newest 500`, path: '/platform/requests', icon: ClipboardCheck },
     { label: 'Find a school', detail: `${schools.length} registered`, path: '/platform/schools', icon: Building2 },
-    { label: 'Invite an operator', detail: `${operatorCount} with access`, path: '/platform/operators', icon: UserCircle },
-    { label: 'Announce to schools', detail: 'Communications', path: '/platform/communications', icon: Megaphone },
+    { label: 'Review operator access', detail: `${operatorCount} with access`, path: '/platform/operators', icon: UserCircle },
+    { label: 'Communications status', detail: 'Platform scope unavailable', path: '/platform/communications', icon: Megaphone },
+    { label: 'Check the audit log', detail: `${auditRows.length} events`, path: '/platform/audit', icon: Activity },
   ]
 
   return (
@@ -152,19 +151,14 @@ export default function OverviewSection({
       <SectionHeader
         eyebrow="Platform overview"
         title="Platform overview"
-        description="Platform-wide numbers, what needs operator attention, and the fastest route into every task."
+        description="Current records and routes into operator tasks. Contact-request counts cover only the newest 500 messages loaded by this view."
         action={<Button variant="outline" size="sm" onClick={exportReport}><ArrowUpRight className="h-4 w-4" /> Export report</Button>}
-      />
-
-      <PrototypeNotice
-        scope="Billing alerts"
-        detail="School, student, teacher, request and operator counts are read from the database. Billing alerts marked as sample data are examples, not live billing monitoring."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiTile label="Registered schools" value={loading ? <Skeleton className="h-8 w-24" /> : schools.length.toLocaleString()} detail={!loading ? `${activeSchools} active${suspendedSchools.length ? ` · ${suspendedSchools.length} suspended` : ''}` : undefined} icon={Building2} />
         <KpiTile label="Active students" value={loading ? <Skeleton className="h-8 w-24" /> : totalStudents.toLocaleString()} detail={!loading ? `${totalTeachers.toLocaleString()} teachers across registered schools` : undefined} icon={Users} />
-        <KpiTile label="Open requests" value={loading ? <Skeleton className="h-8 w-24" /> : openRequests.length.toLocaleString()} detail={!loading ? `${pendingApplicationCount} school applications pending` : undefined} icon={ClipboardCheck} tone={openRequests.length > 0 ? 'warning' : 'success'} />
+        <KpiTile label="Open requests" value={loading ? <Skeleton className="h-8 w-24" /> : openRequests.length.toLocaleString()} detail={!loading ? `Among newest ${requests.length.toLocaleString()} loaded messages` : undefined} icon={ClipboardCheck} tone={openRequests.length > 0 ? 'warning' : 'success'} />
         <KpiTile label="Platform operators" value={loading ? <Skeleton className="h-8 w-24" /> : operatorCount.toLocaleString()} detail={!loading ? 'Holding active platform access' : undefined} icon={ShieldWarning} />
       </div>
 
@@ -207,7 +201,7 @@ export default function OverviewSection({
 
           <Panel
             title="Alerts"
-            description="School operations and billing items that need a decision."
+            description="Available records that need an operator’s attention."
             action={<button onClick={() => navigate('/platform/actions')} className="text-xs font-semibold text-brand">Triage all <ArrowUpRight className="inline h-3.5 w-3.5" /></button>}
           >
             {alerts.length === 0 ? (
@@ -221,7 +215,6 @@ export default function OverviewSection({
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-semibold">{alert.title}</span>
-                          {alert.sample && <SampleTag />}
                         </span>
                         <span className="mt-1 block text-xs leading-5 text-graphite">{alert.detail}</span>
                       </span>
@@ -280,7 +273,7 @@ export default function OverviewSection({
 
           <Panel
             title="Requests waiting on an operator"
-            description="Newest contact messages from the database."
+            description={`Newest ${requests.length} contact messages from the database.`}
             action={<span className="text-xs font-semibold text-brand">{openRequests.length} open</span>}
           >
             {openRequests.length ? (
@@ -297,19 +290,20 @@ export default function OverviewSection({
                 ))}
               </div>
             ) : (
-              <p className="py-6 text-sm text-graphite">Every request has been answered.</p>
+              <p className="py-6 text-sm text-graphite">No open requests among the newest {requests.length} loaded messages.</p>
             )}
             <button onClick={() => navigate('/platform/requests')} className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-brand">
               Open request centre <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
           </Panel>
 
-          <Panel title="Action queue" description="Live counts of everything awaiting a decision.">
+          <Panel title="Action queue" description="Open contact requests are counted within the newest 500 loaded messages.">
             <ul className="space-y-2 text-sm">
               {[
                 { label: 'School applications', value: pendingApplicationCount, path: '/platform/applications' },
                 { label: 'Open contact requests', value: openRequests.length, path: '/platform/requests' },
                 { label: 'Schools needing attention', value: attentionSchools.length, path: '/platform/schools' },
+                { label: 'Audit events recorded', value: auditRows.length, path: '/platform/audit' },
               ].map((row) => (
                 <li key={row.label}>
                   <button onClick={() => navigate(row.path)} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-ink/[0.035] dark:hover:bg-white/[0.05]">
@@ -327,6 +321,7 @@ export default function OverviewSection({
         <Panel
           title="Recent platform activity"
           description="Read-only events from the audit log."
+          action={<button onClick={() => navigate('/platform/audit')} className="text-xs font-semibold text-brand">Audit logs <ArrowUpRight className="inline h-3.5 w-3.5" /></button>}
         >
           {auditRows.length ? (
             <div className="divide-y divide-ink/[0.06] dark:divide-white/[0.08]">

@@ -1,5 +1,7 @@
--- Internal platform case management and incident command. These records contain
--- operator notes only; school student records are intentionally not copied here.
+-- Internal platform case management and incident command. Contact-message
+-- cases retain only a source ID and status; message content is not copied.
+-- Version 20261011000002 avoids the local subscription-billing migration's
+-- duplicate 20261011000001 version.
 
 alter table public.platform_admins
   add column team text;
@@ -74,7 +76,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_case_response_times() from public, anon, authenticated;
+revoke all on function public.set_platform_case_response_times() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_set_response_times
   before insert or update on public.platform_cases
@@ -111,7 +113,7 @@ begin
 end;
 $$;
 
-revoke all on function public.validate_platform_operations_assignment() from public, anon, authenticated;
+revoke all on function public.validate_platform_operations_assignment() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_validate_assignment
   before insert or update of assigned_operator_id on public.platform_cases
@@ -133,7 +135,7 @@ begin
 end;
 $$;
 
-revoke all on function public.validate_platform_case_completion() from public, anon, authenticated;
+revoke all on function public.validate_platform_case_completion() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_validate_completion
   before insert or update of status, resolution, approval_status on public.platform_cases
@@ -165,7 +167,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_operations_actor() from public, anon, authenticated;
+revoke all on function public.set_platform_operations_actor() from public, anon, authenticated, service_role;
 
 create trigger platform_case_events_set_actor
   before insert on public.platform_case_events
@@ -217,7 +219,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_incident_resolved_at() from public, anon, authenticated;
+revoke all on function public.set_platform_incident_resolved_at() from public, anon, authenticated, service_role;
 
 create trigger platform_incidents_set_resolved_at
   before insert or update on public.platform_incidents
@@ -258,7 +260,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_operations_creator() from public, anon, authenticated;
+revoke all on function public.set_platform_operations_creator() from public, anon, authenticated, service_role;
 
 create trigger platform_cases_set_creator
   before insert on public.platform_cases
@@ -320,29 +322,6 @@ grant select, insert on public.platform_incident_updates to authenticated;
 revoke update on public.platform_admins from authenticated;
 grant update (team) on public.platform_admins to authenticated;
 
--- Seed historic contact submissions before live synchronization is enabled.
-insert into public.platform_cases (
-  title, case_type, status, priority, description, source_contact_message_id, resolution,
-  created_at, resolved_at
-)
-select
-  left(cm.topic || ' enquiry from ' || cm.name, 200),
-  'support',
-  case when cm.status = 'handled' then 'resolved' else 'open' end,
-  'normal',
-  cm.message,
-  cm.id,
-  case when cm.status = 'handled' then 'Previously handled contact enquiry' else null end,
-  cm.created_at,
-  cm.handled_at
-from public.contact_messages cm
-on conflict (source_contact_message_id) do nothing;
-
-insert into public.platform_case_events (case_id, event_type, body, created_at)
-select pc.id, 'created', 'Imported existing contact enquiry', pc.created_at
-  from public.platform_cases pc
- where pc.source_contact_message_id is not null;
-
 create or replace function public.record_platform_operations_audit()
 returns trigger
 language plpgsql
@@ -355,8 +334,11 @@ declare
   v_action text;
   v_summary text;
   v_actor uuid := auth.uid();
+  v_actor_role text;
   v_email extensions.citext;
 begin
+  v_actor_role := case when v_actor is null then 'system' else 'platform_operator' end;
+
   select p.email into v_email
     from public.profiles p
    where p.id = v_actor;
@@ -374,8 +356,16 @@ begin
   elsif tg_table_name = 'platform_cases' then
     v_entity_type := 'platform_case';
     v_entity_id := new.id;
-    v_action := case when tg_op = 'INSERT' then 'platform_case_created' else 'platform_case_updated' end;
-    v_summary := case when tg_op = 'INSERT' then 'Operator case created' else 'Operator case updated' end;
+    v_action := case
+      when tg_op = 'INSERT' and new.source_contact_message_id is not null then 'platform_case_intake_created'
+      when tg_op = 'INSERT' then 'platform_case_created'
+      else 'platform_case_updated'
+    end;
+    v_summary := case
+      when tg_op = 'INSERT' and new.source_contact_message_id is not null then 'Contact enquiry added to operations queue'
+      when tg_op = 'INSERT' then 'Operator case created'
+      else 'Operator case updated'
+    end;
   elsif tg_table_name = 'platform_incidents' then
     v_entity_type := 'platform_incident';
     v_entity_id := new.id;
@@ -391,14 +381,14 @@ begin
   insert into public.audit_logs (
     actor_user_id, actor_role, actor_email, action, entity_type, entity_id, summary
   ) values (
-    v_actor, 'platform_operator', v_email, v_action, v_entity_type, v_entity_id, v_summary
+    v_actor, v_actor_role, v_email, v_action, v_entity_type, v_entity_id, v_summary
   );
 
   return new;
 end;
 $$;
 
-revoke all on function public.record_platform_operations_audit() from public, anon, authenticated;
+revoke all on function public.record_platform_operations_audit() from public, anon, authenticated, service_role;
 
 create trigger platform_case_events_audit
   after insert on public.platform_case_events
@@ -457,20 +447,11 @@ begin
     insert into public.platform_case_events (case_id, event_type, body, actor_id)
     values (new.id, 'details_changed', 'Case details updated', auth.uid());
   end if;
-  if old.status is distinct from new.status
-      and new.source_contact_message_id is not null then
-    update public.contact_messages
-       set status = case when new.status in ('resolved', 'closed') then 'handled' else 'new' end,
-           handled_by = case when new.status in ('resolved', 'closed') then auth.uid() else null end,
-           handled_at = case when new.status in ('resolved', 'closed') then now() else null end
-     where id = new.source_contact_message_id
-       and status is distinct from case when new.status in ('resolved', 'closed') then 'handled' else 'new' end;
-  end if;
   return new;
 end;
 $$;
 
-revoke all on function public.log_platform_case_change() from public, anon, authenticated;
+revoke all on function public.log_platform_case_change() from public, anon, authenticated, service_role;
 create trigger platform_cases_log_changes
   after insert or update on public.platform_cases
   for each row execute function public.log_platform_case_change();
@@ -499,7 +480,7 @@ begin
 end;
 $$;
 
-revoke all on function public.log_platform_incident_change() from public, anon, authenticated;
+revoke all on function public.log_platform_incident_change() from public, anon, authenticated, service_role;
 create trigger platform_incidents_log_changes
   after insert or update on public.platform_incidents
   for each row execute function public.log_platform_incident_change();
@@ -516,11 +497,11 @@ begin
       title, case_type, status, priority, description, source_contact_message_id, resolution,
       created_at, resolved_at
     ) values (
-      left(new.topic || ' enquiry from ' || new.name, 200),
+      'Contact enquiry',
       'support',
       case when new.status = 'handled' then 'resolved' else 'open' end,
       'normal',
-      new.message,
+      null,
       new.id,
       case when new.status = 'handled' then 'Previously handled contact enquiry' else null end,
       new.created_at,
@@ -533,7 +514,10 @@ begin
   if old.status is distinct from new.status then
     update public.platform_cases
        set status = case when new.status = 'handled' then 'resolved' else 'open' end,
-           resolution = case when new.status = 'handled' then coalesce(resolution, 'Handled from Requests & Reviews') else null end,
+           resolution = case
+             when new.status = 'handled' then coalesce(resolution, 'Handled from Requests & Reviews')
+             else resolution
+           end,
            resolved_at = case when new.status = 'handled' then coalesce(new.handled_at, now()) else null end
      where source_contact_message_id = new.id
        and status is distinct from case when new.status = 'handled' then 'resolved' else 'open' end;
@@ -542,7 +526,7 @@ begin
 end;
 $$;
 
-revoke all on function public.sync_contact_message_case() from public, anon, authenticated;
+revoke all on function public.sync_contact_message_case() from public, anon, authenticated, service_role;
 
 create trigger contact_messages_sync_platform_case
   after insert or update of status on public.contact_messages
@@ -557,8 +541,12 @@ as $$
 declare
   v_incident_id uuid;
   v_operator_id uuid;
+  v_actor uuid := auth.uid();
+  v_actor_role text;
   v_email extensions.citext;
 begin
+  v_actor_role := case when v_actor is null then 'system' else 'platform_operator' end;
+
   if tg_op = 'DELETE' then
     v_incident_id := old.incident_id;
     v_operator_id := old.operator_id;
@@ -569,14 +557,18 @@ begin
 
   select p.email into v_email
     from public.profiles p
-   where p.id = auth.uid();
+   where p.id = v_actor;
 
   insert into public.audit_logs (
-    actor_user_id, actor_role, actor_email, action, entity_type, entity_id, summary
+    actor_user_id, actor_role, actor_email, action, entity_type, entity_id, summary, changes
   ) values (
-    auth.uid(), 'platform_operator', v_email,
+    v_actor, v_actor_role, v_email,
     case when tg_op = 'INSERT' then 'platform_incident_responder_assigned' else 'platform_incident_responder_removed' end,
-    'platform_incident', v_incident_id, 'Incident responder assignment changed'
+    'platform_incident', v_incident_id, 'Incident responder assignment changed',
+    jsonb_build_object(
+      'operator_id', v_operator_id,
+      'operation', case when tg_op = 'INSERT' then 'assigned' else 'removed' end
+    )
   );
 
   if tg_op = 'DELETE' then
@@ -586,7 +578,7 @@ begin
 end;
 $$;
 
-revoke all on function public.log_platform_responder_change() from public, anon, authenticated;
+revoke all on function public.log_platform_responder_change() from public, anon, authenticated, service_role;
 
 create trigger platform_incident_responders_audit
   after insert or delete on public.platform_incident_responders
@@ -604,6 +596,11 @@ as $$
 begin
   if not public.is_platform_admin() then
     raise exception 'Platform operator access required' using errcode = '42501';
+  end if;
+  if p_incident_id is null or not exists (
+    select 1 from public.platform_incidents pi where pi.id = p_incident_id
+  ) then
+    raise exception 'Incident not found' using errcode = 'P0002';
   end if;
   if exists (
     select 1
@@ -625,5 +622,5 @@ begin
 end;
 $$;
 
-revoke all on function public.set_platform_incident_responders(uuid, uuid[]) from public, anon;
+revoke all on function public.set_platform_incident_responders(uuid, uuid[]) from public, anon, service_role;
 grant execute on function public.set_platform_incident_responders(uuid, uuid[]) to authenticated;
