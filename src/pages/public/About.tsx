@@ -53,7 +53,7 @@ export default function About() {
         path="/about"
       />
       <section className="relative isolate flex min-h-[470px] items-center overflow-hidden bg-ink sm:min-h-[530px]">
-        <img src={img('classroomChildren', 2000, 85)} alt="" width="2000" height="1200" className="absolute inset-0 h-full w-full scale-[1.03] object-cover object-center opacity-70 blur-[1px]" />
+        <img src="/about-schoolyard.png" alt="" width="2000" height="1200" className="absolute inset-0 h-full w-full scale-[1.03] object-cover object-center opacity-70 blur-[1px]" />
         <div aria-hidden="true" className="absolute inset-0 bg-ink/60" />
         <div className="relative mx-auto w-full max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
           <div className="max-w-3xl">

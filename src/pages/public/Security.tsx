@@ -50,7 +50,7 @@ export default function Security() {
           <Reveal>
             <div className="grid overflow-hidden rounded-xl border border-ink/10 bg-white dark:border-white/10 dark:bg-[#202320] lg:grid-cols-2">
               <div className="relative flex min-h-[18rem] flex-col justify-end overflow-hidden p-10 sm:p-14">
-                <img src="/kids photodownload (6).jpeg" alt="Students in a classroom" className="absolute inset-0 h-full w-full object-cover" />
+                <img src="/security-classroom.png" alt="Student raising her hand in a classroom" className="absolute inset-0 h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-ink/65" />
                 <div className="relative flex h-16 w-16 items-center justify-center rounded-xl bg-white/10">
                   <Lock className="h-8 w-8 text-white" />

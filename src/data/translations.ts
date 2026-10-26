@@ -91,6 +91,10 @@ export const translations: Record<Lang, Dict> = {
     'home.pillar3.title': 'Built for daily use',
     'home.pillar3.body': 'Attendance, grades, and fee balances update in real time, so daily work stays simple and clear.',
 
+    'home.story.eyebrow': 'Education · In the classroom',
+    'home.story.title': 'The everyday work of learning.',
+    'home.story.body': 'Students gather around their books and learn side by side. These shared classroom moments are at the heart of every school community.',
+
     'home.cap.studentManagement': 'Student Management',
     'home.cap.attendance': 'Attendance',
     'home.cap.grades': 'Grades',
@@ -1509,6 +1513,10 @@ export const translations: Record<Lang, Dict> = {
     'home.pillar3.title': 'Loogu talagalay isticmaal maalinlaha ah',
     'home.pillar3.body': 'Xaadiris ilbiriqsiyo, dhibco si degdeg ah isu la beddela, hadhaagga lacagta oo iskood is cusboonaysiiya. Tababbar lagama baahna.',
 
+    'home.story.eyebrow': 'Waxbarasho · Fasalka dhexdiisa',
+    'home.story.title': 'Barashada maalin kasta.',
+    'home.story.body': 'Ardaydu waxay buugaagtooda ku wada baranayaan dhinac dhinac. Wadaagista daqiiqadaha fasalka noocan ahi waa udub-dhexaadka bulsho kasta oo dugsiyeed.',
+
     'home.cap.studentManagement': 'Maaraynta Ardayda',
     'home.cap.attendance': 'Xaadiriska',
     'home.cap.grades': 'Dhibcaha',
@@ -2313,6 +2321,10 @@ export const translations: Record<Lang, Dict> = {
     'home.pillar2.body': 'لكل مدرسة بيئة آمنة خاصة بها. تبقى بياناتك ضمن مدرستك ولا تُشارك أو تُباع أبدًا.',
     'home.pillar3.title': 'مصمم للاستخدام اليومي',
     'home.pillar3.body': 'يتم تحديث الحضور والدرجات وأرصدة الرسوم فورًا، حتى تبقى الأعمال اليومية واضحة وسهلة.',
+
+    'home.story.eyebrow': 'التعليم · داخل الصف',
+    'home.story.title': 'التعلّم في تفاصيل كل يوم.',
+    'home.story.body': 'يجتمع الطلاب حول كتبهم ويتعلّمون جنبًا إلى جنب. هذه اللحظات المشتركة في الصف هي جوهر كل مجتمع مدرسي.',
 
     'home.cap.studentManagement': 'إدارة الطلاب',
     'home.cap.attendance': 'الحضور',

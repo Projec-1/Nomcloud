@@ -205,6 +205,26 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="section bg-white dark:bg-white/[0.02]" aria-labelledby="home-classroom-story-title">
+        <div className="container grid items-center gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+          <img
+            src="/classroom-learning-story.png"
+            alt="Students sitting together at their desks with an open book in the foreground"
+            width="1394"
+            height="930"
+            loading="lazy"
+            className="aspect-[3/2] w-full rounded-2xl object-cover object-center"
+          />
+          <div className="max-w-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">{t('home.story.eyebrow')}</p>
+            <h2 id="home-classroom-story-title" className="mt-4 text-display-md text-ink dark:text-white">
+              {t('home.story.title')}
+            </h2>
+            <p className="mt-5 text-base leading-relaxed text-graphite">{t('home.story.body')}</p>
+          </div>
+        </div>
+      </section>
+
       {/* Teacher preview */}
       <section className="home-teacher section bg-white dark:bg-white/[0.02]">
         <div className="container grid items-center gap-14 lg:grid-cols-2">
