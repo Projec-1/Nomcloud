@@ -7,6 +7,11 @@ export function useInView<T extends HTMLElement>(options?: IntersectionObserverI
   useEffect(() => {
     const node = ref.current
     if (!node) return
+    if (!('IntersectionObserver' in window)) {
+      setInView(true)
+      return
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {

@@ -8,16 +8,14 @@ import {
   CaretRight as ChevronRight,
   ClipboardText as ClipboardCheck,
   Clock as Clock3,
+  CaretDown as ChevronDown,
   FileText,
   Layout as LayoutDashboard,
   LockKey as LockKeyhole,
   SignOut as LogOut,
-  List as Menu,
-  DotsThree as MoreHorizontal,
   MagnifyingGlass as Search,
   Gear as Settings2,
   Users,
-  X,
   Eye,
   ChartBar as BarChart3,
   Prohibit as Ban,
@@ -29,7 +27,7 @@ import {
   UserCircle,
   Briefcase,
 } from '@phosphor-icons/react'
-import Modal from '@/components/ui/Modal'
+import Modal, { OperatorModalProvider } from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { InlineLoader } from '@/components/ui/Loader'
 import Select from '@/components/ui/Select'
@@ -122,6 +120,17 @@ const navGroups = [
 ]
 
 const nav = navGroups.flatMap((group) => group.items)
+const primaryNavGroups = navGroups.slice(0, 3).map((group) => ({
+  ...group,
+  items: group.items.filter((item) => item.path !== '/platform/communications'),
+}))
+const primaryNavPaths = new Set(primaryNavGroups.flatMap((group) => group.items.map((item) => item.path)))
+const moreNavGroups = navGroups
+  .map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !primaryNavPaths.has(item.path)),
+  }))
+  .filter((group) => group.items.length > 0)
 
 const schoolTimeline = [
   ['Today, 09:42', 'School approval completed', 'Leila Hassan approved the organization application.'],
@@ -135,9 +144,13 @@ export default function PlatformWorkspace() {
   const location = useLocation()
   const navigate = useNavigate()
   const { authUser, platformAdmin, profile, logout } = useAuth()
-  const [mobileNav, setMobileNav] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
+  const navMenuRef = useRef<HTMLDivElement>(null)
+  const navMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  const [navMenuOpen, setNavMenuOpen] = useState(false)
+  const sectionNavRef = useRef<HTMLDivElement>(null)
+  const activeSectionNavRef = useRef<HTMLButtonElement>(null)
   const [school, setSchool] = useState<School | null>(null)
   const [request, setRequest] = useState<Request | null>(null)
   const [signOutOpen, setSignOutOpen] = useState(false)
@@ -183,6 +196,24 @@ export default function PlatformWorkspace() {
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [profileMenuOpen])
+
+  useEffect(() => {
+    if (!navMenuOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !navMenuRef.current?.contains(event.target)) setNavMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setNavMenuOpen(false)
+      navMenuTriggerRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [navMenuOpen])
 
   useEffect(() => {
     if (!authUser) {
@@ -271,6 +302,18 @@ export default function PlatformWorkspace() {
     : [...nav]
         .sort((a, b) => b.path.length - a.path.length)
         .find((item) => currentPath === item.path || currentPath.startsWith(`${item.path}/`))?.label ?? 'Overview'
+  const moreSectionActive = moreNavGroups.some((group) => group.items.some((item) => item.label === section))
+
+  useEffect(() => {
+    const navElement = sectionNavRef.current
+    const activeItem = activeSectionNavRef.current
+    if (!navElement || !activeItem) return
+    const navBounds = navElement.getBoundingClientRect()
+    const itemBounds = activeItem.getBoundingClientRect()
+    if (itemBounds.left < navBounds.left || itemBounds.right > navBounds.right) {
+      navElement.scrollLeft += itemBounds.left - navBounds.left - (navElement.clientWidth - activeItem.offsetWidth) / 2
+    }
+  }, [section])
 
   const filteredSchools = useMemo(() => schoolRecords.filter((item) => (schoolFilter === 'All' || item.status === schoolFilter) && `${item.name} ${item.id} ${item.location}`.toLowerCase().includes(query.toLowerCase())), [query, schoolFilter, schoolRecords])
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2800) }
@@ -387,106 +430,173 @@ export default function PlatformWorkspace() {
   ].filter((result) => `${result.type} ${result.title} ${result.detail}`.toLowerCase().includes(globalQuery.toLowerCase()))
 
   return (
-    <div className="min-h-screen bg-[var(--nc-canvas)] text-[var(--nc-text)]">
-      <aside className={`fixed inset-y-0 left-0 z-40 flex h-[100dvh] w-64 flex-col overflow-hidden border-r border-[var(--nc-line)] bg-[var(--nc-surface)] px-3 py-5 transition-transform lg:translate-x-0 ${mobileNav ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-start justify-between px-3">
-          <button type="button" onClick={() => navigate('/platform')} className="flex items-center gap-3 text-left">
-            <img src="/logo-512.png" alt="Nom Cloud" className="h-10 w-10 rounded-xl object-contain" />
-            <span className="min-w-0"><span className="block text-[15px] font-bold tracking-tight">Nom Cloud</span><span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-graphite">Control Center</span></span>
-          </button>
-          <button type="button" aria-label="Close navigation" className="ml-auto min-h-11 min-w-11 rounded-lg p-2 text-graphite focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand lg:hidden" onClick={() => setMobileNav(false)}><X className="h-4 w-4" /></button>
-        </div>
-        <nav className="mt-8 min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]">
-          {navGroups.map((group) => <section key={group.label}>
-            <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-graphite/70">{group.label}</p>
-            <div className="space-y-1">
-              {group.items.map((item) => { const Icon = item.icon; const active = section === item.label; const count = item.label === 'School Applications' ? pendingApplicationCount : navBadges[item.label]; return <button key={item.path} aria-current={active ? 'page' : undefined} onClick={() => { navigate(item.path); setMobileNav(false) }} className={`group flex min-h-11 w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? 'border-brand/20 bg-brand/10 text-brand' : 'border-transparent text-graphite hover:bg-ink/[0.05] hover:text-ink dark:hover:bg-white/[0.06] dark:hover:text-white'}`}><Icon className="h-[17px] w-[17px] shrink-0" /><span className="min-w-0 flex-1 break-words">{item.label}</span>{count ? <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${active ? 'bg-brand text-white' : 'bg-brand/10 text-brand'}`}>{count}</span> : null}</button> })}
-            </div>
-          </section>)}
-        </nav>
-        <div className="mt-auto">
-          <div className="mb-3 rounded-2xl border border-ink/[0.07] bg-ink/[0.025] p-3 dark:border-white/[0.08] dark:bg-white/[0.03]"><div className="flex items-center gap-2">{platformRecordsLoading ? <InlineLoader label="Checking platform records" state="connecting" /> : <><span className={`h-2 w-2 rounded-full ${platformRecordsError ? 'bg-red-500' : 'bg-emerald-500'}`} /><span className="text-xs font-semibold">{platformRecordsError ? 'Platform data unavailable' : 'Platform data connected'}</span></>}</div>{!platformRecordsLoading && <p className="mt-1 pl-4 text-[11px] text-graphite">{schoolRecords.length} registered schools</p>}</div>
-          <button onClick={() => navigate('/platform/settings')} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white">{displayInitial}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{displayName || displayEmail || 'Platform operator'}</span><span className="block text-xs text-graphite">{operatorRole}</span></span><MoreHorizontal className="h-4 w-4 text-graphite" /></button>
-          <button onClick={() => setSignOutOpen(true)} className="mt-2 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-graphite hover:bg-red-500/10 hover:text-red-600"><LogOut className="h-4 w-4" /> Sign out</button>
-        </div>
-      </aside>
-      {mobileNav && <button className="fixed inset-0 z-30 bg-ink/60 lg:hidden" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
+    <OperatorModalProvider>
+    <div className="operator-liquid min-h-screen bg-[var(--nc-canvas)] text-[var(--nc-text)]">
       <a
         href="#platform-main-content"
         className="sr-only z-50 rounded-lg bg-[var(--nc-surface)] px-4 py-3 font-semibold text-[var(--nc-text)] focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         Skip to workspace content
       </a>
-      <main id="platform-main-content" className="platform-main lg:pl-64">
-        <header className="sticky top-0 z-20 flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--nc-line)] bg-[var(--nc-canvas)] px-4 py-2 sm:px-8">
-          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-            <button type="button" aria-label="Open navigation" aria-expanded={mobileNav} className="min-h-11 min-w-11 shrink-0 rounded-xl p-2 hover:bg-ink/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand lg:hidden" onClick={() => setMobileNav(true)}>
-              <Menu className="h-5 w-5" />
+      <main id="platform-main-content" className="platform-main min-h-screen">
+        <header className="operator-topbar sticky top-2 z-30 px-4 pt-3 sm:px-7">
+          <div className="operator-topbar-frame mx-auto max-w-[1640px] rounded-2xl border px-3 sm:px-4">
+          <div className="operator-topbar-main mx-auto flex min-h-14 max-w-[1640px] flex-wrap items-center gap-x-4 gap-y-2">
+            <button type="button" aria-label="Nom Cloud Operator Center home" onClick={() => navigate('/platform')} className="flex shrink-0 items-center gap-2.5 text-left">
+              <img src="/logo-512.png" alt="" className="h-9 w-9 rounded-xl object-contain" />
+              <span className="hidden min-[440px]:block">
+                <span className="block text-sm font-bold tracking-tight">Nom Cloud</span>
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-graphite">Operator Center</span>
+              </span>
             </button>
-            <span className="hidden text-sm font-semibold text-graphite xl:block">Platform /</span>
-            <span className="truncate text-sm font-semibold">{section}</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <ThemeSwitcher className="shrink-0" />
-            <button type="button" aria-label="Open platform settings" onClick={() => navigate('/platform/settings')} className="hidden min-h-11 min-w-11 shrink-0 rounded-xl p-2 text-graphite hover:bg-ink/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand xl:inline-flex xl:items-center xl:justify-center">
-              <Settings2 className="h-4 w-4" />
-            </button>
-            <div ref={profileMenuRef} className="relative shrink-0">
-              <button
-                type="button"
-                aria-label="Open operator profile"
-                aria-expanded={profileMenuOpen}
-                aria-controls="operator-profile-menu"
-                onClick={() => setProfileMenuOpen((current) => !current)}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-brand text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-              >
-                {displayInitial}
+            <div className="hidden min-w-0 items-center gap-2 border-l border-[var(--nc-line)] pl-4 md:flex">
+              <span className="truncate text-sm font-semibold">{section}</span>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${platformRecordsLoading ? 'animate-pulse bg-amber-400' : platformRecordsError ? 'bg-red-500' : 'bg-emerald-500'}`} />
+              <span className="hidden text-xs text-graphite lg:inline">{platformRecordsLoading ? 'Connecting' : platformRecordsError ? 'Data unavailable' : 'Connected'}</span>
+            </div>
+            <div className="relative order-3 min-w-0 basis-full xl:order-none xl:ml-auto xl:basis-auto xl:flex-1 xl:max-w-sm">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" />
+              <input aria-label="Search schools and platform operators" value={globalQuery} onFocus={() => setGlobalSearchOpen(true)} onChange={(event) => { setGlobalQuery(event.target.value); setGlobalSearchOpen(true) }} placeholder="Search schools and operators…" className="input h-10 w-full bg-[var(--nc-surface)] pl-10 pr-12" />
+              {globalSearchOpen && globalQuery && <div className="interaction-menu absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-2 shadow-card">{searchResults.length ? searchResults.map((result) => <button key={result.type + '-' + result.title} onClick={() => { navigate(result.path); setGlobalSearchOpen(false); setGlobalQuery('') }} className="flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand"><Search className="h-3.5 w-3.5" /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-brand">{result.type}</span><span className="block text-sm font-semibold">{result.title}</span><span className="block text-xs text-graphite">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-graphite">No matching platform records.</p>}</div>}
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <ThemeSwitcher className="shrink-0" />
+              <button type="button" aria-label="Open platform settings" onClick={() => navigate('/platform/settings')} className="hidden min-h-10 min-w-10 shrink-0 rounded-xl p-2 text-graphite hover:bg-ink/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand sm:inline-flex sm:items-center sm:justify-center">
+                <Settings2 className="h-4 w-4" />
               </button>
-              {profileMenuOpen && (
-                <div id="operator-profile-menu" className="interaction-menu absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-4">
-                  <div className="border-b border-[var(--nc-line)] pb-3">
-                    <p className="truncate text-sm font-semibold">{displayName || 'Name not available'}</p>
-                    <p className="mt-1 break-all text-xs text-graphite">{displayEmail || 'Email not available'}</p>
-                    <p className="mt-2 text-xs font-medium text-graphite">{operatorRole}</p>
-                    {authUser?.created_at && (
-                      <p className="mt-1 text-xs text-graphite">
-                        Account since {new Date(authUser.created_at).toLocaleDateString()}
-                      </p>
-                    )}
+              <div ref={profileMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label="Open operator profile"
+                  aria-expanded={profileMenuOpen}
+                  aria-controls="operator-profile-menu"
+                  onClick={() => setProfileMenuOpen((current) => !current)}
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-brand text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                >
+                  {displayInitial}
+                </button>
+                {profileMenuOpen && (
+                  <div id="operator-profile-menu" className="interaction-menu absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-4">
+                    <div className="border-b border-[var(--nc-line)] pb-3">
+                      <p className="truncate text-sm font-semibold">{displayName || 'Name not available'}</p>
+                      <p className="mt-1 break-all text-xs text-graphite">{displayEmail || 'Email not available'}</p>
+                      <p className="mt-2 text-xs font-medium text-graphite">{operatorRole}</p>
+                      {authUser?.created_at && (
+                        <p className="mt-1 text-xs text-graphite">
+                          Account since {new Date(authUser.created_at).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false)
+                        navigate('/platform/settings')
+                      }}
+                      className="mt-2 flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-medium hover:bg-ink/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-white/[0.06]"
+                    >
+                      <UserCircle className="h-4 w-4" aria-hidden="true" />
+                      Profile &amp; account settings
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false)
+                        setSignOutOpen(true)
+                      }}
+                      className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-semibold text-red-700 hover:bg-red-500/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-red-300 dark:hover:bg-red-500/[0.10]"
+                    >
+                      <LogOut className="h-4 w-4" aria-hidden="true" />
+                      Log out
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileMenuOpen(false)
-                      navigate('/platform/settings')
-                    }}
-                    className="mt-2 flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-medium hover:bg-ink/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-white/[0.06]"
-                  >
-                    <UserCircle className="h-4 w-4" aria-hidden="true" />
-                    Profile &amp; account settings
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileMenuOpen(false)
-                      setSignOutOpen(true)
-                    }}
-                    className="mt-1 flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-semibold text-red-700 hover:bg-red-500/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600 dark:text-red-300 dark:hover:bg-red-500/[0.10]"
-                  >
-                    <LogOut className="h-4 w-4" aria-hidden="true" />
-                    Log out
-                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <nav className="operator-section-nav relative mx-auto flex max-w-[1640px] items-center" aria-label="Operator center sections">
+            <div ref={sectionNavRef} tabIndex={0} className="operator-section-nav-scroll min-w-0 flex-1 overflow-x-auto overscroll-x-contain">
+              <div className="flex min-w-max items-center gap-1 py-2">
+                {primaryNavGroups.map((group) => (
+                  <div key={group.label} role="group" aria-label={`${group.label} sections`} className="operator-nav-group flex shrink-0 items-center gap-1">
+                    {group.items.map((item) => {
+                      const Icon = item.icon
+                      const active = section === item.label
+                      const count = item.label === 'School Applications' ? pendingApplicationCount : navBadges[item.label]
+                      const label = item.label === 'School Applications' ? 'Applications' : item.label === 'Requests & Reviews' ? 'Requests' : item.label === 'Operations Queue' ? 'Ops queue' : item.label
+                      return (
+                        <button
+                          key={item.path}
+                          type="button"
+                          ref={active ? activeSectionNavRef : undefined}
+                          aria-label={item.label}
+                          aria-current={active ? 'page' : undefined}
+                          onClick={() => navigate(item.path)}
+                          className={`operator-nav-item group relative inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border px-3 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? 'is-active border-brand/30 bg-brand/10 text-brand' : 'border-transparent text-graphite hover:border-[var(--nc-line)] hover:bg-white/[0.06] hover:text-[var(--nc-text)]'}`}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                          <span>{label}</span>
+                          {count ? <span className="rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] leading-none text-brand">{count}</span> : null}
+                        </button>
+                      )
+                    })}
+                    {group.label !== 'System' && <span className="operator-nav-divider mx-1 h-5 w-px shrink-0" aria-hidden="true" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div ref={navMenuRef} className="operator-nav-more relative shrink-0">
+              <button
+                ref={navMenuTriggerRef}
+                type="button"
+                aria-label={moreSectionActive ? `More sections, current section ${section}` : 'More sections'}
+                aria-expanded={navMenuOpen}
+                aria-controls="operator-more-sections"
+                aria-current={moreSectionActive ? 'page' : undefined}
+                onClick={() => setNavMenuOpen((current) => !current)}
+                className={`operator-nav-item inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border px-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${moreSectionActive ? 'is-active border-brand/30 bg-brand/10 text-brand' : 'border-transparent text-graphite hover:border-[var(--nc-line)] hover:bg-white/[0.06] hover:text-[var(--nc-text)]'}`}
+              >
+                More
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${navMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+              </button>
+              {navMenuOpen && (
+                <div
+                  id="operator-more-sections"
+                  className="interaction-menu absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,32rem)] w-[min(19rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-[var(--nc-line)] p-2"
+                >
+                  {moreNavGroups.map((group) => (
+                    <div key={group.label} role="group" aria-label={`${group.label} sections`} className="py-1">
+                      <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-graphite">{group.label}</p>
+                      {group.items.map((item) => {
+                        const Icon = item.icon
+                        const active = section === item.label
+                        const count = item.label === 'School Applications' ? pendingApplicationCount : navBadges[item.label]
+                        return (
+                          <button
+                            key={item.path}
+                            type="button"
+                            aria-current={active ? 'page' : undefined}
+                            onClick={() => {
+                              navigate(item.path)
+                              setNavMenuOpen(false)
+                            }}
+                            className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${active ? 'bg-brand/10 text-brand' : 'text-graphite hover:bg-ink/[0.05] hover:text-[var(--nc-text)] dark:hover:bg-white/[0.06]'}`}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <span className="flex-1">{item.label}</span>
+                            {count ? <span className="rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] leading-none text-brand">{count}</span> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
-          <div className="relative order-3 basis-full min-w-0 xl:order-none xl:basis-auto xl:flex-1 xl:max-w-sm">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" />
-            <input aria-label="Search schools and platform operators" value={globalQuery} onFocus={() => setGlobalSearchOpen(true)} onChange={(event) => { setGlobalQuery(event.target.value); setGlobalSearchOpen(true) }} placeholder="Search schools and platform operators…" className="input h-11 w-full bg-[var(--nc-surface)] pl-10 pr-12" />
-            {globalSearchOpen && globalQuery && <div className="interaction-menu absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-[var(--nc-line)] bg-[var(--nc-surface)] p-2 shadow-card">{searchResults.length ? searchResults.map((result) => <button key={result.type + '-' + result.title} onClick={() => { navigate(result.path); setGlobalSearchOpen(false); setGlobalQuery('') }} className="flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-ink/[0.05] dark:hover:bg-white/[0.06]"><span className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand"><Search className="h-3.5 w-3.5" /></span><span><span className="block text-[10px] font-bold uppercase tracking-wider text-brand">{result.type}</span><span className="block text-sm font-semibold">{result.title}</span><span className="block text-xs text-graphite">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-graphite">No matching platform records.</p>}</div>}
+          </nav>
           </div>
         </header>
-        <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8">
+        <div className="operator-content mx-auto max-w-[1500px] px-5 py-8 sm:px-8">
           {platformRecordsError && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.05] p-4 text-sm text-red-700 dark:text-red-300"><span>Could not load platform records: {platformRecordsError}</span>{authUser ? <Button variant="outline" size="sm" onClick={() => setPlatformRecordsNonce((value) => value + 1)}>Retry</Button> : <Button variant="outline" size="sm" onClick={() => navigate('/login')}>Sign in</Button>}</div>}
           {section === 'Overview' && <OverviewSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} notify={notify} schools={schoolRecords} requests={requestRecords} auditRows={auditRecords} pendingApplicationCount={pendingApplicationCount} operatorCount={activeOperators} alerts={overviewAlerts} loading={platformRecordsLoading} />}
           {section === 'Action Center' && <ActionCenterSection onSchool={setSchool} onRequest={setRequest} navigate={navigate} schools={schoolRecords} requests={requestRecords} pendingApplicationCount={pendingApplicationCount} operators={operatorRecords} state={inboxState} onStateChange={setInboxState} notify={notify} operator={displayName} loading={platformRecordsLoading} />}
@@ -505,7 +615,7 @@ export default function PlatformWorkspace() {
           {section === 'Settings' && <SettingsSection onEmergency={() => setEmergencyOpen(true)} onSignOut={() => setSignOutOpen(true)} notify={notify} fullName={displayName} email={displayEmail} role={operatorRole} provider={(authUser?.app_metadata?.provider as string | undefined) ?? null} accountCreatedAt={authUser?.created_at ?? null} lastSignInAt={(authUser as { last_sign_in_at?: string } | null)?.last_sign_in_at ?? null} platform={{ schoolCount: schoolRecords.length, studentCount: totalStudents, teacherCount: totalTeachers, pendingApplications: pendingApplicationCount, operatorCount: activeOperators, requestCount: requestRecords.length, connected: !platformRecordsLoading && !platformRecordsError, error: platformRecordsError }} />}
         </div>
       </main>
-      {toast && <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-xl dark:bg-white dark:text-ink"><Check className="h-4 w-4 text-emerald-400" />{toast}</div>}
+      {toast && <div className="operator-toast fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-xl dark:bg-white dark:text-ink"><Check className="h-4 w-4 text-emerald-400" />{toast}</div>}
       <SchoolProfileModal
         school={school}
         requests={requestRecords}
@@ -531,6 +641,7 @@ export default function PlatformWorkspace() {
       <Modal open={emergencyOpen} onClose={() => setEmergencyOpen(false)} title="Emergency controls" description="Unavailable: these controls are not connected to live access changes or audit logging." size="md" footer={<Button variant="outline" onClick={() => setEmergencyOpen(false)}>Close</Button>}><div className="space-y-2">{['Suspend a school account', 'Revoke all sessions for a user', 'Restrict an operator account', 'Put platform into maintenance mode'].map((item) => <button key={item} type="button" disabled className="flex w-full cursor-not-allowed items-center gap-3 rounded-2xl border border-red-500/15 p-4 text-left text-sm font-semibold text-red-700 opacity-60 dark:text-red-300"><Ban className="h-4 w-4" />{item}<ChevronRight className="ml-auto h-4 w-4" /></button>)}</div></Modal>
       <Modal open={signOutOpen} onClose={() => { if (!signOutPending) setSignOutOpen(false) }} title="Sign out?" description="Are you sure you want to sign out of Nom Cloud?" size="sm" footer={<><Button variant="outline" disabled={signOutPending} onClick={() => setSignOutOpen(false)}>Cancel</Button><Button variant="danger" loading={signOutPending} onClick={() => void handleLogout()}>{signOutPending ? 'Signing out…' : 'Sign Out'}</Button></>}><div /></Modal>
     </div>
+    </OperatorModalProvider>
   )
 }
 
@@ -541,7 +652,7 @@ function SchoolsView({ schools: list, query, setQuery, filter, setFilter, onScho
     <SectionHeader eyebrow="Organization directory" title="Schools" description="Registered schools, their current account status, and available organization records." action={<Button variant="outline" size="sm" onClick={() => onNotify('New schools must be submitted through the public application form.')}><Building2 className="h-4 w-4" /> School applications</Button>} />
     <div className="mb-5 flex flex-col gap-3 sm:flex-row">
       <div className="relative min-w-0 flex-1"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search schools, IDs, or locations…" className="input pl-10" /></div>
-      <div className="flex min-w-0 gap-2 overflow-x-auto">{(['All', 'Active', 'Pending', 'Under review', 'Suspended', 'Closed'] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold ${filter === item ? 'bg-ink text-white dark:bg-white dark:text-ink' : 'bg-white text-graphite dark:bg-white/[0.06]'}`}>{item}</button>)}</div>
+      <div role="group" aria-label="Filter schools by status" className="flex min-w-0 gap-2 overflow-x-auto">{(['All', 'Active', 'Pending', 'Under review', 'Suspended', 'Closed'] as const).map((item) => <button key={item} type="button" aria-pressed={filter === item} onClick={() => setFilter(item)} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold ${filter === item ? 'bg-ink text-white dark:bg-white dark:text-ink' : 'bg-white text-graphite dark:bg-white/[0.06]'}`}>{item}</button>)}</div>
     </div>
     <div className="overflow-hidden rounded-3xl border border-ink/[0.07] bg-white shadow-soft dark:border-white/[0.08] dark:bg-white/[0.04]">
       <div className="hidden grid-cols-[2fr_1.4fr_1fr_1fr_1fr_auto] gap-4 border-b border-ink/[0.06] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.15em] text-graphite dark:border-white/[0.08] xl:grid"><span>School</span><span>Administrator</span><span>Plan</span><span>Students</span><span>Status</span><span /></div>

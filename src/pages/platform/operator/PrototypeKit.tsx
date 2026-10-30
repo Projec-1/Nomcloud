@@ -75,7 +75,7 @@ export function SampleTag({ className }: { className?: string }) {
 
 export function SectionHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description: string; action?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+    <div className="operator-page-heading mb-6 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
       <div className="min-w-0">
         {eyebrow && <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-brand">{eyebrow}</p>}
         <h1 className="break-words text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
@@ -88,7 +88,7 @@ export function SectionHeader({ eyebrow, title, description, action }: { eyebrow
 
 export function Panel({ title, description, action, children, className }: { title?: string; description?: string; action?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cn('rounded-2xl border border-ink/[0.07] bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.04]', className)}>
+    <section className={cn('operator-glass-panel rounded-2xl border border-ink/[0.07] bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.04]', className)}>
       {(title || action) && (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -106,7 +106,7 @@ export function Panel({ title, description, action, children, className }: { tit
 export function KpiTile({ label, value, detail, icon: Icon, tone = 'brand' }: { label: string; value: ReactNode; detail?: ReactNode; icon?: PhosphorIcon; tone?: 'brand' | 'danger' | 'warning' | 'success' }) {
   const tint = tone === 'danger' ? 'bg-red-500/10 text-red-600 dark:text-red-300' : tone === 'warning' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300' : tone === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' : 'bg-brand/10 text-brand'
   return (
-    <div className="rounded-2xl border border-ink/[0.07] bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.04]">
+    <div className="operator-glass-metric rounded-2xl border border-ink/[0.07] bg-white p-5 dark:border-white/[0.08] dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 break-words text-sm font-medium text-graphite">{label}</span>
         {Icon && <span className={cn('shrink-0 rounded-xl p-2.5', tint)}><Icon className="h-4 w-4" /></span>}
@@ -124,7 +124,7 @@ export function KpiTile({ label, value, detail, icon: Icon, tone = 'brand' }: { 
  */
 export function PrototypeNotice({ scope, detail }: { scope: string; detail?: string }) {
   return (
-    <div role="status" className="mb-6 border-l-2 border-amber-500 bg-amber-500/[0.06] px-4 py-3">
+    <div role="status" className="operator-prototype-notice mb-6 border-l-2 border-amber-500 bg-amber-500/[0.06] px-4 py-3">
       <p className="break-words text-sm font-semibold text-ink dark:text-white">Prototype data · {scope} is not connected to a backend yet</p>
       <p className="mt-1 break-words text-sm leading-6 text-graphite">
         {detail ?? 'Records, figures and actions on this screen come from built-in sample data. Actions behave like the real thing — they are authorised, recorded and visible below — but nothing is saved or sent until the backend is connected.'}

@@ -18,7 +18,9 @@ export default function DashboardLayout({ role }: { role: Role }) {
         <Topbar onMenuClick={() => setMobileOpen(true)} />
         <main className="dashboard-shell min-w-0 flex-1 px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <Outlet />
+            <div key={location.pathname} className="route-motion route-motion--workspace">
+              <Outlet />
+            </div>
           </div>
         </main>
       </div>

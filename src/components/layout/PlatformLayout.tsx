@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 
 /**
  * Route shell for everything under /platform.
@@ -10,5 +10,10 @@ import { Outlet } from 'react-router-dom'
  * there is only one header, one sidebar and one theme.
  */
 export default function PlatformLayout() {
-  return <Outlet />
+  const location = useLocation()
+  return (
+    <div key={location.pathname} className="route-motion route-motion--workspace">
+      <Outlet />
+    </div>
+  )
 }

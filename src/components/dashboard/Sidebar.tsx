@@ -101,8 +101,8 @@ export default function Sidebar({ role, mobileOpen, onClose }: SidebarProps) {
       </aside>
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-          <aside className="dashboard-sidebar absolute inset-y-0 left-0 h-screen w-72 overflow-hidden bg-white shadow-floaty animate-fade-up dark:bg-[#202328]">{content}</aside>
+          <button type="button" className="nc-drawer-scrim absolute inset-0 border-0 bg-ink/40 p-0" onClick={onClose} aria-label="Close navigation" />
+          <aside className="nc-drawer-panel dashboard-sidebar absolute inset-y-0 left-0 h-screen w-72 overflow-hidden bg-white shadow-floaty dark:bg-[#202328]">{content}</aside>
         </div>
       )}
     </>

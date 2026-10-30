@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { List as Menu, X, Moon, Sun } from '@phosphor-icons/react'
+import { Moon, Sun } from '@phosphor-icons/react'
 import Logo from '@/components/layout/Logo'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import { useTheme } from '@/context/ThemeContext'
@@ -19,13 +19,31 @@ const NAV_LINKS = [
 
 export default function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuPanelRef = useRef<HTMLDivElement>(null)
   const { theme, toggleTheme } = useTheme()
   const { profile, activeRole } = useAuth()
   const { t } = useLanguage()
   const navigate = useNavigate()
 
+  useEffect(() => {
+    const panel = menuPanelRef.current
+    if (menuOpen) panel?.removeAttribute('inert')
+    else panel?.setAttribute('inert', '')
+
+    if (!menuOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false)
+        menuButtonRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [menuOpen])
+
   return (
-    <header className="sticky top-0 z-50 border-b border-ink/5 bg-white dark:border-white/10 dark:bg-[#171917]">
+    <header className="public-header sticky top-0 z-50 border-b border-ink/5 dark:border-white/10">
       <div className="container flex h-[68px] items-center justify-between">
         <Logo />
 
@@ -72,20 +90,27 @@ export default function PublicHeader() {
         </div>
 
         <button
+          ref={menuButtonRef}
           className="flex h-11 w-11 items-center justify-center rounded-full p-0 text-ink dark:text-white lg:hidden"
           onClick={() => setMenuOpen((v) => !v)}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={menuOpen}
           aria-controls="public-mobile-navigation"
         >
-          {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          <span className={`menu-morph ${menuOpen ? 'is-open' : ''}`} aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
         </button>
       </div>
 
       <div
+        ref={menuPanelRef}
         id="public-mobile-navigation"
-        hidden={!menuOpen}
-        className="border-t border-ink/5 bg-white px-3 pb-5 pt-2 dark:border-white/10 dark:bg-[#171917] sm:px-6 lg:hidden"
+        className="nc-nav-panel border-t border-ink/5 bg-white px-3 pb-5 pt-2 dark:border-white/10 dark:bg-[#171917] sm:px-6 lg:hidden"
+        data-open={menuOpen}
+        aria-hidden={!menuOpen}
       >
         <nav className="flex flex-col gap-1">
           {NAV_LINKS.map((link) => (

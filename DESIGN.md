@@ -20,6 +20,10 @@ The public site uses editorial product storytelling and existing school photogra
 
 The design uses DM Sans for interface copy and Space Grotesk for display headings. The shared radius is 10px. Elevation is communicated with spacing and borders, not drop shadows. Status colors remain semantic and always accompany readable status text.
 
+### Operator Center
+
+The Operator Center keeps the Nom Cloud orange accent (`#c9471b`) and uses its own scoped glass surfaces; do not extend these treatments to school workspaces. Keep the highest-frequency sections in the floating primary navigation and organize remaining modules in the grouped “More” menu. Use warm peach/orange reflections sparingly on layered neutral glass, capsule navigation/actions/filters, and progressively stronger shell, panel, control, and popover surfaces with independently tuned light and dark values. Maintain clear table and form contrast, preserve every route, and make glass opaque when reduced transparency is requested.
+
 ## Layout and components
 
 - Use existing shared primitives such as `Button`, `Input`, `Select`, `Badge`, `Modal`, `EmptyState`, `ResourceGate`, `PageHeader`, and `StatCard`.
@@ -32,7 +36,18 @@ The design uses DM Sans for interface copy and Space Grotesk for display heading
 
 Keep loading, empty, denied, error, success, selected, disabled, and destructive states explicit. Do not use color alone to communicate a state. Preserve existing route behavior, school branding, language selection, Arabic RTL, authentication, and Supabase data flows.
 
-Keep animation limited to essential interaction feedback. Remove decorative movement and blur. Honor `prefers-reduced-motion`; retain visible keyboard focus and usable touch targets.
+## Motion
+
+Motion follows the same School Register language: calm, clear and subordinate to school work.
+
+- Use scroll reveals, text entrances, number rolls and network illustrations on public storytelling surfaces when they clarify hierarchy or explain the product.
+- Keep authenticated dashboards, financial workflows and the Operator Center restrained. Use short fades for route continuity, clear state transitions for dialogs and drawers, and near-imperceptible press feedback.
+- Use the existing `--nc-motion-ease`, `--nc-motion-ease-out` and duration tokens. Prefer opacity, transforms and limited clipping; do not animate layout dimensions outside disclosure components.
+- Stagger only related content, with short offsets. Keep input, navigation and scrolling available while motion runs.
+- Morph the mobile navigation mark between menu and close states. Keep the Nom Cloud wordmark and logo artwork recognizable.
+- Keep optional sound off the interaction path; do not introduce sound unless it has a meaningful user-controlled preference.
+- Honor `prefers-reduced-motion` with static positioning and brief opacity/color feedback. Honor reduced transparency by making translucent chrome solid.
+- Do not add looping decorative motion or sound to operational screens. Treat sample data as sample data, including in animated counters.
 
 ## Scope and ownership
 

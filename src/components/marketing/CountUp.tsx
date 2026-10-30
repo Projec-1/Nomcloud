@@ -22,7 +22,7 @@ export default function CountUp({
   className,
 }: CountUpProps) {
   const [display, setDisplay] = useState(0)
-  const [isDone, setIsDone] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
   const frameRef = useRef<number | null>(null)
   const startedRef = useRef(false)
@@ -30,17 +30,19 @@ export default function CountUp({
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    startedRef.current = false
 
     const start = () => {
+      if (startedRef.current) return
+      startedRef.current = true
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       if (prefersReducedMotion) {
         setDisplay(value)
-        setIsDone(true)
         return
       }
 
       setDisplay(0)
-      setIsDone(false)
+      setIsRunning(true)
       const startTime = performance.now()
       const tick = (now: number) => {
         const progress = Math.min((now - startTime) / duration, 1)
@@ -50,16 +52,25 @@ export default function CountUp({
           frameRef.current = requestAnimationFrame(tick)
         } else {
           setDisplay(value)
-          setIsDone(true)
+          setIsRunning(false)
         }
       }
       frameRef.current = requestAnimationFrame(tick)
     }
 
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDisplay(value)
+      startedRef.current = true
+      return
+    }
+    if (!('IntersectionObserver' in window)) {
+      start()
+      return
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !startedRef.current) {
-          startedRef.current = true
           observer.disconnect()
           start()
         }
@@ -74,17 +85,35 @@ export default function CountUp({
     }
   }, [value, duration])
 
+  const finalValue = `${prefix}${value.toFixed(decimals)}${suffix}`
+  const visualValue = display.toFixed(decimals).padStart(value.toFixed(decimals).length, '\u00a0')
+
   return (
     <span
       ref={ref}
-      className={cn(className, isDone ? 'count-done' : 'count-running')}
+      className={cn(className, 'count-up', isRunning ? 'count-running' : 'count-done')}
       style={{ '--count-accent': accent } as CSSProperties}
     >
+      <span className="count-up__visual" aria-hidden="true">
       {prefix}
-      <span className={isDone ? 'text-accent' : ''}>
-        {display.toFixed(decimals)}
+      <span className="count-up__number">
+        {visualValue.split('').map((character, index) => {
+          if (!/\d/.test(character)) {
+            return <span key={`${index}-${character}`} className="count-up__separator">{character}</span>
+          }
+          const digit = Number(character)
+          return (
+            <span className="count-up__digit-window" key={index}>
+              <span className="count-up__digit-strip" style={{ transform: `translateY(-${digit * 10}%)` }}>
+                {Array.from({ length: 10 }, (_, number) => <span key={number}>{number}</span>)}
+              </span>
+            </span>
+          )
+        })}
       </span>
       {suffix}
+      </span>
+      <span className="sr-only">{finalValue}</span>
     </span>
   )
 }

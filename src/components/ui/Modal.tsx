@@ -1,7 +1,13 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from '@phosphor-icons/react'
 import { cn } from '@/utils/cn'
+
+const OperatorModalContext = createContext(false)
+
+export function OperatorModalProvider({ children }: { children: ReactNode }) {
+  return <OperatorModalContext.Provider value={true}>{children}</OperatorModalContext.Provider>
+}
 
 interface ModalProps {
   open: boolean
@@ -22,6 +28,7 @@ const sizeClass: Record<NonNullable<ModalProps['size']>, string> = {
 }
 
 export default function Modal({ open, onClose, title, description, children, size = 'md', footer }: ModalProps) {
+  const isOperatorModal = useContext(OperatorModalContext)
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   const titleId = useId()
@@ -83,7 +90,7 @@ export default function Modal({ open, onClose, title, description, children, siz
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6">
-      <div className="absolute inset-0 bg-ink/50 animate-fade-in" onClick={onClose} aria-hidden="true" />
+      <div className="nc-modal-scrim absolute inset-0 bg-ink/50" onClick={onClose} aria-hidden="true" />
       <div
         ref={dialogRef}
         tabIndex={-1}
@@ -91,7 +98,8 @@ export default function Modal({ open, onClose, title, description, children, siz
         aria-describedby={description ? descriptionId : undefined}
         aria-label={title ? undefined : 'Dialog'}
         className={cn(
-          'modal-content relative w-full max-w-full overflow-hidden rounded-[var(--nc-radius)] border border-ink/10 bg-[var(--nc-surface)] dark:border-white/10 animate-fade-up max-h-[90vh] flex flex-col focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand',
+          'nc-modal-content modal-content relative w-full max-w-full overflow-hidden rounded-[var(--nc-radius)] border border-ink/10 bg-[var(--nc-surface)] dark:border-white/10 max-h-[90vh] flex flex-col focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand',
+          isOperatorModal && 'operator-modal',
           sizeClass[size],
         )}
         role="dialog"

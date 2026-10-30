@@ -32,7 +32,7 @@ export default function FaqAccordion({ items }: { items: FaqItem[] }) {
                 </span>
               </button>
               <div
-                className="grid transition-all duration-300 ease-apple"
+                className="grid transition-[grid-template-rows] duration-300 ease-apple"
                 style={{ gridTemplateRows: isOpen ? '1fr' : '0fr' }}
               >
                 <div className="overflow-hidden">
