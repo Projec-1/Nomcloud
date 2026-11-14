@@ -13,9 +13,9 @@ export default {
         mist: '#F7F8F6',
         graphite: '#555954',
         accent: {
-          DEFAULT: '#C9471B',
-          dark: '#C9471B',
-          light: '#C9471B',
+          DEFAULT: '#A83B18',
+          dark: '#A83B18',
+          light: '#A83B18',
         },
         surface: {
           DEFAULT: '#FFFFFF',
@@ -29,7 +29,7 @@ export default {
           muted: '#A7AFB8',
         },
         brand: {
-          DEFAULT: '#C9471B',
+          DEFAULT: '#A83B18',
           50: '#FBEDE7',
           100: '#F4D5C9',
           500: '#C9471B',

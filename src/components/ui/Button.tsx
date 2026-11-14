@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { ThinkingOrb } from 'thinking-orbs'
 import { cn } from '@/utils/cn'
 
-type Variant = 'primary' | 'accent' | 'outline' | 'ghost' | 'danger'
+type Variant = 'primary' | 'secondary' | 'accent' | 'outline' | 'ghost' | 'danger'
 type Size = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,6 +14,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClass: Record<Variant, string> = {
   primary: 'btn-primary',
+  secondary: 'btn-secondary',
   accent: 'btn-accent',
   outline: 'btn-outline',
   ghost: 'btn-ghost',
@@ -36,7 +37,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading || undefined}
         {...props}
       >
-        {loading ? <ThinkingOrb state="working" size={20} color="#C9471B" aria-hidden="true" /> : icon}
+        {loading ? <ThinkingOrb state="working" size={20} color="var(--nc-button-disabled-fg)" aria-hidden="true" /> : icon}
         {children}
       </button>
     )

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ArrowUp,
   ArrowsIn,
@@ -174,6 +175,7 @@ export default function AdminAIAssistant() {
   const { lang, t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
   const [conversations, setConversations] = useState<AssistantConversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
@@ -188,6 +190,7 @@ export default function AdminAIAssistant() {
   const panelRef = useRef<HTMLElement>(null)
   const launcherRef = useRef<HTMLButtonElement>(null)
   const openedOnce = useRef(false)
+  const closeTimerRef = useRef<number | null>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const attachmentMenuRef = useRef<HTMLDivElement>(null)
   const attachmentMenuButtonRef = useRef<HTMLButtonElement>(null)
@@ -208,9 +211,24 @@ export default function AdminAIAssistant() {
   const greetingParts = t(adminFirstName ? greetingKey : `${greetingKey}Fallback`).split('{name}')
 
   useEffect(() => () => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current)
     recognitionRef.current?.stop()
     previewUrls.current.forEach((url) => URL.revokeObjectURL(url))
     previewUrls.current.clear()
+  }, [])
+
+  const closePanel = useCallback(() => {
+    if (closeTimerRef.current !== null) return
+    recognitionRef.current?.stop()
+    setIsListening(false)
+    setAttachmentMenuOpen(false)
+    setIsClosing(true)
+    const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false)
+      setIsClosing(false)
+      closeTimerRef.current = null
+    }, delay)
   }, [])
 
   useEffect(() => {
@@ -224,6 +242,7 @@ export default function AdminAIAssistant() {
     document.body.style.overflow = 'hidden'
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (isClosing && event.key !== 'Tab') return
       if (event.key === 'Escape') {
         if (attachmentMenuOpen) {
           setAttachmentMenuOpen(false)
@@ -231,8 +250,7 @@ export default function AdminAIAssistant() {
         } else if (showHistory) {
           setShowHistory(false)
         } else {
-          setIsExpanded(false)
-          setOpen(false)
+          closePanel()
         }
         return
       }
@@ -256,7 +274,7 @@ export default function AdminAIAssistant() {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [attachmentMenuOpen, open, showHistory])
+  }, [attachmentMenuOpen, closePanel, isClosing, open, showHistory])
 
   useEffect(() => {
     if (!attachmentMenuOpen) return
@@ -482,53 +500,37 @@ export default function AdminAIAssistant() {
     setAttachmentError('')
   }
 
-  const closePanel = () => {
-    recognitionRef.current?.stop()
-    setIsListening(false)
-    setAttachmentMenuOpen(false)
-    setIsExpanded(false)
-    setOpen(false)
-  }
-
   return (
     <>
       {!open && (
         <button
           type="button"
-          ref={launcherRef}
           onClick={() => {
             setIsExpanded(false)
+            setIsClosing(false)
             setOpen(true)
           }}
-          className="fixed bottom-5 right-5 z-[70] flex min-h-16 items-center gap-3 rounded-2xl border border-ink/10 bg-white px-3 py-2.5 shadow-[0_8px_30px_rgba(24,24,27,0.16)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_36px_rgba(24,24,27,0.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-white/10 dark:bg-[#202328] dark:shadow-[0_8px_30px_rgba(0,0,0,0.38)]"
-          style={{ bottom: 'calc(1.25rem + env(safe-area-inset-bottom))', right: 'calc(1.25rem + env(safe-area-inset-right))' }}
-          aria-label={t('adminAI.open')}
+          ref={launcherRef}
           aria-haspopup="dialog"
           aria-expanded={open}
+          aria-label={t('adminAI.open')}
+          className="admin-ai-launcher flex shrink-0 items-center justify-center gap-2 transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
-          <span className="admin-ai-logo-badge flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl border border-brand/25 bg-white p-1 dark:border-brand/40">
-            <img src="/logo-512.png" alt="" className="h-10 w-10 object-contain" />
-          </span>
-          <span className="hidden text-left sm:block">
-            <span className="block text-sm font-semibold leading-5 text-ink dark:text-white">Nom Cloud AI</span>
-            <span className="block text-[11px] leading-4 text-graphite">{t('adminAI.demo')}</span>
-          </span>
+          <img src="/logo-512.png" alt="" className="h-[18px] w-[18px] object-contain" />
+          <Sparkle aria-hidden="true" className="h-4 w-4 text-[#d96a1e]" />
+          <span className="admin-ai-launcher-label">{t('adminAI.topLabel')}</span>
         </button>
       )}
 
-      {open && (
+      {open && createPortal(
         <section
           ref={panelRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby="admin-ai-panel-title"
-          className={`admin-ai-workspace fixed z-[80] flex overflow-hidden border border-white/40 transition-[inset,width,height,border-radius] duration-200 motion-reduce:transition-none ${
-            isExpanded
-              ? 'inset-0 rounded-none sm:inset-2 sm:rounded-2xl'
-              : 'inset-x-0 bottom-0 top-[8dvh] rounded-t-2xl sm:inset-x-4 sm:bottom-4 sm:top-auto sm:mx-auto sm:h-[min(760px,calc(100dvh-2rem))] sm:w-[min(680px,calc(100vw-2rem))] sm:rounded-2xl md:inset-x-auto md:right-6 md:mx-0 md:w-[min(680px,calc(100vw-3rem))]'
-          }`}
+          className={`admin-ai-workspace admin-ai-workspace--panel fixed z-[80] flex overflow-hidden border border-white/40 ${isExpanded ? 'admin-ai-workspace--expanded' : ''} ${isClosing ? 'admin-ai-panel--closing' : 'admin-ai-panel--opening'}`}
         >
-          <aside className="admin-ai-sidebar hidden w-[224px] flex-shrink-0 flex-col border-r border-white/20 px-4 py-5 text-white md:flex">
+          <aside className="admin-ai-sidebar hidden w-[224px] flex-shrink-0 flex-col border-r border-white/20 px-4 py-5 text-white xl:flex">
             <div className="flex items-center gap-2.5 px-2">
               <span className="admin-ai-sidebar-mark flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full">
                 <img src="/logo-512.png" alt="" className="h-6 w-6 object-contain" />
@@ -585,7 +587,7 @@ export default function AdminAIAssistant() {
                 type="button"
                 onClick={() => setShowHistory((value) => !value)}
                 disabled={isLoading}
-                className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/30 bg-white/20 px-3 text-xs font-medium text-ink backdrop-blur-sm transition-colors hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand md:hidden"
+                className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/30 bg-white/20 px-3 text-xs font-medium text-ink backdrop-blur-sm transition-colors hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand xl:hidden"
                 aria-pressed={showHistory}
               >
                 <ClockCounterClockwise className="h-4 w-4" aria-hidden="true" />
@@ -846,7 +848,8 @@ export default function AdminAIAssistant() {
               <p className="mt-2 text-center text-[10px] leading-4 text-white/85">{t('adminAI.footer.disclaimer')}</p>
             </form>}
           </div>
-        </section>
+        </section>,
+        document.body,
       )}
     </>
   )

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { List as Menu, Moon, Sun, CaretDown as ChevronDown, Gear as Settings, SignOut as LogOut, Camera, Trash as Trash2 } from '@phosphor-icons/react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { List as Menu, Moon, Sun, CaretDown as ChevronDown, Gear as Settings, SignOut as LogOut, Camera, Trash as Trash2, MagnifyingGlass } from '@phosphor-icons/react'
 import { ThinkingOrb } from 'thinking-orbs'
 import { useAuth } from '@/context/AuthContext'
 import SignOutButton from '@/components/ui/SignOutButton'
@@ -10,11 +10,13 @@ import { IMAGE_ACCEPT, prepareImage } from '@/lib/imageUpload'
 import { BUCKETS, removeOwnAvatar, replaceOwnAvatar } from '@/services/storageService'
 import type { Role } from '@/types'
 import { useTheme } from '@/context/ThemeContext'
-import { roleLabelKey } from '@/components/dashboard/navConfig'
+import { navByRole, roleLabelKey } from '@/components/dashboard/navConfig'
 import { useLanguage } from '@/context/LanguageContext'
 import LanguageSwitcher from '@/components/layout/LanguageSwitcher'
 import Avatar from '@/components/ui/Avatar'
 import NotificationsDropdown from '@/components/dashboard/NotificationsDropdown'
+import SchoolBrandLogo from '@/components/dashboard/SchoolBrandLogo'
+import AdminAIAssistant from '@/components/dashboard/AdminAIAssistant'
 
 export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { profile, workspaces, activeRole, activeMembership, setActiveRole, school, platformAdmin, memberships, refreshProfile } =
@@ -26,6 +28,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, toggleTheme } = useTheme()
   const { t } = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -79,6 +82,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const availableRoles = workspaces
   const visibleRole = activeRole && availableRoles.includes(activeRole) ? activeRole : availableRoles[0]
   if (!visibleRole) return null
+  const billingOnly = visibleRole === 'admin' && ['owner', 'director'].includes(activeMembership.role)
   // The switcher is a convenience and NEVER a permission; Phase 7 RLS independently verifies every operation.
   const switchRole = (role: Role) => {
     setActiveRole(role)
@@ -87,21 +91,46 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   }
 
   return (
-    <header className="dashboard-topbar sticky top-0 z-30 flex h-16 flex-shrink-0 items-center justify-between border-b border-ink/5 bg-white/80 px-4 backdrop-blur-xl dark:border-[#343A41] dark:bg-[#17191C]/90 sm:px-6">
-      <div className="flex min-w-0 max-w-[62%] items-center gap-3 sm:max-w-none">
-        <button onClick={onMenuClick} className="rounded-full p-2 text-ink hover:bg-ink/5 dark:text-white dark:hover:bg-white/10 lg:hidden" aria-label={t('dash.topbar.openMenu')}>
-          <Menu className="h-5 w-5" />
-        </button>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-ink dark:text-white">{school?.name ?? ''}</p>
-          <p className="text-xs text-graphite">{t(roleLabelKey[visibleRole])} {t('dash.workspace')}</p>
-        </div>
+    <header className="dashboard-topbar sticky top-0 z-30 flex min-h-[76px] flex-shrink-0 items-center justify-between gap-4 border-b border-ink/5 bg-white/80 px-4 backdrop-blur-xl dark:border-[#343A41] dark:bg-[#17191C]/90 sm:px-6 lg:px-8">
+      <div className="flex min-w-0 items-center gap-3">
+        {visibleRole !== 'admin' && (
+          <button onClick={onMenuClick} className="rounded-full p-2 text-ink hover:bg-ink/5 dark:text-white dark:hover:bg-white/10 lg:hidden" aria-label={t('dash.topbar.openMenu')}>
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+        {visibleRole === 'admin' ? (
+          <div className="min-w-0">
+            <SchoolBrandLogo
+              to={billingOnly ? '/app/billing' : '/app/admin'}
+              className="max-w-[min(48vw,320px)]"
+              textClassName="text-sm sm:text-base"
+            />
+            <p className="ml-10 flex min-w-0 items-center gap-1 truncate text-[10px] text-graphite">
+              <img src="/logo-512.png" alt="" className="h-3 w-3 shrink-0 object-contain" />
+              <span className="shrink-0">Nom Cloud</span>
+              <span aria-hidden="true">·</span>
+              <span className="truncate">{t(roleLabelKey[visibleRole])} {t('dash.workspace')}</span>
+            </p>
+          </div>
+        ) : (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink dark:text-white">{school?.name ?? ''}</p>
+            <p className="text-xs text-graphite">{t(roleLabelKey[visibleRole])} {t('dash.workspace')}</p>
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-1.5">
+      {visibleRole === 'admin' && location.pathname.startsWith('/app/admin') && (
+        <div className="admin-page-search-assistant">
+          <AdminPageSearch billingOnly={billingOnly} />
+          <AdminAIAssistant />
+        </div>
+      )}
+
+      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
         <LanguageSwitcher className="hidden sm:block" />
         {availableRoles.length >= 2 && (
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <select
               value={visibleRole}
               onChange={(event) => switchRole(event.target.value as Role)}
@@ -197,5 +226,43 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
       </div>
     </header>
+  )
+}
+
+function AdminPageSearch({ billingOnly }: { billingOnly: boolean }) {
+  const [query, setQuery] = useState('')
+  const { t } = useLanguage()
+  const navigate = useNavigate()
+  const items = billingOnly
+    ? navByRole.admin.filter((item) => item.to === '/app/billing')
+    : navByRole.admin
+  const matches = items.filter((item) => t(item.labelKey).toLowerCase().includes(query.trim().toLowerCase()))
+
+  return (
+    <div className="admin-page-search">
+      <MagnifyingGlass aria-hidden="true" className="h-4 w-4 shrink-0 text-[#858991]" />
+      <input
+        aria-label="Search administrator pages"
+        placeholder="Search pages"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setQuery('')
+          if (event.key === 'Enter' && matches[0]) {
+            navigate(matches[0].to)
+            setQuery('')
+          }
+        }}
+      />
+      {query.trim() && (
+        <div className="admin-page-search__results">
+          {matches.length > 0 ? matches.slice(0, 6).map((item) => (
+            <Link key={item.to} to={item.to} onClick={() => setQuery('')}>
+              {t(item.labelKey)}
+            </Link>
+          )) : <p>No matching pages</p>}
+        </div>
+      )}
+    </div>
   )
 }

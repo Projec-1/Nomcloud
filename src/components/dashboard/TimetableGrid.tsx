@@ -103,13 +103,13 @@ export default function TimetableGrid({ slots, editable = false, onAddSlot, onEd
                           )}
                         >
                           <p className="font-semibold">{slot.subject || 'Break'}</p>
-                          {slot.teacherName && <p className="text-[10px] text-accent/70">Teacher: {slot.teacherName}</p>}
+                          {slot.teacherName && <p className="text-[10px] text-accent">Teacher: {slot.teacherName}</p>}
                           <p className="mt-1 text-[10px] tabular-nums">
                             <span className="text-emerald-700 dark:text-emerald-300">{slot.startTime}</span>
                             <span className="px-1 text-graphite">–</span>
                             <span className="text-red-600 dark:text-red-300">{slot.endTime}</span>
                           </p>
-                          {slot.room && <p className="text-[10px] text-accent/70">{slot.room}</p>}
+                          {slot.room && <p className="text-[10px] text-accent">{slot.room}</p>}
                         </button>
                         {editable && onRemoveSlot && (
                           <button

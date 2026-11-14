@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, GraduationCap, CalendarCheck, Wallet, ArrowRight, Plus, Megaphone, BookOpen } from '@phosphor-icons/react'
+import { Users, GraduationCap, CalendarCheck, Wallet, ArrowRight, Plus, Megaphone, BookOpen, Clock } from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
 import PageHeader from '@/components/ui/PageHeader'
 import Badge from '@/components/ui/Badge'
@@ -111,31 +111,98 @@ export default function AdminDashboard() {
     )
   }
 
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? ''
+  const attendanceRate = attendanceToday.marked > 0 ? percentage(attendanceToday.present, attendanceToday.marked) : null
+
   return (
     <div className="admin-dashboard">
-      <div className="admin-dashboard__hero">
-        <PageHeader
-          title={`Welcome, ${profile?.full_name.split(' ')[0] ?? ''}`}
-          description={`Today at ${school?.name ?? 'your school'}.`}
-          actions={
-            <div className="flex flex-wrap gap-2">
-              <Link to="/app/admin/students" className="btn-outline px-4 py-2 text-sm">
-                <Plus className="h-4 w-4" /> Student
-              </Link>
-              <Link to="/app/admin/announcements" className="btn-accent px-4 py-2 text-sm">
-                <Megaphone className="h-4 w-4" /> Announce
-              </Link>
+      <header className="admin-dashboard__welcome">
+        <div>
+          <p className="admin-dashboard__eyebrow">{school?.name ?? 'School workspace'}</p>
+          <h1>Good morning, {firstName.toUpperCase()}</h1>
+          <p>Here’s what’s happening at your school today.</p>
+        </div>
+        <div className="admin-dashboard__actions">
+          <Link to="/app/admin/students" className="admin-action admin-action--secondary">
+            <Plus aria-hidden="true" className="h-4 w-4" /> Add student
+          </Link>
+          <Link to="/app/admin/announcements" className="admin-action admin-action--primary">
+            <Megaphone aria-hidden="true" className="h-4 w-4" /> Announce
+          </Link>
+        </div>
+      </header>
+
+      <div className="admin-dashboard__feature-grid">
+        <section className="admin-dashboard__featured">
+          <div className="admin-dashboard__featured-top">
+            <span className="admin-dashboard__featured-icon"><CalendarCheck aria-hidden="true" className="h-4 w-4" /></span>
+            <span className="admin-dashboard__status">
+              <span className="admin-dashboard__status-dot" />
+              {attendanceToday.marked > 0 ? 'Attendance updated today' : 'Awaiting attendance'}
+            </span>
+          </div>
+          <div className="admin-dashboard__featured-content">
+            <div>
+              <p className="admin-dashboard__featured-label">Today’s school overview</p>
+              <h2>Attendance</h2>
+              <p>
+                {attendanceToday.marked > 0
+                  ? `${attendanceToday.present} of ${attendanceToday.marked} records marked present`
+                  : 'No attendance has been recorded yet today.'}
+              </p>
             </div>
-          }
-        />
+            <div className="admin-dashboard__attendance-number">
+              <strong>{attendanceRate === null ? '—' : `${attendanceRate}%`}</strong>
+              <span>present today</span>
+            </div>
+          </div>
+          <div className="admin-dashboard__featured-footer">
+            <div className="admin-dashboard__progress" aria-label={attendanceRate === null ? 'Attendance not recorded' : `${attendanceRate}% present`}>
+              <span style={{ width: `${attendanceRate ?? 0}%` }} />
+            </div>
+            <Link to="/app/admin/attendance" className="admin-dashboard__featured-link">
+              Open attendance <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </section>
+
+        <section className="admin-dashboard__highlights card">
+          <div className="admin-dashboard__section-heading">
+            <div>
+              <p className="admin-dashboard__eyebrow">School updates</p>
+              <h2>Latest announcements</h2>
+            </div>
+            <Link to="/app/admin/announcements" aria-label="View all announcements" className="admin-dashboard__icon-link">
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </div>
+          {announcements.length === 0 ? (
+            <p className="admin-dashboard__empty">Nothing published yet.</p>
+          ) : (
+            <div className="admin-dashboard__announcement-list">
+              {announcements.slice(0, 3).map((announcement) => (
+                <article key={announcement.id} className="admin-dashboard__announcement">
+                  <span className={`admin-dashboard__announcement-dot admin-dashboard__announcement-dot--${announcement.priority}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-1">{announcement.title}</p>
+                    <span>{formatDate(announcement.publishedAt ?? announcement.createdAt)}</span>
+                  </div>
+                  <Badge tone={announcement.priority === 'urgent' ? 'danger' : announcement.priority === 'important' ? 'warning' : 'neutral'}>
+                    {announcement.priority}
+                  </Badge>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
-      <div className="admin-dashboard__stats grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="admin-dashboard__stats grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AdminInsightCard label="Students" value={counts.students} icon={Users} caption="Registered learners" />
         <AdminInsightCard label="Teachers" value={counts.teachers} icon={GraduationCap} caption="Teaching staff" />
         <AdminInsightCard
           label="Present Today"
-          value={attendanceToday.marked > 0 ? `${percentage(attendanceToday.present, attendanceToday.marked)}%` : '—'}
+          value={attendanceRate === null ? '—' : `${attendanceRate}%`}
           icon={CalendarCheck}
           caption={attendanceToday.marked > 0 ? `${attendanceToday.present} of ${attendanceToday.marked} marked present` : 'Attendance not marked yet'}
         />
@@ -148,36 +215,61 @@ export default function AdminDashboard() {
       </div>
 
       {canManageFinance && (
-        <p className="mt-3 text-xs text-graphite">
-          {formatMoney(collected, currency)} collected so far this term.
+        <p className="admin-dashboard__collection">
+          <Wallet aria-hidden="true" className="h-4 w-4" />
+          {formatMoney(collected, currency)} collected so far this term
         </p>
       )}
 
-      <div className="mt-8 grid gap-5 lg:grid-cols-3">
-        <div className="admin-dashboard__panel card p-6 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-ink dark:text-white">Classes</h3>
-            <Link to="/app/admin/classes" className="link-underline flex items-center gap-1 text-xs font-medium text-accent">
-              View all <ArrowRight className="h-3 w-3" />
+      <div className="admin-dashboard__sections">
+        <section className="admin-dashboard__panel card">
+          <div className="admin-dashboard__section-heading">
+            <div>
+              <p className="admin-dashboard__eyebrow">School overview</p>
+              <h2>Classes</h2>
+            </div>
+            <Link to="/app/admin/classes" className="admin-dashboard__text-link">
+              View all <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
             </Link>
           </div>
           {classes.length === 0 ? (
             <EmptyState icon={BookOpen} title="No classes yet" description="Create a class to begin." />
           ) : (
-            <div className="space-y-3">
-              {classes.slice(0, 6).map((c) => {
-                const rate = rateByClass.get(c.id)
+            <div className="admin-dashboard__class-list">
+              {classes.slice(0, 5).map((schoolClass) => (
+                <div key={schoolClass.id} className="admin-dashboard__class-row">
+                  <span className="admin-dashboard__class-icon"><BookOpen aria-hidden="true" className="h-4 w-4" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p>{schoolClass.name}</p>
+                    <span>{schoolClass.studentIds.length} students · {schoolClass.room ?? 'No room set'}</span>
+                  </div>
+                  <span className="admin-dashboard__student-count">{schoolClass.studentIds.length}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="admin-dashboard__panel card">
+          <div className="admin-dashboard__section-heading">
+            <div>
+              <p className="admin-dashboard__eyebrow">Today</p>
+              <h2>Attendance by class</h2>
+            </div>
+            <Link to="/app/admin/attendance" className="admin-dashboard__text-link">
+              Open attendance <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          {classes.length === 0 ? (
+            <p className="admin-dashboard__empty">Classes will appear here once they’re set up.</p>
+          ) : (
+            <div className="admin-dashboard__attendance-list">
+              {classes.slice(0, 5).map((schoolClass) => {
+                const rate = rateByClass.get(schoolClass.id)
                 return (
-                  <div
-                    key={c.id}
-                    className="flex items-center justify-between rounded-xl border border-ink/5 px-4 py-3 dark:border-white/10"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-ink dark:text-white">{c.name}</p>
-                      <p className="text-xs text-graphite">
-                        {c.studentIds.length} students · {c.room ?? 'No room set'}
-                      </p>
-                    </div>
+                  <div key={schoolClass.id} className="admin-dashboard__attendance-row">
+                    <span className="admin-dashboard__attendance-marker"><Clock aria-hidden="true" className="h-3.5 w-3.5" /></span>
+                    <span className="min-w-0 flex-1">{schoolClass.name}</span>
                     <Badge tone={rate === null || rate === undefined ? 'neutral' : rate >= 90 ? 'success' : rate >= 75 ? 'warning' : 'danger'}>
                       {rate === null || rate === undefined ? 'Not marked' : `${rate}% present`}
                     </Badge>
@@ -186,37 +278,7 @@ export default function AdminDashboard() {
               })}
             </div>
           )}
-        </div>
-
-        <div className="admin-dashboard__panel card p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-ink dark:text-white">Announcements</h3>
-            <Link
-              to="/app/admin/announcements"
-              className="link-underline flex items-center gap-1 text-xs font-medium text-accent"
-            >
-              View all <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {announcements.length === 0 ? (
-              <p className="text-sm text-graphite">Nothing published yet.</p>
-            ) : (
-              announcements.slice(0, 4).map((a) => (
-                <div key={a.id} className="border-b border-ink/5 pb-4 last:border-b-0 last:pb-0 dark:border-white/10">
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <Badge tone={a.priority === 'urgent' ? 'danger' : a.priority === 'important' ? 'warning' : 'neutral'}>
-                      {a.priority}
-                    </Badge>
-                    <span className="text-[11px] text-graphite">{formatDate(a.publishedAt ?? a.createdAt)}</span>
-                  </div>
-                  <p className="text-sm font-medium text-ink dark:text-white">{a.title}</p>
-                  <p className="mt-1 line-clamp-2 text-xs text-graphite">{a.body}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        </section>
       </div>
     </div>
   )
@@ -235,12 +297,12 @@ function AdminInsightCard({
 }) {
   return (
     <div className="admin-insight-card">
-      <div className="flex items-center gap-3">
-          <span className="admin-insight-card__icon"><Icon className="h-4 w-4" /></span>
-        <p className="text-sm font-semibold text-ink dark:text-white">{label}</p>
+      <div className="admin-insight-card__heading">
+        <span className="admin-insight-card__icon"><Icon aria-hidden="true" className="h-4 w-4" /></span>
+        <p className="admin-insight-card__label">{label}</p>
       </div>
       <p className="admin-insight-card__value">{value}</p>
-      <p className="mt-3 text-xs leading-relaxed text-graphite">{caption}</p>
+      <p className="admin-insight-card__caption">{caption}</p>
     </div>
   )
 }

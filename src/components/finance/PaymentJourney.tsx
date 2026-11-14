@@ -1118,7 +1118,7 @@ function MethodGroupOption({
       className={`flex min-h-[70px] items-center justify-center gap-3 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2d75b9] ${
         active
           ? 'border-[#4b91d4] bg-[#eff6ff] text-[#315d88] shadow-[0_0_0_1px_#4b91d4] dark:bg-blue-400/10 dark:text-blue-200'
-          : 'border-[#e1e8f0] bg-[#f8fafc] text-[#71859b] hover:border-[#a8c5e2] dark:border-white/10 dark:bg-[#252a30] dark:text-slate-300'
+          : 'border-[#e1e8f0] bg-[#f8fafc] text-[#5c7188] hover:border-[#a8c5e2] dark:border-white/10 dark:bg-[#252a30] dark:text-slate-300'
       }`}
     >
       <span className="text-[#4b83bb] dark:text-blue-300" aria-hidden="true">{icon}</span>

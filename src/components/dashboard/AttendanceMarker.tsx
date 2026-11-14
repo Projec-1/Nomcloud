@@ -41,9 +41,9 @@ import { errorMessage } from '@/utils/errorMessage'
 // ---------------------------------------------------------------------------
 
 const statusConfig: Record<AttendanceStatus, { label: string; icon: typeof Check; tone: string }> = {
-  present: { label: 'Present', icon: Check, tone: 'bg-emerald-500 text-white' },
-  absent: { label: 'Absent', icon: X, tone: 'bg-red-500 text-white' },
-  late: { label: 'Late', icon: Clock, tone: 'bg-amber-500 text-white' },
+  present: { label: 'Present', icon: Check, tone: 'bg-emerald-700 text-white' },
+  absent: { label: 'Absent', icon: X, tone: 'bg-red-700 text-white' },
+  late: { label: 'Late', icon: Clock, tone: 'bg-amber-700 text-white' },
   excused: { label: 'Excused', icon: FileWarning, tone: 'bg-accent text-white' },
 }
 
@@ -307,7 +307,7 @@ export default function AttendanceMarker({ classes, schoolId, timeZone }: Attend
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <button
                 onClick={() => markAll('present')}
-                className="rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600"
+                className="rounded-full bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
               >
                 Mark all present
               </button>

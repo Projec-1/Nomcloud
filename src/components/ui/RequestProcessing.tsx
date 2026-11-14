@@ -30,7 +30,7 @@ export default function RequestProcessing({
 
       <div className="mt-8 w-full max-w-sm space-y-3 text-left">
         <div className="flex items-center gap-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white"><Check className="h-3.5 w-3.5" /></span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-white"><Check className="h-3.5 w-3.5" /></span>
           <span>Information reviewed</span>
         </div>
         <div className="flex items-center gap-3 rounded-xl bg-[#fff7f3] px-4 py-3 text-sm text-[#c94316] dark:bg-[#FF5A1F]/10 dark:text-[#ff8b62]">
