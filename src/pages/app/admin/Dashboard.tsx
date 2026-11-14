@@ -36,13 +36,15 @@ import { todayInTimeZone, DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 export default function AdminDashboard() {
   const { profile, school } = useAuth()
   const { state, classes } = useRecordableClasses()
-  const { announcements } = useAnnouncements()
-  const { records: fees, canManageFinance } = useFinance()
+  const { state: announcementsState, announcements } = useAnnouncements()
+  const { state: financeState, records: fees, canManageFinance } = useFinance()
 
   const schoolId = school?.id ?? null
   const timeZone = school?.timezone ?? DEFAULT_TIME_ZONE
   const currency = school?.currency ?? 'USD'
   const today = todayInTimeZone(timeZone)
+  const [countsState, setCountsState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [attendanceState, setAttendanceState] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const [counts, setCounts] = useState({ students: 0, teachers: 0 })
   const [attendanceToday, setAttendanceToday] = useState<{ present: number; marked: number }>({ present: 0, marked: 0 })
@@ -51,12 +53,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     let cancelled = false
     if (!schoolId) return
+    setCountsState('loading')
     Promise.all([fetchSchoolStudents(schoolId), fetchSchoolTeachers(schoolId)])
       .then(([students, teachers]) => {
-        if (!cancelled) setCounts({ students: students.length, teachers: teachers.length })
+        if (cancelled) return
+        setCounts({ students: students.length, teachers: teachers.length })
+        setCountsState('ready')
       })
       .catch(() => {
-        // Counts only.
+        if (!cancelled) setCountsState('error')
       })
     return () => {
       cancelled = true
@@ -65,7 +70,14 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    if (!schoolId || classes.length === 0) return
+    if (!schoolId) return
+    if (classes.length === 0) {
+      setAttendanceToday({ present: 0, marked: 0 })
+      setRateByClass(new Map())
+      setAttendanceState('ready')
+      return
+    }
+    setAttendanceState('loading')
     Promise.all(classes.map((c) => fetchAttendance(schoolId, c.id, today)))
       .then((maps) => {
         if (cancelled) return
@@ -83,9 +95,10 @@ export default function AdminDashboard() {
         })
         setAttendanceToday({ present, marked })
         setRateByClass(byClass)
+        setAttendanceState('ready')
       })
       .catch(() => {
-        // Today's rate only.
+        if (!cancelled) setAttendanceState('error')
       })
     return () => {
       cancelled = true
@@ -138,7 +151,11 @@ export default function AdminDashboard() {
             <span className="admin-dashboard__featured-icon"><CalendarCheck aria-hidden="true" className="h-4 w-4" /></span>
             <span className="admin-dashboard__status">
               <span className="admin-dashboard__status-dot" />
-              {attendanceToday.marked > 0 ? 'Attendance updated today' : 'Awaiting attendance'}
+              {attendanceState === 'error'
+                ? 'Attendance unavailable'
+                : attendanceState === 'loading'
+                  ? 'Loading attendance'
+                  : attendanceToday.marked > 0 ? 'Attendance updated today' : 'Awaiting attendance'}
             </span>
           </div>
           <div className="admin-dashboard__featured-content">
@@ -146,19 +163,23 @@ export default function AdminDashboard() {
               <p className="admin-dashboard__featured-label">Today’s school overview</p>
               <h2>Attendance</h2>
               <p>
-                {attendanceToday.marked > 0
+                {attendanceState === 'error'
+                  ? 'Attendance could not be loaded.'
+                  : attendanceState === 'loading'
+                    ? 'Attendance data is loading.'
+                    : attendanceToday.marked > 0
                   ? `${attendanceToday.present} of ${attendanceToday.marked} records marked present`
                   : 'No attendance has been recorded yet today.'}
               </p>
             </div>
             <div className="admin-dashboard__attendance-number">
-              <strong>{attendanceRate === null ? '—' : `${attendanceRate}%`}</strong>
-              <span>present today</span>
+              <strong>{attendanceState !== 'ready' || attendanceRate === null ? '—' : `${attendanceRate}%`}</strong>
+              <span>{attendanceState === 'error' ? 'unavailable' : 'present today'}</span>
             </div>
           </div>
           <div className="admin-dashboard__featured-footer">
             <div className="admin-dashboard__progress" aria-label={attendanceRate === null ? 'Attendance not recorded' : `${attendanceRate}% present`}>
-              <span style={{ width: `${attendanceRate ?? 0}%` }} />
+              <span style={{ width: `${attendanceState === 'ready' ? attendanceRate ?? 0 : 0}%` }} />
             </div>
             <Link to="/app/admin/attendance" className="admin-dashboard__featured-link">
               Open attendance <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
@@ -176,7 +197,11 @@ export default function AdminDashboard() {
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
-          {announcements.length === 0 ? (
+          {announcementsState.status === 'loading' ? (
+            <p className="admin-dashboard__empty">Loading announcements…</p>
+          ) : announcementsState.status === 'error' ? (
+            <p className="admin-dashboard__empty">Announcements could not be loaded.</p>
+          ) : announcements.length === 0 ? (
             <p className="admin-dashboard__empty">Nothing published yet.</p>
           ) : (
             <div className="admin-dashboard__announcement-list">
@@ -198,27 +223,54 @@ export default function AdminDashboard() {
       </div>
 
       <div className="admin-dashboard__stats grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AdminInsightCard label="Students" value={counts.students} icon={Users} caption="Registered learners" />
-        <AdminInsightCard label="Teachers" value={counts.teachers} icon={GraduationCap} caption="Teaching staff" />
+        <AdminInsightCard
+          label="Students"
+          value={countsState === 'ready' ? counts.students : '—'}
+          icon={Users}
+          caption={countsState === 'error' ? 'Student count unavailable' : countsState === 'loading' ? 'Loading count' : 'Registered learners'}
+        />
+        <AdminInsightCard
+          label="Teachers"
+          value={countsState === 'ready' ? counts.teachers : '—'}
+          icon={GraduationCap}
+          caption={countsState === 'error' ? 'Teacher count unavailable' : countsState === 'loading' ? 'Loading count' : 'Teaching staff'}
+        />
         <AdminInsightCard
           label="Present Today"
-          value={attendanceRate === null ? '—' : `${attendanceRate}%`}
+          value={attendanceState !== 'ready' || attendanceRate === null ? '—' : `${attendanceRate}%`}
           icon={CalendarCheck}
-          caption={attendanceToday.marked > 0 ? `${attendanceToday.present} of ${attendanceToday.marked} marked present` : 'Attendance not marked yet'}
+          caption={
+            attendanceState === 'error'
+              ? 'Attendance unavailable'
+              : attendanceState === 'loading'
+                ? 'Loading attendance'
+                : attendanceToday.marked > 0 ? `${attendanceToday.present} of ${attendanceToday.marked} marked present` : 'Attendance not marked yet'
+          }
         />
         <AdminInsightCard
           label={canManageFinance ? 'Fees Outstanding' : 'Classes'}
-          value={canManageFinance ? formatMoney(outstanding, currency) : classes.length}
+          value={
+            canManageFinance
+              ? financeState.status === 'ready' || financeState.status === 'empty' ? formatMoney(outstanding, currency) : '—'
+              : classes.length
+          }
           icon={canManageFinance ? Wallet : BookOpen}
-          caption={canManageFinance ? 'Current balance' : 'Active classes'}
+          caption={
+            canManageFinance
+              ? financeState.status === 'loading' ? 'Loading balance' : financeState.status === 'error' ? 'Balance unavailable' : 'Current balance'
+              : 'Active classes'
+          }
         />
       </div>
 
-      {canManageFinance && (
+      {canManageFinance && (financeState.status === 'ready' || financeState.status === 'empty') && (
         <p className="admin-dashboard__collection">
           <Wallet aria-hidden="true" className="h-4 w-4" />
           {formatMoney(collected, currency)} collected so far this term
         </p>
+      )}
+      {canManageFinance && financeState.status === 'error' && (
+        <p className="admin-dashboard__collection">Fee collection data could not be loaded.</p>
       )}
 
       <div className="admin-dashboard__sections">
@@ -232,7 +284,9 @@ export default function AdminDashboard() {
               View all <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
             </Link>
           </div>
-          {classes.length === 0 ? (
+          {attendanceState === 'error' ? (
+            <p className="admin-dashboard__empty">Attendance data could not be loaded.</p>
+          ) : classes.length === 0 ? (
             <EmptyState icon={BookOpen} title="No classes yet" description="Create a class to begin." />
           ) : (
             <div className="admin-dashboard__class-list">
@@ -271,7 +325,9 @@ export default function AdminDashboard() {
                     <span className="admin-dashboard__attendance-marker"><Clock aria-hidden="true" className="h-3.5 w-3.5" /></span>
                     <span className="min-w-0 flex-1">{schoolClass.name}</span>
                     <Badge tone={rate === null || rate === undefined ? 'neutral' : rate >= 90 ? 'success' : rate >= 75 ? 'warning' : 'danger'}>
-                      {rate === null || rate === undefined ? 'Not marked' : `${rate}% present`}
+                      {attendanceState === 'loading'
+                        ? 'Loading'
+                        : attendanceState === 'error' ? 'Unavailable' : rate === null || rate === undefined ? 'Not marked' : `${rate}% present`}
                     </Badge>
                   </div>
                 )

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Checks as CheckCheck, Megaphone, BookOpen, CalendarCheck, Wallet, ClipboardText as ClipboardCheck, ChatText as MessageSquare } from '@phosphor-icons/react'
 import { timeAgo } from '@/utils/format'
@@ -38,19 +38,31 @@ const iconByType: Record<string, typeof Bell> = {
   message: MessageSquare,
 }
 
-export default function NotificationsDropdown() {
-  const { notifications, unreadCount, schoolId, userId, reload } = useNotifications()
+export default function NotificationsDropdown({ workspace = false }: { workspace?: boolean }) {
+  const { state, notifications, unreadCount, schoolId, userId, reload } = useNotifications()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuId = useId()
   const navigate = useNavigate()
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!workspace || !open || e.key !== 'Escape') return
+      e.preventDefault()
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, workspace])
 
   const markRead = async (ids: string[]) => {
     if (!schoolId || !userId || ids.length === 0) return
@@ -65,10 +77,13 @@ export default function NotificationsDropdown() {
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="relative flex h-9 w-9 items-center justify-center rounded-full text-graphite hover:bg-ink/5 dark:hover:bg-white/10"
         aria-label="Notifications"
+        aria-expanded={workspace ? open : undefined}
+        aria-controls={workspace ? menuId : undefined}
       >
         <Bell className="h-4.5 w-4.5" />
         {unreadCount > 0 && (
@@ -79,7 +94,10 @@ export default function NotificationsDropdown() {
       </button>
 
       {open && (
-        <div className="interaction-menu absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-xl dark:border-white/10 dark:bg-[#1c1c1e]">
+        <div
+          id={workspace ? menuId : undefined}
+          className={`interaction-menu absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-xl dark:border-white/10 dark:bg-[#1c1c1e] ${workspace ? 'workspace-notifications-menu' : ''}`}
+        >
           <div className="flex items-center justify-between border-b border-ink/5 px-4 py-3 dark:border-white/10">
             <p className="text-sm font-semibold text-ink dark:text-white">Notifications</p>
             {unreadCount > 0 && (
@@ -94,7 +112,20 @@ export default function NotificationsDropdown() {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {workspace && state.status === 'loading' ? (
+              <p className="px-4 py-8 text-center text-sm text-graphite" role="status">Loading notifications…</p>
+            ) : workspace && state.status === 'error' ? (
+              <div className="px-4 py-8 text-center">
+                <p className="text-sm text-ink dark:text-white">Notifications could not be loaded.</p>
+                <button
+                  type="button"
+                  onClick={state.retry}
+                  className="mt-3 rounded-lg px-3 py-2 text-sm font-medium text-brand hover:bg-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-white/10"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : notifications.length === 0 ? (
               <div className="px-4 py-8">
                 <EmptyState icon={Bell} title="No notifications" description="You have nothing new right now." />
               </div>

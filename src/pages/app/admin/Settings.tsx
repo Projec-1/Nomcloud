@@ -13,6 +13,7 @@ import { schoolInitial, updateSchool, type SchoolSettingsUpdate } from '@/servic
 import { prepareImage, IMAGE_ACCEPT } from '@/lib/imageUpload'
 import { removeSchoolLogo, replaceSchoolLogo, schoolLogoUrl } from '@/services/storageService'
 import type { SchoolRow } from '@/types/auth'
+import { isValidTimeZone } from '@/utils/schoolCalendar'
 
 // Phase 8 batch 1. Reads and writes the real public.schools row for the
 // signed-in user's own school, replacing the mock settings object.
@@ -80,6 +81,9 @@ function SettingsForm({
   const [logoBusy, setLogoBusy] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
   const logoUrl = schoolLogoUrl(school.logo_path)
+  const timezoneError = isValidTimeZone(form.timezone)
+    ? undefined
+    : 'Enter a valid IANA timezone, such as Africa/Mogadishu.'
 
   const handleLogoChosen = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -110,6 +114,7 @@ function SettingsForm({
   }
 
   const handleSave = async () => {
+    if (timezoneError) return
     setSaving(true)
     try {
       const updated = await updateSchool(school.id, form)
@@ -143,7 +148,7 @@ function SettingsForm({
         title="School Settings"
         description="Manage your school's profile, grading and notification preferences."
         actions={
-          <Button onClick={handleSave} loading={saving} icon={<Save className="h-4 w-4" />}>
+          <Button onClick={handleSave} loading={saving} disabled={Boolean(timezoneError)} icon={<Save className="h-4 w-4" />}>
             {saving ? 'Saving…' : 'Save Changes'}
           </Button>
         }
@@ -284,6 +289,7 @@ function SettingsForm({
               value={form.timezone}
               onChange={(e) => setForm({ ...form, timezone: e.target.value })}
               hint="Drives every date the school sees, including attendance days."
+              error={timezoneError}
             />
             <Input
               label="Attendance cutoff time"

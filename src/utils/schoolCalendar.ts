@@ -41,6 +41,15 @@ export const DEFAULT_TIME_ZONE = 'Africa/Mogadishu'
 
 export const ISO_WEEKDAYS: IsoWeekday[] = [1, 2, 3, 4, 5, 6, 7]
 
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone })
+    return true
+  } catch {
+    return false
+  }
+}
+
 const ISO_WEEKDAY_LABELS: Record<IsoWeekday, string> = {
   1: 'Monday',
   2: 'Tuesday',

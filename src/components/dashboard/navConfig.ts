@@ -35,6 +35,7 @@ export const navByRole: Record<Role, NavItem[]> = {
   ],
   teacher: [
     { to: '/app/teacher', labelKey: 'dash.nav.dashboard', icon: LayoutDashboard, end: true },
+    { to: '/app/teacher/classes', labelKey: 'dash.nav.classes', icon: Users },
     { to: '/app/teacher/timetable', labelKey: 'dash.nav.timetable', icon: Table2 },
     { to: '/app/teacher/attendance', labelKey: 'dash.nav.attendance', icon: CalendarCheck },
     { to: '/app/teacher/grades', labelKey: 'dash.nav.grades', icon: ClipboardList },
@@ -45,6 +46,7 @@ export const navByRole: Record<Role, NavItem[]> = {
     { to: '/app/teacher/progress', labelKey: 'dash.nav.progress', icon: TrendingUp },
     { to: '/app/teacher/notifications', labelKey: 'dash.nav.notifications', icon: BellRing },
     { to: '/app/teacher/tutorials', labelKey: 'dash.nav.tutorials', icon: PlayCircle },
+    { to: '/app/teacher/profile', labelKey: 'dash.nav.profile', icon: UserCircle },
   ],
   parent: [
     { to: '/app/parent', labelKey: 'dash.nav.overview', icon: LayoutDashboard, end: true },

@@ -3,8 +3,9 @@ import { CaretDown, DotsThree } from '@phosphor-icons/react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useLanguage } from '@/context/LanguageContext'
-import { navByRole, type NavItem } from '@/components/dashboard/navConfig'
+import { navByRole, roleLabelKey, type NavItem } from '@/components/dashboard/navConfig'
 import { cn } from '@/utils/cn'
+import type { Role } from '@/types'
 
 const primaryPaths = new Set([
   '/app/admin',
@@ -39,21 +40,23 @@ function NavigationLink({ item, onNavigate }: { item: NavItem; onNavigate?: () =
   )
 }
 
-export default function AdminNavigation() {
+export default function WorkspaceNavigation({ role }: { role: Role }) {
   const { activeMembership } = useAuth()
   const { lang, t } = useLanguage()
   const [moreOpen, setMoreOpen] = useState(false)
-  const [visiblePaths, setVisiblePaths] = useState<string[]>(() => [...primaryPaths])
+  const [visiblePaths, setVisiblePaths] = useState<string[]>(() =>
+    role === 'admin' ? [...primaryPaths] : [],
+  )
   const menuId = useId()
   const navigationRef = useRef<HTMLElement>(null)
   const linksRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const billingOnly = ['owner', 'director'].includes(activeMembership?.role ?? '')
+  const billingOnly = role === 'admin' && ['owner', 'director'].includes(activeMembership?.role ?? '')
   const items = useMemo(
-    () => billingOnly ? navByRole.admin.filter((item) => item.to === '/app/billing') : navByRole.admin,
-    [billingOnly],
+    () => billingOnly ? navByRole.admin.filter((item) => item.to === '/app/billing') : navByRole[role],
+    [billingOnly, role],
   )
   const visiblePathSet = new Set(visiblePaths)
   const primaryItems = items.filter((item) => visiblePathSet.has(item.to))
@@ -127,7 +130,7 @@ export default function AdminNavigation() {
 
   if (billingOnly) {
     return (
-      <nav ref={navigationRef} className="admin-navigation" aria-label="Administrator navigation">
+      <nav ref={navigationRef} className="admin-navigation" aria-label={`${t(roleLabelKey[role])} navigation`}>
         <div className="admin-navigation__capsule">
           {items.map((item) => <NavigationLink key={item.to} item={item} />)}
         </div>
@@ -136,7 +139,7 @@ export default function AdminNavigation() {
   }
 
   return (
-    <nav ref={navigationRef} className="admin-navigation" aria-label="Administrator navigation">
+    <nav ref={navigationRef} className="admin-navigation" aria-label={`${t(roleLabelKey[role])} navigation`}>
       <div className="admin-navigation__capsule">
         <div ref={linksRef} className="admin-navigation__links">
           {primaryItems.map((item) => <NavigationLink key={item.to} item={item} />)}
@@ -162,7 +165,7 @@ export default function AdminNavigation() {
               className="admin-nav-link inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors"
             >
               <DotsThree aria-hidden="true" className="h-4 w-4" />
-              More
+              {t('dash.nav.more')}
               <CaretDown aria-hidden="true" className={cn('h-3 w-3 transition-transform', moreOpen && 'rotate-180')} />
             </button>
             {moreOpen && (

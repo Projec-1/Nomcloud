@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { List as Menu, Moon, Sun, CaretDown as ChevronDown, Gear as Settings, SignOut as LogOut, Camera, Trash as Trash2, MagnifyingGlass } from '@phosphor-icons/react'
+import { Moon, Sun, CaretDown as ChevronDown, Gear as Settings, SignOut as LogOut, Camera, Trash as Trash2, MagnifyingGlass } from '@phosphor-icons/react'
 import { ThinkingOrb } from 'thinking-orbs'
 import { useAuth } from '@/context/AuthContext'
 import SignOutButton from '@/components/ui/SignOutButton'
@@ -18,8 +18,8 @@ import NotificationsDropdown from '@/components/dashboard/NotificationsDropdown'
 import SchoolBrandLogo from '@/components/dashboard/SchoolBrandLogo'
 import AdminAIAssistant from '@/components/dashboard/AdminAIAssistant'
 
-export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
-  const { profile, workspaces, activeRole, activeMembership, setActiveRole, school, platformAdmin, memberships, refreshProfile } =
+export default function Topbar() {
+  const { profile, workspaces, activeRole, activeMembership, setActiveRole, platformAdmin, memberships, refreshProfile } =
     useAuth()
   const { showToast } = useToast()
   const avatarUrl = useSignedImageUrl(BUCKETS.profileAvatars, profile?.avatar_url)
@@ -31,14 +31,26 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const profileButtonRef = useRef<HTMLButtonElement>(null)
+  const profileMenuId = useId()
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setMenuOpen(false)
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !menuOpen) return
+      e.preventDefault()
+      setMenuOpen(false)
+      profileButtonRef.current?.focus()
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [activeRole, menuOpen])
 
   if (!profile || !activeMembership) return null
 
@@ -93,31 +105,19 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   return (
     <header className="dashboard-topbar sticky top-0 z-30 flex min-h-[76px] flex-shrink-0 items-center justify-between gap-4 border-b border-ink/5 bg-white/80 px-4 backdrop-blur-xl dark:border-[#343A41] dark:bg-[#17191C]/90 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
-        {visibleRole !== 'admin' && (
-          <button onClick={onMenuClick} className="rounded-full p-2 text-ink hover:bg-ink/5 dark:text-white dark:hover:bg-white/10 lg:hidden" aria-label={t('dash.topbar.openMenu')}>
-            <Menu className="h-5 w-5" />
-          </button>
-        )}
-        {visibleRole === 'admin' ? (
-          <div className="min-w-0">
-            <SchoolBrandLogo
-              to={billingOnly ? '/app/billing' : '/app/admin'}
-              className="max-w-[min(48vw,320px)]"
-              textClassName="text-sm sm:text-base"
-            />
-            <p className="ml-10 flex min-w-0 items-center gap-1 truncate text-[10px] text-graphite">
-              <img src="/logo-512.png" alt="" className="h-3 w-3 shrink-0 object-contain" />
-              <span className="shrink-0">Nom Cloud</span>
-              <span aria-hidden="true">·</span>
-              <span className="truncate">{t(roleLabelKey[visibleRole])} {t('dash.workspace')}</span>
-            </p>
-          </div>
-        ) : (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink dark:text-white">{school?.name ?? ''}</p>
-            <p className="text-xs text-graphite">{t(roleLabelKey[visibleRole])} {t('dash.workspace')}</p>
-          </div>
-        )}
+        <div className="min-w-0">
+          <SchoolBrandLogo
+            to={billingOnly ? '/app/billing' : `/app/${visibleRole}`}
+            className="max-w-[min(48vw,320px)]"
+            textClassName="text-sm sm:text-base"
+          />
+          <p className="ml-10 flex min-w-0 items-center gap-1 truncate text-[10px] text-graphite">
+            <img src="/logo-512.png" alt="" className="h-3 w-3 shrink-0 object-contain" />
+            <span className="shrink-0">Nom Cloud</span>
+            <span aria-hidden="true">·</span>
+            <span className="truncate">{t(roleLabelKey[visibleRole])} {t('dash.workspace')}</span>
+          </p>
+        </div>
       </div>
 
       {visibleRole === 'admin' && location.pathname.startsWith('/app/admin') && (
@@ -152,14 +152,25 @@ export default function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         >
           {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
         </button>
-        <NotificationsDropdown />
+        <NotificationsDropdown workspace />
         <div className="relative" ref={ref}>
-          <button onClick={() => setMenuOpen((v) => !v)} className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 hover:bg-ink/5 dark:hover:bg-white/10">
+          <button
+            ref={profileButtonRef}
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-controls={profileMenuId}
+            aria-haspopup="true"
+            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 hover:bg-ink/5 dark:hover:bg-white/10"
+          >
             <Avatar name={profile.full_name} color="#0071E3" size="sm" src={avatarUrl} />
             <ChevronDown className="hidden h-3.5 w-3.5 text-graphite sm:block" />
           </button>
           {menuOpen && (
-            <div className="interaction-menu absolute right-0 top-11 z-50 w-60 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]">
+            <div
+              id={profileMenuId}
+              className="interaction-menu workspace-profile-menu absolute right-0 top-11 z-50 w-60 overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-floaty animate-fade-up dark:border-white/10 dark:bg-[#161618]"
+            >
               <div className="border-b border-ink/5 px-4 py-3 dark:border-white/10">
                 <p className="truncate text-sm font-medium text-ink dark:text-white">{profile.full_name}</p>
                 <p className="truncate text-xs text-graphite">{profile.email}</p>

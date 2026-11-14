@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarCheck, BookOpen, Wallet, ClipboardText as ClipboardCheck, ArrowRight, Users } from '@phosphor-icons/react'
+import {
+  ArrowRight,
+  BookOpen,
+  CalendarCheck,
+  ClipboardText as ClipboardCheck,
+  Clock,
+  Wallet,
+  Users,
+} from '@phosphor-icons/react'
 import { useAuth } from '@/context/AuthContext'
 import { useLanguage } from '@/context/LanguageContext'
 import { useSelectedChild } from '@/hooks/useSelectedChild'
 import { useAnnouncements } from '@/hooks/useCommunications'
 import PageHeader from '@/components/ui/PageHeader'
-import StatCard from '@/components/ui/StatCard'
 import ChildSwitcher from '@/components/dashboard/ChildSwitcher'
+import WorkspaceInsightCard from '@/components/dashboard/WorkspaceInsightCard'
 import ResourceGate from '@/components/ui/ResourceGate'
 import Badge from '@/components/ui/Badge'
 import { formatDate, formatMoney, percentage } from '@/utils/format'
@@ -20,19 +28,11 @@ import {
 } from '@/services/teachingRecordsService'
 import { fetchChildFeeRecords } from '@/services/financeService'
 
-// Phase 8 batch 8. The parent landing page, on real data throughout.
-//
-// Every figure here is read through the services batches 5, 6 and 7 built, so
-// this screen introduces no new access model. The announcement list in
-// particular applies NO audience filter of its own: the prototype included the
-// 'students' audience, which migration 14 is explicit is management-only. The
-// guardian policies decide readership now.
-
 export default function ParentDashboard() {
   const { profile, school } = useAuth()
   const { t } = useLanguage()
   const { children, selectedChild, selectChild, state } = useSelectedChild()
-  const { announcements } = useAnnouncements()
+  const { announcements, state: announcementsState } = useAnnouncements()
 
   const schoolId = school?.id ?? null
   const timeZone = school?.timezone ?? DEFAULT_TIME_ZONE
@@ -44,10 +44,19 @@ export default function ParentDashboard() {
     balance: number
     pending: ChildHomeworkItem[]
   }>({ attendanceRate: null, averageGrade: null, balance: 0, pending: [] })
+  const [summaryStatus, setSummaryStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [summaryReload, setSummaryReload] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    if (!schoolId || !selectedChild) return
+    if (!schoolId || !selectedChild) {
+      setSummaryStatus('ready')
+      setSummary({ attendanceRate: null, averageGrade: null, balance: 0, pending: [] })
+      return
+    }
+
+    setSummaryStatus('loading')
+    setSummary({ attendanceRate: null, averageGrade: null, balance: 0, pending: [] })
 
     Promise.all([
       fetchChildAttendance(schoolId, selectedChild.id),
@@ -69,15 +78,16 @@ export default function ParentDashboard() {
           balance: fees.reduce((sum, f) => sum + f.balance, 0),
           pending: homework.filter((h) => h.status === 'pending'),
         })
+        setSummaryStatus('ready')
       })
       .catch(() => {
-        // Summary only. The page still renders its shell.
+        if (!cancelled) setSummaryStatus('error')
       })
 
     return () => {
       cancelled = true
     }
-  }, [schoolId, selectedChild, timeZone])
+  }, [schoolId, selectedChild, timeZone, summaryReload])
 
   if (!selectedChild) {
     return (
@@ -101,94 +111,208 @@ export default function ParentDashboard() {
     )
   }
 
-  const recent = announcements.slice(0, 4)
+  const recentAnnouncements = announcements.slice(0, 4)
+  const attendanceValue = summary.attendanceRate === null ? '—' : `${summary.attendanceRate}%`
+  const valueIsReady = summaryStatus === 'ready'
 
   return (
-    <div>
-      <PageHeader
-        title={t('parent.dashboard.welcome', { name: profile?.full_name.split(' ')[0] ?? '' })}
-        description={t('parent.dashboard.childSummary', {
-          name: selectedChild.name.split(' ')[0],
-          school: selectedChild.className ?? t('common.school'),
-        })}
-        actions={
-          <ChildSwitcher
-            children={children}
-            selectedId={selectedChild.id}
-            onSelect={selectChild}
-            classLabel={(c) => c.className ?? ''}
-          />
-        }
-      />
+    <div className="admin-dashboard parent-dashboard">
+      <header className="admin-dashboard__welcome">
+        <div>
+          <p className="admin-dashboard__eyebrow">{selectedChild.className ?? t('common.school')}</p>
+          <h1>{t('parent.dashboard.welcome', { name: profile?.full_name.split(' ')[0] ?? '' })}</h1>
+          <p>{t('parent.dashboard.attendanceFor', { name: selectedChild.name.split(' ')[0] })}</p>
+        </div>
+        <ChildSwitcher
+          children={children}
+          selectedId={selectedChild.id}
+          onSelect={selectChild}
+          classLabel={(child) => child.className ?? ''}
+        />
+      </header>
 
-      <div className="parent-dashboard__stats grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label={t('parent.dashboard.attendance')}
-          value={summary.attendanceRate === null ? '—' : `${summary.attendanceRate}%`}
-          icon={CalendarCheck}
-          tint="#34A853"
-        />
-        <StatCard
-          label={t('parent.dashboard.averageGrade')}
-          value={summary.averageGrade === null ? '—' : `${summary.averageGrade}%`}
-          icon={BookOpen}
-          tint="#0071E3"
-        />
-        <StatCard
-          label={t('parent.dashboard.feeBalance')}
-          value={formatMoney(summary.balance, currency)}
-          icon={Wallet}
-          tint={summary.balance > 0 ? '#F59E0B' : '#34A853'}
-        />
-        <StatCard label={t('parent.dashboard.pendingHomework')} value={summary.pending.length} icon={ClipboardCheck} tint="#FF5A1F" />
-      </div>
+      {summaryStatus === 'error' && (
+        <div className="admin-dashboard__notice" role="alert">
+          <span>{t('parent.dashboard.summaryError')}</span>
+          <button type="button" className="admin-dashboard__retry" onClick={() => setSummaryReload((attempt) => attempt + 1)}>
+            {t('common.tryAgain')}
+          </button>
+        </div>
+      )}
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <div className="card p-6 lg:col-span-2">
-          <div className="mb-5 flex items-center justify-between">
-            <h3 className="font-semibold text-ink dark:text-white">{t('parent.dashboard.recentAnnouncements')}</h3>
-            <Link
-              to="/app/parent/announcements"
-              className="link-underline flex items-center gap-1 text-xs font-medium text-accent"
+      <div className="admin-dashboard__feature-grid">
+        <section className="admin-dashboard__featured" aria-labelledby="parent-attendance-title">
+          <div className="admin-dashboard__featured-top">
+            <span className="admin-dashboard__featured-icon"><CalendarCheck aria-hidden="true" className="h-4 w-4" /></span>
+            <span className="admin-dashboard__status">
+              <span className="admin-dashboard__status-dot" />
+              {t('parent.dashboard.attendance')}
+            </span>
+          </div>
+          <div className="admin-dashboard__featured-content">
+            <div>
+              <p className="admin-dashboard__eyebrow">{selectedChild.name}</p>
+              <h2 id="parent-attendance-title">{t('parent.dashboard.attendance')}</h2>
+              <p>{t('parent.dashboard.childSummary', {
+                name: selectedChild.name.split(' ')[0],
+                school: selectedChild.className ?? t('common.school'),
+              })}</p>
+            </div>
+            <div className="admin-dashboard__attendance-number" aria-live="polite">
+              <strong>{summaryStatus === 'ready' ? attendanceValue : '—'}</strong>
+              <span>{t('parent.dashboard.attendance')}</span>
+            </div>
+          </div>
+          <div className="admin-dashboard__featured-footer">
+            <div
+              className="admin-dashboard__progress"
+              role="progressbar"
+              aria-label={t('parent.dashboard.attendance')}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={summaryStatus === 'ready' ? summary.attendanceRate ?? 0 : 0}
             >
-              {t('parent.dashboard.viewAll')} <ArrowRight className="h-3 w-3" />
+              <span style={{ width: summaryStatus === 'ready' ? `${summary.attendanceRate ?? 0}%` : '0%' }} />
+            </div>
+            <Link to="/app/parent/attendance" className="admin-dashboard__featured-link">
+              {t('parent.dashboard.viewAll')} <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
             </Link>
           </div>
-          <div className="space-y-4">
-            {recent.length === 0 ? (
-              <p className="text-sm text-graphite">{t('parent.dashboard.noAnnouncements')}</p>
+        </section>
+
+        <section className="admin-dashboard__highlights" aria-labelledby="parent-homework-title">
+          <div className="admin-dashboard__section-heading">
+            <div>
+              <p className="admin-dashboard__eyebrow">{t('parent.dashboard.pendingHomework')}</p>
+              <h2 id="parent-homework-title">{t('parent.dashboard.upcomingHomework')}</h2>
+            </div>
+            <Link to="/app/parent/homework" className="admin-dashboard__icon-link" aria-label={t('parent.dashboard.viewAll')}>
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="admin-dashboard__class-list">
+            {summaryStatus === 'loading' ? (
+              <p className="admin-dashboard__empty" role="status">{t('app.loading.content')}</p>
+            ) : summaryStatus === 'error' ? (
+              <p className="admin-dashboard__empty">{t('parent.dashboard.summaryError')}</p>
+            ) : summary.pending.length === 0 ? (
+              <p className="admin-dashboard__empty">{t('parent.dashboard.caughtUp')}</p>
             ) : (
-              recent.map((a) => (
-                <div key={a.id} className="border-b border-ink/5 pb-4 last:border-b-0 last:pb-0 dark:border-white/10">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <Badge tone={a.priority === 'urgent' ? 'danger' : a.priority === 'important' ? 'warning' : 'neutral'}>
-                      {['urgent', 'important', 'normal'].includes(a.priority)
-                        ? t(`common.priority.${a.priority}`)
-                        : a.priority}
-                    </Badge>
-                    <span className="text-[11px] text-graphite">{formatDate(a.publishedAt ?? a.createdAt)}</span>
+              summary.pending.slice(0, 3).map((homework) => (
+                <div key={homework.id} className="admin-dashboard__class-row">
+                  <span className="admin-dashboard__class-icon"><ClipboardCheck aria-hidden="true" className="h-4 w-4" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p>{homework.title}</p>
+                    <span>{t('parent.dashboard.due', { date: formatDate(homework.dueDate) })}</span>
                   </div>
-                  <p className="text-sm font-medium text-ink dark:text-white">{a.title}</p>
-                  <p className="mt-1 text-xs text-graphite">{a.body}</p>
                 </div>
               ))
             )}
           </div>
-        </div>
-        <div className="card p-6">
-          <h3 className="mb-5 font-semibold text-ink dark:text-white">{t('parent.dashboard.upcomingHomework')}</h3>
-          <div className="space-y-4">
-            {summary.pending.slice(0, 4).map((h) => (
-              <div key={h.id} className="border-b border-ink/5 pb-4 last:border-b-0 last:pb-0 dark:border-white/10">
-                <p className="text-sm font-medium text-ink dark:text-white">{h.title}</p>
-                <p className="text-xs text-graphite">{t('parent.dashboard.due', { date: formatDate(h.dueDate) })}</p>
-              </div>
-            ))}
-            {summary.pending.length === 0 && (
-              <p className="text-sm text-graphite">{t('parent.dashboard.caughtUp')}</p>
-            )}
+        </section>
+      </div>
+
+      <div className="admin-dashboard__stats grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <WorkspaceInsightCard
+          label={t('parent.dashboard.attendance')}
+          value={valueIsReady ? attendanceValue : '—'}
+          icon={CalendarCheck}
+          caption={summaryStatus === 'loading' ? t('app.loading.content') : ''}
+        />
+        <WorkspaceInsightCard
+          label={t('parent.dashboard.averageGrade')}
+          value={valueIsReady && summary.averageGrade !== null ? `${summary.averageGrade}%` : '—'}
+          icon={BookOpen}
+          caption=""
+        />
+        <WorkspaceInsightCard
+          label={t('parent.dashboard.feeBalance')}
+          value={valueIsReady ? formatMoney(summary.balance, currency) : '—'}
+          icon={Wallet}
+          caption=""
+        />
+        <WorkspaceInsightCard
+          label={t('parent.dashboard.pendingHomework')}
+          value={valueIsReady ? summary.pending.length : '—'}
+          icon={ClipboardCheck}
+          caption=""
+        />
+      </div>
+
+      <div className="admin-dashboard__sections">
+        <section className="admin-dashboard__panel" aria-labelledby="parent-announcements-title">
+          <div className="admin-dashboard__section-heading">
+            <div>
+              <p className="admin-dashboard__eyebrow">{t('parent.dashboard.recentAnnouncements')}</p>
+              <h2 id="parent-announcements-title">{t('parent.dashboard.recentAnnouncements')}</h2>
+            </div>
+            <Link to="/app/parent/announcements" className="admin-dashboard__icon-link" aria-label={t('parent.dashboard.viewAll')}>
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
           </div>
-        </div>
+          {announcementsState.status === 'loading' ? (
+            <p className="admin-dashboard__empty" role="status">{t('app.loading.content')}</p>
+          ) : announcementsState.status === 'error' ? (
+            <div className="admin-dashboard__empty" role="alert">
+              <p>{t('parent.dashboard.announcementsError')}</p>
+              {announcementsState.retry && (
+                <button type="button" className="admin-dashboard__retry" onClick={announcementsState.retry}>
+                  {t('common.tryAgain')}
+                </button>
+              )}
+            </div>
+          ) : announcementsState.status === 'denied' ? (
+            <p className="admin-dashboard__empty" role="status">{t('parent.dashboard.announcementsUnavailable')}</p>
+          ) : recentAnnouncements.length === 0 ? (
+            <p className="admin-dashboard__empty">{t('parent.dashboard.noAnnouncements')}</p>
+          ) : (
+            <div className="admin-dashboard__announcement-list">
+              {recentAnnouncements.map((announcement) => (
+                <article key={announcement.id} className="admin-dashboard__announcement">
+                  <span
+                    className={`admin-dashboard__announcement-dot${announcement.priority === 'urgent' ? ' admin-dashboard__announcement-dot--urgent' : announcement.priority === 'important' ? ' admin-dashboard__announcement-dot--important' : ''}`}
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p>{announcement.title}</p>
+                    <span>{formatDate(announcement.publishedAt ?? announcement.createdAt)}</span>
+                  </div>
+                  <Badge tone={announcement.priority === 'urgent' ? 'danger' : announcement.priority === 'important' ? 'warning' : 'neutral'}>
+                    {['urgent', 'important', 'normal'].includes(announcement.priority)
+                      ? t(`common.priority.${announcement.priority}`)
+                      : announcement.priority}
+                  </Badge>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="admin-dashboard__panel" aria-labelledby="parent-quick-links-title">
+          <div className="admin-dashboard__section-heading">
+            <div>
+              <p className="admin-dashboard__eyebrow">{selectedChild.name}</p>
+              <h2 id="parent-quick-links-title">{selectedChild.className ?? t('common.school')}</h2>
+            </div>
+          </div>
+          <div className="admin-dashboard__class-list">
+            <Link to="/app/parent/timetable" className="admin-dashboard__class-row">
+              <span className="admin-dashboard__class-icon"><Clock aria-hidden="true" className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1"><p>{t('parent.timetable.title')}</p></div>
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+            <Link to="/app/parent/grades" className="admin-dashboard__class-row">
+              <span className="admin-dashboard__class-icon"><BookOpen aria-hidden="true" className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1"><p>{t('parent.dashboard.averageGrade')}</p></div>
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+            <Link to="/app/parent/fees" className="admin-dashboard__class-row">
+              <span className="admin-dashboard__class-icon"><Wallet aria-hidden="true" className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1"><p>{t('parent.fees.title')}</p></div>
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   )
