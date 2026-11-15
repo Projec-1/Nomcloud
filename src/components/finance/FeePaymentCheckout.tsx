@@ -4,6 +4,7 @@ import type { SchoolRow } from '@/types/auth'
 import { useLanguage } from '@/context/LanguageContext'
 import { fetchChildFeeRecords, type FeeRecordView } from '@/services/financeService'
 import {
+  getUssdInstruction,
   isVerifiedFeePayment,
   settleFeePayment,
   startFeePayment,
@@ -13,6 +14,7 @@ import {
   savePendingFeePayment,
   type SettledFeePayment,
 } from '@/services/feePaymentService'
+import { HORMUUD_FEE_NUMBER } from '@/config/feeConfig'
 import { errorMessage } from '@/utils/errorMessage'
 import { formatDate, formatMoney } from '@/utils/format'
 import { schoolLogoUrl } from '@/services/storageService'
@@ -86,7 +88,7 @@ export default function FeePaymentCheckout({
 
   const amount = amountMode === 'full' ? fee.balance : Number(partialAmount)
   const amountIsValid = Number.isFinite(amount) && amount > 0 && amount <= fee.balance
-  const canUseGateway = school?.is_demo === true
+  const canUseGateway = true
 
   const startOver = () => {
     setStep('review')
@@ -473,23 +475,25 @@ export default function FeePaymentCheckout({
           <div className="space-y-5">
             <div className="rounded-xl border border-brand/25 bg-brand/[0.04] p-4 text-sm">
               <p className="flex items-center gap-2 font-semibold text-ink dark:text-white">
-                <ShieldCheck className="h-5 w-5 text-brand" /> {t('fees.checkout.testMode')}
+                <ShieldCheck className="h-5 w-5 text-brand" /> Hormuud EVC Plus
               </p>
-              <p className="mt-2 leading-6 text-graphite">{t('fees.checkout.testModeDescription')}</p>
+              <p className="mt-2 leading-6 text-graphite">
+                Pay to Hormuud number {HORMUUD_FEE_NUMBER} using EVC Plus.
+              </p>
             </div>
             <fieldset>
               <legend className="mb-3 text-sm font-semibold text-ink dark:text-white">{t('fees.checkout.paymentMethod')}</legend>
               <PaymentMethodCard
                 icon={DeviceMobile}
-                label={t('fees.checkout.waafiMobileMoney')}
-                description={t('fees.checkout.testOnly')}
-                mark="WAAFI"
+                label="Hormuud EVC Plus"
+                description="Pay using EVC Plus"
+                mark="EVC+"
                 selected={selectedPaymentMethod === 'mobile_money'}
                 onSelect={() => setSelectedPaymentMethod('mobile_money')}
               />
             </fieldset>
             <Input
-              label={t('fees.checkout.testAccount')}
+              label={`Hormuud EVC Plus - Pay to ${HORMUUD_FEE_NUMBER}`}
               type="tel"
               autoComplete="tel"
               inputMode="tel"
@@ -499,7 +503,7 @@ export default function FeePaymentCheckout({
               aria-describedby={`payment-test-hint-${fee.id}`}
             />
             <p id={`payment-test-hint-${fee.id}`} className="text-xs leading-5 text-graphite">
-              {t('fees.checkout.testAccountHint')}
+              {getUssdInstruction(amount)}
             </p>
           </div>
         )}
