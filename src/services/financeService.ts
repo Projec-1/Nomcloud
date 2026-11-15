@@ -55,6 +55,8 @@
 
 import { supabase } from '@/lib/supabase'
 import { todayInTimeZone } from '@/utils/schoolCalendar'
+import { MONTHLY_FEE_CATEGORY_PREFIX } from '@/config/feeConfig'
+import { parseClassLevel } from '@/utils/classLevelParser'
 
 /** The four states a fee can be in. Computed, never read from a column. */
 export type FeeStatus = 'paid' | 'partial' | 'unpaid' | 'overdue'
@@ -430,6 +432,207 @@ async function assembleFeeRecords(
       payments: recordedPayments,
     }
   })
+}
+
+export interface StudentFeeSummary {
+  previousBalance: number
+  currentMonthFee: number
+  totalDue: number
+  unpaidMonths: number
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+function monthEnd(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number)
+  return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10)
+}
+
+export function getFeeAmountForStudent(className: string): number {
+  const parsedClass = parseClassLevel(className)
+  if (!parsedClass) {
+    throw new Error(`Cannot determine the monthly fee for class "${className}".`)
+  }
+  return parsedClass.monthlyFee
+}
+
+export async function ensureMonthlyFeesForAllStudents(
+  schoolId: string,
+  timeZone: string,
+  currency: string,
+  studentIds?: string[],
+): Promise<void> {
+  if (studentIds !== undefined) {
+    const uniqueStudentIds = Array.from(new Set(studentIds))
+    if (uniqueStudentIds.length === 0) return
+
+    const { error } = await supabase.functions.invoke('ensure-monthly-fees', {
+      body: { school_id: schoolId, student_ids: uniqueStudentIds },
+    })
+    if (error) {
+      if (error instanceof Error && 'context' in error && error.context instanceof Response) {
+        const body: unknown = await error.context.clone().json()
+        if (typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string') {
+          throw new Error(body.error)
+        }
+      }
+      throw new Error(error.message || 'Could not ensure monthly fee invoices.')
+    }
+    return
+  }
+
+  const today = todayInTimeZone(timeZone)
+  const currentMonth = today.slice(0, 7)
+  const monthStart = `${currentMonth}-01`
+  const dueDate = monthEnd(currentMonth)
+  const category = `${MONTHLY_FEE_CATEGORY_PREFIX} ${currentMonth}`
+
+  const { data: students, error: studentsError } = await supabase
+    .from('students')
+    .select('id')
+    .eq('school_id', schoolId)
+    .eq('status', 'active')
+  if (studentsError) throw studentsError
+
+  const activeStudentIds = ((students ?? []) as { id: string }[]).map((student) => student.id)
+  if (activeStudentIds.length === 0) return
+
+  const { data: existingFees, error: existingFeesError } = await supabase
+    .from('fee_records')
+    .select('student_id, category, due_date')
+    .eq('school_id', schoolId)
+    .in('student_id', activeStudentIds)
+    .or(`category.eq.${category},and(due_date.gte.${monthStart},due_date.lte.${dueDate})`)
+  if (existingFeesError) throw existingFeesError
+
+  const invoicedStudents = new Set(
+    ((existingFees ?? []) as { student_id: string; category: string; due_date: string }[])
+      .filter((fee) => fee.category === category || (fee.due_date >= monthStart && fee.due_date <= dueDate))
+      .map((fee) => fee.student_id),
+  )
+  const missingStudentIds = activeStudentIds.filter((studentId) => !invoicedStudents.has(studentId))
+  if (missingStudentIds.length === 0) return
+
+  const { data: academicYear, error: academicYearError } = await supabase
+    .from('academic_years')
+    .select('id')
+    .eq('school_id', schoolId)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (academicYearError) throw academicYearError
+  if (!academicYear) throw new Error('Set an active academic year before generating monthly fees.')
+
+  const { data: term, error: termError } = await supabase
+    .from('terms')
+    .select('id')
+    .eq('school_id', schoolId)
+    .eq('academic_year_id', academicYear.id)
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .maybeSingle()
+  if (termError) throw termError
+  if (!term) throw new Error('Create a term covering the current month in the active academic year before generating monthly fees.')
+
+  const { data: enrollments, error: enrollmentsError } = await supabase
+    .from('class_enrollments')
+    .select('student_id, class_id')
+    .eq('school_id', schoolId)
+    .eq('academic_year_id', academicYear.id)
+    .is('left_on', null)
+    .in('student_id', missingStudentIds)
+  if (enrollmentsError) throw enrollmentsError
+
+  const classIds = Array.from(new Set(((enrollments ?? []) as { class_id: string }[]).map((row) => row.class_id)))
+  const { data: classes, error: classesError } = classIds.length > 0
+    ? await supabase.from('classes').select('id, name').eq('school_id', schoolId).in('id', classIds)
+    : { data: [], error: null }
+  if (classesError) throw classesError
+
+  const classNameById = new Map(
+    ((classes ?? []) as { id: string; name: string }[]).map((classroom) => [classroom.id, classroom.name]),
+  )
+  const classByStudent = new Map<string, string>()
+  for (const enrollment of (enrollments ?? []) as { student_id: string; class_id: string }[]) {
+    const className = classNameById.get(enrollment.class_id)
+    if (className) classByStudent.set(enrollment.student_id, className)
+  }
+
+  const missingAssignments = missingStudentIds.filter((studentId) => !classByStudent.has(studentId))
+  if (missingAssignments.length > 0) {
+    throw new Error(`${missingAssignments.length} active student(s) need a current class enrollment before monthly fees can be generated.`)
+  }
+
+  const invoices = missingStudentIds.map((studentId) => {
+    const className = classByStudent.get(studentId)
+    if (!className) {
+      throw new Error('An active student is missing a current class enrollment.')
+    }
+    return {
+      school_id: schoolId,
+      student_id: studentId,
+      term_id: term.id,
+      amount: getFeeAmountForStudent(className),
+      category,
+      due_date: dueDate,
+      currency,
+    }
+  })
+
+  const { error: insertError } = await supabase
+    .from('fee_records')
+    .upsert(invoices, {
+      onConflict: 'school_id,student_id,term_id,category',
+      ignoreDuplicates: true,
+    })
+  if (insertError) throw insertError
+}
+
+export async function getStudentFeeSummary(
+  schoolId: string,
+  studentId: string,
+  timeZone: string,
+  _currency: string,
+): Promise<StudentFeeSummary> {
+  const currentMonth = todayInTimeZone(timeZone).slice(0, 7)
+  const monthStart = `${currentMonth}-01`
+  const currentMonthCategory = `${MONTHLY_FEE_CATEGORY_PREFIX} ${currentMonth}`
+  const { data: fees, error: feesError } = await supabase
+    .from('fee_records')
+    .select('category, amount, amount_paid, due_date')
+    .eq('school_id', schoolId)
+    .eq('student_id', studentId)
+  if (feesError) throw feesError
+
+  const rows = (fees ?? []) as {
+    category: string
+    amount: number
+    amount_paid: number
+    due_date: string
+  }[]
+  const outstandingBalance = (fee: (typeof rows)[number]) =>
+    roundMoney(Math.max(0, Number(fee.amount) - Number(fee.amount_paid)))
+
+  const previousBalance = roundMoney(
+    rows.filter((fee) => fee.due_date < monthStart).reduce((sum, fee) => sum + outstandingBalance(fee), 0),
+  )
+  const currentMonthFee = roundMoney(
+    rows.filter((fee) => fee.category === currentMonthCategory).reduce((sum, fee) => sum + outstandingBalance(fee), 0),
+  )
+  const unpaidMonths = new Set(
+    rows
+      .filter((fee) => fee.due_date <= monthEnd(currentMonth) && outstandingBalance(fee) > 0)
+      .map((fee) => fee.category.match(/^Monthly Fee\s+(\d{4}-\d{2})$/)?.[1])
+      .filter((month): month is string => month !== undefined),
+  ).size
+
+  return {
+    previousBalance,
+    currentMonthFee,
+    totalDue: roundMoney(previousBalance + currentMonthFee),
+    unpaidMonths,
+  }
 }
 
 // ===========================================================================

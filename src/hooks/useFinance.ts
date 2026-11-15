@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { deriveResourceState, type ResourceState } from '@/lib/resourceState'
-import { fetchChildFeeRecords, fetchFeeRecords, type FeeRecordView } from '@/services/financeService'
+import {
+  ensureMonthlyFeesForAllStudents,
+  fetchChildFeeRecords,
+  fetchFeeRecords,
+  type FeeRecordView,
+} from '@/services/financeService'
 import { DEFAULT_TIME_ZONE } from '@/utils/schoolCalendar'
 import { toError } from '@/utils/errorMessage'
 
@@ -71,7 +76,8 @@ export function useFinance(): UseFinanceResult {
     setIsLoading(true)
     setError(null)
 
-    fetchFeeRecords(schoolId, timeZone)
+    ensureMonthlyFeesForAllStudents(schoolId, timeZone, currency)
+      .then(() => fetchFeeRecords(schoolId, timeZone))
       .then((rows) => {
         if (!cancelled) setRecords(rows)
       })
@@ -85,7 +91,7 @@ export function useFinance(): UseFinanceResult {
     return () => {
       cancelled = true
     }
-  }, [schoolId, canManageFinance, timeZone, authState, nonce])
+  }, [schoolId, canManageFinance, timeZone, currency, authState, nonce])
 
   const state = deriveResourceState<FeeRecordView[]>({
     isLoading: authState !== 'ready' || isLoading,
@@ -114,6 +120,7 @@ export function useChildFees(studentId: string | null): UseChildFeesResult {
   const { school, authState } = useAuth()
   const schoolId = school?.id ?? null
   const timeZone = school?.timezone ?? DEFAULT_TIME_ZONE
+  const currency = school?.currency ?? 'USD'
 
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -135,7 +142,8 @@ export function useChildFees(studentId: string | null): UseChildFeesResult {
     setIsLoading(true)
     setError(null)
 
-    fetchChildFeeRecords(schoolId, studentId, timeZone)
+    ensureMonthlyFeesForAllStudents(schoolId, timeZone, currency, [studentId])
+      .then(() => fetchChildFeeRecords(schoolId, studentId, timeZone))
       .then((rows) => {
         if (!cancelled) setRecords(rows)
       })
@@ -149,7 +157,7 @@ export function useChildFees(studentId: string | null): UseChildFeesResult {
     return () => {
       cancelled = true
     }
-  }, [schoolId, studentId, timeZone, authState, nonce])
+  }, [schoolId, studentId, timeZone, currency, authState, nonce])
 
   const state = deriveResourceState<FeeRecordView[]>({
     isLoading: authState !== 'ready' || isLoading,
@@ -168,6 +176,7 @@ export function useChildrenFees(studentIds: string[]): UseChildFeesResult {
   const { school, authState } = useAuth()
   const schoolId = school?.id ?? null
   const timeZone = school?.timezone ?? DEFAULT_TIME_ZONE
+  const currency = school?.currency ?? 'USD'
   const idsKey = Array.from(new Set(studentIds)).sort().join('|')
   const ids = idsKey ? idsKey.split('|') : []
 
@@ -188,7 +197,8 @@ export function useChildrenFees(studentIds: string[]): UseChildFeesResult {
 
     setIsLoading(true)
     setError(null)
-    Promise.all(ids.map((studentId) => fetchChildFeeRecords(schoolId, studentId, timeZone)))
+    ensureMonthlyFeesForAllStudents(schoolId, timeZone, currency, ids)
+      .then(() => Promise.all(ids.map((studentId) => fetchChildFeeRecords(schoolId, studentId, timeZone))))
       .then((rows) => {
         if (!cancelled) setRecords(rows.flat())
       })
@@ -202,7 +212,7 @@ export function useChildrenFees(studentIds: string[]): UseChildFeesResult {
     return () => {
       cancelled = true
     }
-  }, [schoolId, timeZone, authState, idsKey, nonce])
+  }, [schoolId, timeZone, currency, authState, idsKey, nonce])
 
   const state = deriveResourceState<FeeRecordView[]>({
     isLoading: authState !== 'ready' || isLoading,

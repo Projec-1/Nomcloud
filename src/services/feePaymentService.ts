@@ -1,9 +1,30 @@
 import { supabase } from '@/lib/supabase'
+import { HORMUUD_FEE_NUMBER } from '@/config/feeConfig'
 
 export type OnlinePaymentMethod = 'mobile_money' | 'card' | 'ussd' | 'bank_agent'
+export type FeePaymentMethod = 'hormuud_evc' | 'edahab' | 'premier_wallet' | 'bank_transfer'
+export type FeePaymentMethodAvailability = 'active' | 'coming_soon'
 export type PaymentEventType = 'pending' | 'approved' | 'declined' | 'cancelled'
 export type PaymentProcessingStatus = 'received' | 'applied' | 'rejected' | 'ignored'
 export type PaymentOutcome = 'applied' | 'duplicate' | 'rejected' | 'ignored'
+
+export const FEE_PAYMENT_METHODS: ReadonlyArray<{
+  method: FeePaymentMethod
+  availability: FeePaymentMethodAvailability
+}> = [
+  { method: 'hormuud_evc', availability: 'active' },
+  { method: 'edahab', availability: 'coming_soon' },
+  { method: 'premier_wallet', availability: 'coming_soon' },
+  { method: 'bank_transfer', availability: 'coming_soon' },
+]
+
+export interface HormuudFeePaymentSubmission {
+  submissionId: string
+  amount: number
+  status: 'pending_verification'
+  createdAt: string
+  merchantNumber: string
+}
 
 export interface StartedFeePayment {
   transactionId: string
@@ -29,6 +50,51 @@ export interface SettledFeePayment {
   feePaymentId: string | null
   reason: string | null
   mock: boolean
+}
+
+export async function initiateHormuudPayment(input: {
+  schoolId: string
+  studentId: string
+  feeRecordId: string
+  amount: number
+  payerNumber: string
+  transactionId?: string
+  evidenceFile?: File
+}): Promise<HormuudFeePaymentSubmission> {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new Error('Payment amount must be a positive number.')
+  }
+  if (!input.payerNumber.trim()) throw new Error('Enter the EVC Plus number used for payment.')
+
+  const body = new FormData()
+  body.set('school_id', input.schoolId)
+  body.set('student_id', input.studentId)
+  body.set('fee_record_id', input.feeRecordId)
+  body.set('amount', input.amount.toFixed(2))
+  body.set('payer_number', input.payerNumber.trim())
+  if (input.transactionId?.trim()) body.set('transaction_id', input.transactionId.trim())
+  if (input.evidenceFile) body.set('evidence', input.evidenceFile)
+
+  const { data, error } = await supabase.functions.invoke('initiate-hormuud-fee-payment', { body })
+  if (error) throw new Error(error.message || 'Could not submit the Hormuud payment for verification.')
+
+  const result = responseObject(data)
+  if (
+    typeof result.submission_id !== 'string' ||
+    typeof result.amount !== 'number' ||
+    result.status !== 'pending_verification' ||
+    typeof result.created_at !== 'string'
+  ) {
+    throw new Error('The payment service returned incomplete submission details.')
+  }
+
+  return {
+    submissionId: result.submission_id,
+    amount: result.amount,
+    status: 'pending_verification',
+    createdAt: result.created_at,
+    merchantNumber: HORMUUD_FEE_NUMBER,
+  }
 }
 
 function responseObject(value: unknown): Record<string, unknown> {
