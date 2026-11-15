@@ -12,15 +12,16 @@ import { HORMUUD_FEE_NUMBER } from '@/config/feeConfig';
 export interface SettledFeePayment {
   transactionId: string;
   feePaymentId?: string;
-  mock?: boolean;
+  mock: boolean;
   eventType: 'verified' | 'pending' | 'declined' | 'cancelled' | 'notConfirmed' | string;
   outcome?: string;
   reason?: string;
   amount?: number;
   hormuudNumber?: string;
+  status?: string;
 }
 
-interface PendingFeePaymentLocal {
+export interface PendingFeePaymentLocal {
   transactionId: string | null;
   clientReference: string;
   amount: number;
@@ -38,92 +39,106 @@ function generateTxId(): string {
   return `TX-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
+function responseObject(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('The payment service returned an invalid response.')
+  }
+  return value as Record<string, unknown>
+}
+
 // ===== Compatibility API - Exact signatures required by FeePaymentCheckout.tsx =====
 
 export function loadPendingFeePayment(feeId: string): PendingFeePaymentLocal | null {
+  const raw = window.localStorage.getItem(storageKey(feeId))
+  if (!raw) return null
+
+  let value: unknown
   try {
-    const raw = localStorage.getItem(storageKey(feeId));
-    if (!raw) return null;
-    return JSON.parse(raw) as PendingFeePaymentLocal;
+    value = JSON.parse(raw)
   } catch {
-    return null;
+    throw new Error('The saved payment attempt is invalid. Check its status before starting another payment.')
   }
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('The saved payment attempt is invalid. Check its status before starting another payment.')
+  }
+
+  const attempt = value as Partial<PendingFeePaymentLocal>
+  if (
+    typeof attempt.clientReference !== 'string' ||
+    typeof attempt.amount !== 'number' ||
+    !Number.isFinite(attempt.amount) ||
+    typeof attempt.createdAt !== 'string' ||
+    (attempt.transactionId !== null && typeof attempt.transactionId !== 'string')
+  ) {
+    throw new Error('The saved payment attempt is invalid. Check its status before starting another payment.')
+  }
+  return attempt as PendingFeePaymentLocal
 }
 
 export function clearPendingFeePayment(feeId: string): void {
-  try {
-    localStorage.removeItem(storageKey(feeId));
-  } catch {}
+  window.localStorage.removeItem(storageKey(feeId))
 }
 
 export function savePendingFeePayment(
   feeId: string,
-  data: { clientReference: string; transactionId: string | null; amount: number; createdAt: string } & Record<string, any>
+  data: PendingFeePaymentLocal,
 ): void {
-  try {
-    const payload: PendingFeePaymentLocal = {
-      transactionId: data.transactionId,
-      clientReference: data.clientReference,
-      amount: data.amount,
-      createdAt: data.createdAt,
-      feeId,
-    };
-    localStorage.setItem(storageKey(feeId), JSON.stringify(payload));
-  } catch {}
+  const payload: PendingFeePaymentLocal = {
+    transactionId: data.transactionId,
+    clientReference: data.clientReference,
+    amount: data.amount,
+    createdAt: data.createdAt,
+    feeId,
+  }
+  window.localStorage.setItem(storageKey(feeId), JSON.stringify(payload))
 }
 
 export async function recoverFeePayment(
   feeId: string,
   clientReference: string
 ): Promise<SettledFeePayment | null> {
-  try {
-    // Try to find submission by clientReference (stored as transactionId or in evidence)
-    // For demo compatibility, return pending if local exists
-    const pending = loadPendingFeePayment(feeId);
-    if (!pending) return null;
+  const pending = loadPendingFeePayment(feeId)
+  if (!pending) return null
 
-    // Check Supabase for real verification status
-    try {
-      const { data } = await supabase
-        .from('fee_payment_submissions')
-        .select('id, status, amount')
-        .eq('fee_record_id', feeId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const { data, error } = await supabase
+    .from('fee_payment_submissions')
+    .select('id, status, amount, transaction_id, review_note')
+    .eq('fee_record_id', feeId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
 
-      if (data) {
-        if (data.status === 'verified') {
-          return {
-            transactionId: pending.transactionId || data.id,
-            feePaymentId: data.id,
-            mock: true,
-            eventType: 'verified',
-            amount: data.amount,
-          };
-        }
-        if (data.status === 'rejected') {
-          return {
-            transactionId: pending.transactionId || data.id,
-            feePaymentId: data.id,
-            mock: false,
-            eventType: 'declined',
-            outcome: 'rejected',
-            reason: 'declined',
-          };
-        }
-      }
-    } catch {}
-
-    // Default: still pending
+  const transactionId = data.transaction_id ?? pending.transactionId ?? clientReference
+  if (data.status === 'verified') {
     return {
-      transactionId: pending.transactionId || `TX-RECOVER-${Date.now()}`,
+      transactionId,
+      feePaymentId: data.id,
       mock: true,
-      eventType: 'pending',
-      amount: pending.amount,
-    };
-  } catch {
-    return null;
+      eventType: 'verified',
+      amount: data.amount,
+      status: data.status,
+    }
+  }
+  if (data.status === 'rejected') {
+    return {
+      transactionId,
+      feePaymentId: data.id,
+      mock: true,
+      eventType: 'declined',
+      outcome: 'rejected',
+      reason: data.review_note ?? 'declined',
+      amount: data.amount,
+      status: data.status,
+    }
+  }
+  return {
+    transactionId,
+    mock: true,
+    eventType: 'pending',
+    amount: data.amount,
+    status: data.status,
   }
 }
 
@@ -134,96 +149,101 @@ export async function startFeePayment(params: {
   paymentMethod: 'mobile_money' | string;
   accountNo: string;
 }): Promise<SettledFeePayment> {
+  if (!Number.isFinite(params.amount) || params.amount <= 0) {
+    throw new Error('Payment amount must be a positive number.')
+  }
+  if (!params.accountNo.trim()) throw new Error('Enter the EVC Plus number used for payment.')
   const transactionId = generateTxId();
 
-  // Real backend: Create pending submission with real Hormuud number 618880216
-  try {
-    // Get school_id and student_id from fee_record
-    const { data: feeRecord } = await supabase
-      .from('fee_records')
-      .select('school_id, student_id')
-      .eq('id', params.feeRecordId)
-      .maybeSingle();
+  const { data: feeRecord, error: feeError } = await supabase
+    .from('fee_records')
+    .select('school_id, student_id')
+    .eq('id', params.feeRecordId)
+    .maybeSingle()
+  if (feeError) throw feeError
+  if (!feeRecord) throw new Error('Fee record not found.')
 
-    if (feeRecord) {
-      await supabase.from('fee_payment_submissions').insert({
-        school_id: feeRecord.school_id,
-        student_id: feeRecord.student_id,
-        fee_record_id: params.feeRecordId,
-        amount: params.amount,
-        hormuud_number: HORMUUD_FEE_NUMBER,
-        status: 'pending_verification',
-      });
-    }
-  } catch (e) {
-    console.warn('startFeePayment submission insert skipped', e);
+  const body = new FormData()
+  body.set('school_id', feeRecord.school_id)
+  body.set('student_id', feeRecord.student_id)
+  body.set('fee_record_id', params.feeRecordId)
+  body.set('amount', params.amount.toFixed(2))
+  body.set('payer_number', params.accountNo.trim())
+  body.set('transaction_id', transactionId)
+
+  const { data, error } = await supabase.functions.invoke('initiate-hormuud-fee-payment', { body })
+  if (error) throw new Error(error.message || 'Could not submit the Hormuud payment for verification.')
+
+  const result = responseObject(data)
+  if (
+    typeof result.submission_id !== 'string' ||
+    result.status !== 'pending_verification' ||
+    typeof result.amount !== 'number' ||
+    result.amount !== params.amount
+  ) {
+    throw new Error('The payment service returned incomplete submission details.')
   }
 
-  // For demo flow (school.is_demo true), FeePaymentCheckout expects mock flow
-  // Return pending to trigger checkStatus loop
   return {
     transactionId,
-    feePaymentId: undefined,
     mock: true,
     eventType: 'pending',
-    amount: params.amount,
+    amount: result.amount,
     hormuudNumber: HORMUUD_FEE_NUMBER,
-  };
+  }
 }
 
 export async function settleFeePayment(transactionId: string): Promise<SettledFeePayment> {
-  // Real backend: Check if any recent submission for this transaction got verified
-  // Since transactionId is random, we check latest submission for that fee via localStorage
-  try {
-    // Find feeId that has this transactionId pending
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key?.startsWith('nomcloud_pending_fee_')) continue;
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      try {
-        const parsed = JSON.parse(raw) as PendingFeePaymentLocal;
-        if (parsed.transactionId === transactionId) {
-          const feeId = key.replace('nomcloud_pending_fee_', '');
-          // Check Supabase status
-          const { data } = await supabase
-            .from('fee_payment_submissions')
-            .select('id, status, amount')
-            .eq('fee_record_id', feeId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+  const prefix = 'nomcloud_pending_fee_'
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index)
+    if (!key?.startsWith(prefix)) continue
+    const feeId = key.slice(prefix.length)
+    const pending = loadPendingFeePayment(feeId)
+    if (!pending || pending.transactionId !== transactionId) continue
 
-          if (data?.status === 'verified') {
-            // Also mark fee_record as paid
-            try {
-              await supabase.from('fee_records').update({ status: 'paid' }).eq('id', feeId);
-            } catch {}
-            
-            return {
-              transactionId,
-              feePaymentId: data.id,
-              mock: true,
-              eventType: 'verified',
-              amount: data.amount,
-            };
-          }
-          if (data?.status === 'rejected') {
-            return {
-              transactionId,
-              feePaymentId: data.id,
-              mock: false,
-              eventType: 'declined',
-              outcome: 'rejected',
-              reason: 'declined',
-            };
-          }
-        }
-      } catch {}
+    const { data, error } = await supabase
+      .from('fee_payment_submissions')
+      .select('id, status, amount, transaction_id, review_note')
+      .eq('fee_record_id', feeId)
+      .eq('transaction_id', pending.transactionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    if (!data) break
+
+    if (data.status === 'verified') {
+      return {
+        transactionId: data.transaction_id ?? transactionId,
+        feePaymentId: data.id,
+        mock: true,
+        eventType: 'verified',
+        amount: data.amount,
+        status: data.status,
+      }
     }
-  } catch {}
+    if (data.status === 'rejected') {
+      return {
+        transactionId: data.transaction_id ?? transactionId,
+        feePaymentId: data.id,
+        mock: true,
+        eventType: 'declined',
+        outcome: 'rejected',
+        reason: data.review_note ?? 'declined',
+        amount: data.amount,
+        status: data.status,
+      }
+    }
+    return {
+      transactionId: data.transaction_id ?? transactionId,
+      mock: true,
+      eventType: 'pending',
+      amount: data.amount,
+      status: data.status,
+    }
+  }
 
-  // Default: still pending (FeePaymentCheckout will retry 4 times then show pending/notConfirmed)
   return {
     transactionId,
     mock: true,
@@ -231,9 +251,8 @@ export async function settleFeePayment(transactionId: string): Promise<SettledFe
   };
 }
 
-export function isVerifiedFeePayment(result: SettledFeePayment | any): boolean {
-  if (!result) return false;
-  return result.eventType === 'verified' || result.status === 'verified';
+export function isVerifiedFeePayment(result: SettledFeePayment): boolean {
+  return result.eventType === 'verified' || result.status === 'verified'
 }
 
 // ===== Additional real backend exports (used by new code) =====
@@ -263,7 +282,10 @@ export interface FeePaymentSubmission {
   student_id: string;
   fee_record_id: string;
   amount: number;
-  hormuud_number: string;
+  currency: string;
+  method: 'hormuud_evc';
+  payer_number: string;
+  transaction_id: string | null;
   status: 'pending_verification' | 'verified' | 'rejected';
   evidence_path?: string;
   created_at: string;
